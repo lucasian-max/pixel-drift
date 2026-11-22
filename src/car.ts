@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import { loadSheet, SpriteStack, type StackDef } from './stack';
+import { DirectionalCar, loadSheet } from './stack';
 import type { World } from './world';
 
 const WHEELBASE = 1.75;
@@ -23,14 +23,12 @@ export class Car {
   drifting = false;
   onRoad = true;
   group = new THREE.Group();
-  model!: SpriteStack;
+  model!: DirectionalCar;
   driftScore = 0;
   private skidTimer = 0;
 
-  private def: StackDef = { layers: 17, sheetW: 28, sheetH: 53, worldW: 2.0, lift: 0.05 };
-
   async init(world: World) {
-    await this.setSkin('car-a');
+    await this.setSkin('car-dirs');
     this.x = world.start.x;
     this.z = world.start.z;
     this.heading = world.start.heading;
@@ -40,9 +38,7 @@ export class Car {
   async setSkin(file: string) {
     const sheet = await loadSheet(`/sprites/${file}.png`);
     if (this.model) this.group.remove(this.model);
-    this.model = new SpriteStack(sheet, this.def);
-    // the slice is drawn nose-up; this group's -Z is forward
-    this.model.position.y = 0.02;
+    this.model = new DirectionalCar(sheet, 32, 2.35, 43, 61);
     this.group.add(this.model);
   }
 
@@ -58,7 +54,7 @@ export class Car {
 
   private sync() {
     this.group.position.set(this.x, 0, this.z);
-    this.group.rotation.y = this.heading;
+    this.group.rotation.y = 0;   // the sprite carries the heading via its frame
   }
 
   update(dt: number, c: CarControls, world: World) {
@@ -125,15 +121,14 @@ export class Car {
     }
 
     this.sync();
-    // engine vibration + weight transfer: the stack leans back on throttle
+    // heading -> baked direction; the sheet's frame 0 points up (-Z)
+    const hx = -Math.sin(this.heading);
+    const hz = -Math.cos(this.heading);
+    const turn = Math.atan2(hz, hx) - Math.PI * 0.5;
+    const frame = Math.round((this.heading / (Math.PI * 2)) * this.model.dirs) + 16;
+    this.model.setFrame(frame);
     const t = performance.now() * 0.001;
-    this.model.position.y = 0.02 + Math.sin(t * 46) * 0.0016 * Math.min(1, Math.abs(vLong) / 8);
-    const wantPitch = THREE.MathUtils.clamp(-c.throttle * 0.028, -0.028, 0.028);
-    this.model.rotation.x += (wantPitch - this.model.rotation.x) * Math.min(1, dt * 5);
-    this.model.rotation.z = 0;
-    // body roll: lean into the corner, tiny squash on bumps
-    const roll = THREE.MathUtils.clamp(-yawRate * 0.03, -0.09, 0.09);
-    this.model.rotation.z += (roll - this.model.rotation.z) * Math.min(1, dt * 8);
+    this.model.position.y = Math.sin(t * 46) * 0.0016 * Math.min(1, Math.abs(vLong) / 8);
   }
 
   private collide(world: World) {

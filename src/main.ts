@@ -39,7 +39,7 @@ async function boot() {
   const camera = new THREE.OrthographicCamera(-1, 1, 1, -1, 0.1, 600);
   const PITCH = THREE.MathUtils.degToRad(50);
   const CAM_DIST = 140;
-  let viewHeight = 17;
+  let viewHeight = 14;
   let speedZoom = 1;
   let camYaw = 0;
   const focus = new THREE.Vector3(car.x, 0, car.z);
@@ -76,7 +76,6 @@ async function boot() {
     running = true;
     sound.start();
   };
-  car.setSkin('car-a');
 
   const gotoMap = (delta: number) => {
     const m = MAPS[(mapIndex + delta + MAPS.length) % MAPS.length];
