@@ -1,24 +1,16 @@
 # Sprite Drift
 
-A pixel-art racer where every car and prop is **sprite stacking**: a stack of
+A pixel-art racer built on **sprite stacking**: every car and prop is a stack of
 flat pixel slices drawn one pixel apart, so a 2D sprite turns like a 3D model.
 
-- Four hand-tuned circuits (Saltmarsh Coast, Redrock Canyon, Neon Docks, Frostbite Pass)
-- Real drift physics: grip, handbrake, slip angle, tyre smoke and skid marks
-- Nine cars, carved from four flat views — including a sofa, a pizza van and a hot dog
-- Renders at 360 lines and upscales with nearest-neighbour, so the world and HUD share one pixel grid
+![Sprite Drift](docs/title.png)
 
-## Run
+## Play
 
 ```bash
 npm install
 npm run dev      # http://127.0.0.1:5180
 ```
-
-`npm run assets` regenerates every sprite (`public/sprites/*.png`) and writes
-flattened previews to `preview/`.
-
-## Controls
 
 | Action | Keys |
 | --- | --- |
@@ -30,14 +22,41 @@ flattened previews to `preview/`.
 | Pause | P or Esc |
 | Mute | M |
 
+## Four circuits
+
+| | |
+| --- | --- |
+| **Saltmarsh Coast** — green, a lake, pines and palms | **Redrock Canyon** — sand, red kerbs, sparse pines |
+| ![coast](docs/coast.png) | ![canyon](docs/canyon.png) |
+| **Neon Docks** — dark, tight, yellow kerbs | **Frostbite Pass** — snow, blue kerbs, white pines |
+| ![night](docs/night.png) | ![alpine](docs/alpine.png) |
+
+Pick a circuit on the title screen with the arrows, or link straight to one:
+`?map=coast|canyon|night|alpine`.
+
+## The cars
+
+Ten machines, carved from four flat views each. The hero is a pearl-white GT
+with a twin racing stripe, a roof roundel, framed glass, mirrors, vented bonnet,
+a ducktail spoiler and chrome exhausts.
+
+![hero car](preview/hero-big.png)
+
+Others include a taxi, a police car, a pizza van, a pickup, a sofa and a hot dog.
+
 ## How the art works
 
 `scripts/gen-assets.mjs` authors each object as four orthographic views
-(top, side, front, back). A voxel exists only where all four agree; the top
-face takes the top view's colour and exposed side faces take the colour of the
-view they face. The volume is then emitted as a vertical atlas, one slice per
-pixel of height, which `src/stack.ts` draws as offset planes.
+(top, side, front, back). A voxel exists only where all four agree: the top face
+takes the top view's colour, and exposed side faces take the colour of the view
+they face. The volume is emitted as a vertical atlas — one slice per pixel of
+height — which `src/stack.ts` draws as offset planes with nearest-neighbour
+sampling.
 
-## Maps
+Everything renders at 360 lines and is upscaled, so the world, the cars and the
+HUD share one pixel grid.
 
-`?map=coast|canyon|night|alpine` — or pick one on the title screen.
+```bash
+npm run assets    # regenerate every sprite + flattened previews
+npm run build     # typecheck + production build
+```

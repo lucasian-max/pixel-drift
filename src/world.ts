@@ -91,7 +91,7 @@ export const MAPS: MapDef[] = [
       line: 'rgba(240,230,190,0.7)', kerbA: '#e0c05a', kerbB: '#b5432f',
     },
     lake: { x: 33, z: 34, rx: 9, rz: 7 },
-    trees: 'pine', density: 0.5, tint: '#5c7f86',
+    trees: 'pine', density: 0.5, tint: '#42604f',
   },
   {
     id: 'alpine', name: 'Frostbite Pass', roadHalf: 3.9,

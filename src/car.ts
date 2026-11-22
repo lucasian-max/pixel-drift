@@ -125,6 +125,11 @@ export class Car {
     }
 
     this.sync();
+    // engine vibration + weight transfer: the stack leans back on throttle
+    const t = performance.now() * 0.001;
+    this.model.position.y = 0.02 + Math.sin(t * 46) * 0.0016 * Math.min(1, Math.abs(vLong) / 8);
+    const wantPitch = THREE.MathUtils.clamp(-c.throttle * 0.028, -0.028, 0.028);
+    this.model.rotation.x += (wantPitch - this.model.rotation.x) * Math.min(1, dt * 5);
     this.model.rotation.z = 0;
     // body roll: lean into the corner, tiny squash on bumps
     const roll = THREE.MathUtils.clamp(-yawRate * 0.03, -0.09, 0.09);
