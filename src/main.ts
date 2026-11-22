@@ -3,7 +3,7 @@ import { buildWorld, MAPS } from './world';
 import { Car } from './car';
 import { Input } from './input';
 import { PixelUI } from './pixelui';
-import { loadSheet, shadowPatch, SpriteStack } from './stack';
+import { loadSheet, shadowPatch } from './stack';
 import type { StackDef } from './stack';
 import { Sound } from './sound';
 
@@ -12,11 +12,6 @@ const uiCanvas = document.getElementById('ui') as HTMLCanvasElement;
 const bootError = document.getElementById('boot-error') as HTMLDivElement;
 
 const BASE_HEIGHT = 360;
-const CAR_FILES = [
-  'car-hero', 'car-red', 'car-teal', 'car-hotrod', 'car-taxi', 'car-police',
-  'car-van', 'car-pickup', 'car-sofa', 'car-hotdog',
-];
-
 const CAR_DEF: StackDef = { layers: 28, sheetW: 48, sheetH: 76, worldW: 2.2, lift: 0.022 };
 
 async function boot() {
@@ -33,16 +28,6 @@ async function boot() {
   const mapIndex = Math.max(0, MAPS.findIndex((m) => m.id === mapId));
   const car = await new Car().init(world);
   scene.add(car.group);
-
-  // ---- skins ---------------------------------------------------------------
-  const skinCache = new Map<string, Promise<THREE.Texture>>();
-  const getSkin = (i: number) => {
-    const file = CAR_FILES[((i % CAR_FILES.length) + CAR_FILES.length) % CAR_FILES.length];
-    let p = skinCache.get(file);
-    if (!p) { p = loadSheet(`/sprites/${file}.png`); skinCache.set(file, p); }
-    return p;
-  };
-  const myCar = 0;
 
   const shadowTex = await loadSheet('/sprites/shadow.png');
   const carShadow = shadowPatch(shadowTex, [{ x: 0, z: 0, rot: 0, scale: 1 }], 2.7);
@@ -91,7 +76,7 @@ async function boot() {
     running = true;
     sound.start();
   };
-  car.setSkin(CAR_FILES[myCar]);
+  car.setSkin('car-hero');
 
   const gotoMap = (delta: number) => {
     const m = MAPS[(mapIndex + delta + MAPS.length) % MAPS.length];
@@ -204,10 +189,25 @@ async function boot() {
   // dev hook: fast-forward the autopilot so screenshots show a real driving state
   const fast = Number(params.get('fast') || 0);
   if (fast > 0) {
+    let ft = 0;
     for (let i = 0; i < fast * 120; i++) {
       nearest = nearestIndex(car.x, car.z);
       car.update(1 / 120, params.has('demo') ? autopilot() : { throttle: 1, steer: 0, handbrake: false }, world);
+      const at = nearestIndex(car.x, car.z);
+      let d = at - nearest;
+      if (d > track.length / 2) d -= track.length;
+      if (d < -track.length / 2) d += track.length;
+      progress += d / track.length;
+      nearest = at;
+      ft += 1 / 120;
+      if (progress >= 1) {
+        progress -= 1;
+        laps++;
+        console.log(`SIM lap ${laps}: ${ft.toFixed(2)}s best ${Math.min(bestTime || 1e9, ft).toFixed(2)}`);
+        ft = 0;
+      }
     }
+    lapTime = ft;
   }
 
   // ---- loop ----------------------------------------------------------------
@@ -262,6 +262,7 @@ async function boot() {
       lapTime = 0;
       progress -= 1;
       laps++;
+      console.log(`lap ${laps} ${lapTime.toFixed(2)}s`);
     }
     world.update();
 
