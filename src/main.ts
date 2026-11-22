@@ -12,7 +12,7 @@ const uiCanvas = document.getElementById('ui') as HTMLCanvasElement;
 const bootError = document.getElementById('boot-error') as HTMLDivElement;
 
 const BASE_HEIGHT = 360;
-const CAR_DEF: StackDef = { layers: 17, sheetW: 27, sheetH: 52, worldW: 1.9, lift: 0.026 };
+const CAR_DEF: StackDef = { layers: 17, sheetW: 28, sheetH: 53, worldW: 2.0, lift: 0.072 };
 
 async function boot() {
   const params = new URLSearchParams(location.search);
@@ -76,7 +76,7 @@ async function boot() {
     running = true;
     sound.start();
   };
-  car.setSkin('car-ai');
+  car.setSkin('car-a');
 
   const gotoMap = (delta: number) => {
     const m = MAPS[(mapIndex + delta + MAPS.length) % MAPS.length];
@@ -297,6 +297,8 @@ async function boot() {
     const cz = Math.cos(camYaw) * Math.cos(PITCH) * CAM_DIST;
     camera.position.set(focus.x + cx, Math.sin(PITCH) * CAM_DIST, focus.z + cz);
     camera.lookAt(focus.x, 0, focus.z);
+
+    car.model.quaternion.copy(camera.quaternion);
 
     shadowDummy.position.set(car.x + 0.22, 0.016, car.z + 0.26);
     shadowDummy.rotation.set(0, car.heading, 0);

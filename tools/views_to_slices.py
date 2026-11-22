@@ -94,7 +94,7 @@ def edge_colour(view, row, i):
     return None if len(xs) == 0 else view[row, min(max(i, xs[0]), xs[-1]), :3]
 
 
-def carve(top, side, front, back, shade=0.0):
+def carve(top, side, front, back, shade=0.0, flat=None):
     """top: (L, W). side: (H, L), column = y. front, back: (H, W). Row 0 of a side view is the top of the object.
     shade: how much darker the sides are than the tops, most at the ground (0 = no shading).
     Returns slices [z, y, x, rgba], z = 0 on the ground."""
@@ -134,6 +134,11 @@ def carve(top, side, front, back, shade=0.0):
                      else edge_colour(front, r, x))
                 if c is None:
                     c = top[y, x, :3]
+            if flat is not None and above[y, x] and depth[y, x] <= 2 and c is not None:
+                # keep tyres/glass dark, flatten the livery so the stack side
+                # reads as one body panel instead of repeating stripes
+                if int(c[0]) + int(c[1]) + int(c[2]) > 170:
+                    c = flat
             if above[y, x] and depth[y, x] <= 2 and shade:           # a side face: darker, more so near the ground
                 c = (np.asarray(c, float) * (1 - shade * (1 - z / max(H - 1, 1)) - shade * 0.4)).clip(0, 255)
             vol[z, y, x] = (*np.asarray(c, np.uint8), 255)
@@ -148,7 +153,7 @@ def match_top(top, side):
     return "down" if (dark * tall).sum() >= (dark[::-1] * tall).sum() else "up"
 
 
-def views_to_slices(sheet, top_nose="auto", side_nose="left", colours=24, shade=0.0):
+def views_to_slices(sheet, top_nose="auto", side_nose="left", colours=24, shade=0.0, flat=None):
     top, side, front, back = one_palette([strip_outline(v) for v in find_views(sheet)], colours)
     if side_nose == "left":
         side = side[:, ::-1]                                         # now column = y, front at the end
@@ -158,7 +163,7 @@ def views_to_slices(sheet, top_nose="auto", side_nose="left", colours=24, shade=
         top = top[::-1]
     L, W = top.shape[:2]
     H = round(side.shape[0] * L / side.shape[1])                     # height in px at the top view's scale
-    return carve(top, fit(side, L, H), fit(front, W, H), fit(back, W, H), shade)
+    return carve(top, fit(side, L, H), fit(front, W, H), fit(back, W, H), shade, flat)
 
 
 def main():
@@ -169,9 +174,13 @@ def main():
     p.add_argument("--side-nose", choices=["left", "right"], default="left")
     p.add_argument("--colours", type=int, default=24)
     p.add_argument("--shade", type=float, default=0.0, help="darken the sides, 0.25 is a good start")
+    p.add_argument("--flat", default=None, help="flatten the side livery to this #rrggbb")
     a = p.parse_args()
     sheet = np.array(Image.open(a.sheet).convert("RGBA"))
-    vol = views_to_slices(sheet, a.top_nose, a.side_nose, a.colours, a.shade)
+    flat = None
+    if a.flat:
+        flat = np.array([int(a.flat[i:i + 2], 16) for i in (1, 3, 5)], np.float32)
+    vol = views_to_slices(sheet, a.top_nose, a.side_nose, a.colours, a.shade, flat)
     Image.fromarray(np.concatenate(list(vol), axis=1)).save(a.out)
     print(f"{len(vol)} slices of {vol.shape[2]} x {vol.shape[1]} px -> {a.out}")
 

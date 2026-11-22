@@ -27,10 +27,10 @@ export class Car {
   driftScore = 0;
   private skidTimer = 0;
 
-  private def: StackDef = { layers: 17, sheetW: 27, sheetH: 52, worldW: 1.9, lift: 0.026 };
+  private def: StackDef = { layers: 17, sheetW: 28, sheetH: 53, worldW: 2.0, lift: 0.05 };
 
   async init(world: World) {
-    await this.setSkin('car-ai');
+    await this.setSkin('car-a');
     this.x = world.start.x;
     this.z = world.start.z;
     this.heading = world.start.heading;

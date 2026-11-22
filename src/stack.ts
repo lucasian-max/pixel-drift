@@ -145,3 +145,28 @@ export function shadowPatch(sheet: THREE.Texture, placements: Placement[], size 
   mesh.instanceMatrix.needsUpdate = true;
   return mesh;
 }
+
+/** A stack baked into N pre-rendered directions: one quad, no per-frame stacking. */
+export class DirectionalCar extends THREE.Mesh {
+  readonly dirs: number;
+  private tex: THREE.Texture;
+
+  constructor(tex: THREE.Texture, dirs: number, worldWidth: number, frameW: number, frameH: number) {
+    tex.repeat.set(1 / dirs, 1);
+    tex.offset.set(0, 0);
+    const geo = new THREE.PlaneGeometry(1, 1);
+    geo.translate(0, 0.5, 0);          // pivot at the ground
+    super(geo, new THREE.MeshBasicMaterial({
+      map: tex, alphaTest: 0.5, side: THREE.DoubleSide, toneMapped: false,
+    }));
+    this.dirs = dirs;
+    this.tex = tex;
+    this.scale.set(worldWidth, (worldWidth * frameH) / frameW, 1);
+    this.frustumCulled = false;
+  }
+
+  setFrame(i: number) {
+    const n = ((i % this.dirs) + this.dirs) % this.dirs;
+    this.tex.offset.x = n / this.dirs;
+  }
+}
