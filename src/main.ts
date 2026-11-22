@@ -13,11 +13,11 @@ const bootError = document.getElementById('boot-error') as HTMLDivElement;
 
 const BASE_HEIGHT = 360;
 const CAR_FILES = [
-  'car-red', 'car-teal', 'car-hotrod', 'car-taxi', 'car-police',
+  'car-hero', 'car-red', 'car-teal', 'car-hotrod', 'car-taxi', 'car-police',
   'car-van', 'car-pickup', 'car-sofa', 'car-hotdog',
 ];
 
-const CAR_DEF: StackDef = { layers: 17, sheetW: 32, sheetH: 52, worldW: 2.0, lift: 0.028 };
+const CAR_DEF: StackDef = { layers: 28, sheetW: 48, sheetH: 76, worldW: 2.2, lift: 0.022 };
 
 async function boot() {
   const params = new URLSearchParams(location.search);
@@ -42,28 +42,31 @@ async function boot() {
     if (!p) { p = loadSheet(`/sprites/${file}.png`); skinCache.set(file, p); }
     return p;
   };
-  const myCar = Math.floor(Math.random() * CAR_FILES.length);
+  const myCar = 0;
 
   const shadowTex = await loadSheet('/sprites/shadow.png');
-  const carShadow = shadowPatch(shadowTex, [{ x: 0, z: 0, rot: 0, scale: 1 }], 3.1);
+  const carShadow = shadowPatch(shadowTex, [{ x: 0, z: 0, rot: 0, scale: 1 }], 2.7);
+  (carShadow.material as THREE.MeshBasicMaterial).opacity = 0.5;
   scene.add(carShadow);
   const shadowDummy = new THREE.Object3D();
 
   // ---- camera ---------------------------------------------------------------
   const camera = new THREE.OrthographicCamera(-1, 1, 1, -1, 0.1, 600);
-  const PITCH = THREE.MathUtils.degToRad(53);
+  const PITCH = THREE.MathUtils.degToRad(50);
   const CAM_DIST = 140;
-  let viewHeight = 19;
+  let viewHeight = 17;
+  let speedZoom = 1;
   let camYaw = 0;
   const focus = new THREE.Vector3(car.x, 0, car.z);
   const desired = new THREE.Vector3();
 
   function layout() {
     const aspect = innerWidth / Math.max(1, innerHeight);
-    camera.left = (-viewHeight * aspect) / 2;
-    camera.right = (viewHeight * aspect) / 2;
-    camera.top = viewHeight / 2;
-    camera.bottom = -viewHeight / 2;
+    const h = viewHeight * speedZoom;
+    camera.left = (-h * aspect) / 2;
+    camera.right = (h * aspect) / 2;
+    camera.top = h / 2;
+    camera.bottom = -h / 2;
     camera.updateProjectionMatrix();
   }
   function resize() {
@@ -184,7 +187,8 @@ async function boot() {
 
   const autopilot = () => {
     const n = track.length;
-    const target = track[(nearest + 34) % n];
+    const ahead = 24 + Math.round(Math.abs(car.speed) * 1.5);
+    const target = track[(nearest + ahead) % n];
     const dx = target.x - car.x, dz = target.z - car.z;
     const want = Math.atan2(-dx, -dz);
     let err = want - car.heading;
@@ -196,6 +200,15 @@ async function boot() {
       handbrake: Math.abs(err) > 0.85 && Math.abs(car.speed) > 14,
     };
   };
+
+  // dev hook: fast-forward the autopilot so screenshots show a real driving state
+  const fast = Number(params.get('fast') || 0);
+  if (fast > 0) {
+    for (let i = 0; i < fast * 120; i++) {
+      nearest = nearestIndex(car.x, car.z);
+      car.update(1 / 120, params.has('demo') ? autopilot() : { throttle: 1, steer: 0, handbrake: false }, world);
+    }
+  }
 
   // ---- loop ----------------------------------------------------------------
   let last = performance.now() / 1000;
@@ -273,6 +286,10 @@ async function boot() {
       (p.sprite.material as THREE.SpriteMaterial).opacity = Math.max(0, (p.life / p.max) * 0.5);
     }
 
+    const wantZoom = 1 + Math.min(0.14, Math.abs(car.speed) * 0.0048);
+    speedZoom += (wantZoom - speedZoom) * (1 - Math.exp(-dt * 2.5));
+    layout();
+
     desired.set(car.x + car.vx * 0.3, 0, car.z + car.vz * 0.3);
     focus.lerp(desired, 1 - Math.exp(-dt * 7));
     const cx = Math.sin(camYaw) * Math.cos(PITCH) * CAM_DIST;
@@ -280,7 +297,7 @@ async function boot() {
     camera.position.set(focus.x + cx, Math.sin(PITCH) * CAM_DIST, focus.z + cz);
     camera.lookAt(focus.x, 0, focus.z);
 
-    shadowDummy.position.set(car.x, 0.016, car.z);
+    shadowDummy.position.set(car.x + 0.22, 0.016, car.z + 0.26);
     shadowDummy.rotation.set(0, car.heading, 0);
     shadowDummy.scale.set(1, 1, 1.3);
     shadowDummy.updateMatrix();

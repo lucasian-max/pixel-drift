@@ -242,7 +242,11 @@ function carAtlas(spec) {
   };
 
   const cabZ0 = CABIN[0][0], cabZ1 = CABIN[CABIN.length - 1][0];
-  const cabMid = (cabZ0 + cabZ1) / 2;
+  // the tables start/end with zero-width anchors, so the *real* glazed cabin
+  // runs between the first/last positive-width entries
+  const cabLo = CABIN.find(([z, w]) => w > 0)[0];
+  const cabHi = [...CABIN].reverse().find(([z, w]) => w > 0)[0];
+  const cabMid = (cabLo + cabHi) / 2;
   const wheelAt = [[18.3, 6.1], [57.7, 6.1]];
   const wheelDepth = (y) => Math.min(...wheelAt.map(([cy, r]) => Math.abs(y - cy) - r));
   const roofAt = (y) => tbl(ROOF, y);
@@ -314,12 +318,12 @@ function carAtlas(spec) {
 
     const cabHW = tbl(CABIN, y);
     if (y > cabZ0 && y < cabZ1 && dx <= cabHW) {
-      const front = clamp((y - cabZ0) / 5.0, 0, 1);
-      const rear = clamp((cabZ1 - y) / 4.7, 0, 1);
+      const front = clamp((y - cabLo) / 5.0, 0, 1);
+      const rear = clamp((cabHi - y) / 4.7, 0, 1);
       const ramp = Math.min(front, rear);
       const boxy = spec.shape === 'box' || spec.shape === 'van' || spec.shape === 'pickup';
       const roofW = boxy ? cabHW - 1.5 : isSofa ? 6.3 : 7.8;
-      const roofZone = boxy ? (y > cabZ0 + 3 && y < cabZ1 - 3) : (y > cabZ0 + 5.9 && y < cabZ1 - 5.9 && ramp > 0.95);
+      const roofZone = boxy ? (y > cabLo + 3 && y < cabHi - 3) : (y > cabLo + 5.9 && y < cabHi - 5.9 && ramp > 0.95);
       if (dx < roofW && roofZone) {
         let c = mix(paint, paintDk, 0.08);
         if (spec.livery === 'stripe' && dx < 1.5) c = mix(c, stripe, 0.8);
@@ -401,11 +405,13 @@ function carAtlas(spec) {
   // the hero's roof: racing roundel with a number, twin stripes around it
   const heroRoof = (x, y, dx, c) => {
     const d = Math.hypot(x - C, (y - cabMid) * 1.05);
-    if (d < 5.0) {
-      if (d > 4.0) return heroTrim;                 // roundel ring
-      const col = clamp(Math.round((x - C) / 1.35) + 1, 0, 2);
-      const row = clamp(Math.round((y - cabMid) / 1.15) + 2, 0, 4);
-      return DIGIT[row][col] === '1' ? heroRed : heroWhite;
+    if (d < 6.2) {
+      if (d > 5.2) return heroTrim;                 // roundel rim
+      if (d > 4.4) return heroWhite;                // white ring
+      // bold number block: a white tick inside the red disc stays legible at
+      // any rotation, where a small glyph would turn to mush
+      if (Math.abs(y - cabMid) < 1.3 && Math.abs(x - C) < 2.6) return heroWhite;
+      return heroRed;
     }
     if (dx > 1.3 && dx < 3.4) return heroRed;       // stripes run over the roof
     return c;
@@ -427,7 +433,7 @@ function carAtlas(spec) {
     if (h > roof) return null;
     if (h <= 0.9) return dark;
 
-    if (y > cabZ0 + 3 && y < cabZ1 - 3
+    if (y > cabLo + 3 && y < cabHi - 3
       && h > roof - (spec.shape === 'van' ? 6.8 : isSofa ? 5.3 : 6.8)) {
       if (h > roof - 1.7) return mix(paintDk, paint, 0.5);
       return mix(glass, glassLt, clamp((h - (roof - 6.8)) / 6.6, 0, 1));
@@ -439,25 +445,21 @@ function carAtlas(spec) {
     if (spec.livery === 'checker' && h > 4.7 && h < 9.3 && y > cabZ0 && y < cabZ1
       && (Math.floor(y / 3) + Math.floor(h / 3)) % 2 === 0) c = mix(c, dark, 0.75);
     if (spec.livery === 'bed' && y > 45.4 && h < 12.4) c = mix(c, mix(dark, paintDk, 0.4), 0.8);
-    if (isHero) {
-      if (y < 4.2) c = mix(c, heroTrim, 0.85);
-      if (y > 69.8) c = mix(c, heroTrim, 0.85);
-      // red side-skirt stripe below the door line
-      if (h > 4.6 && h < 7.2 && y > 7 && y < 68 && wheelDepth(y) > 1.6) c = mix(c, heroRed, 0.9);
-      // door roundel
-      const dR = Math.hypot(y - 43, h - 11.6);
-      if (dR < 4.7) {
-        if (dR > 3.7) c = heroTrim;
-        else {
-          const col = clamp(Math.round((y - 43) / 1.35) + 1, 0, 2);
-          const row = clamp(2 - Math.round((h - 11.6) / 1.15), 0, 4);
-          c = DIGIT[row][col] === '1' ? heroRed : heroWhite;
-        }
-      }
-    }
     if (!isSofa && !isDog && !isHero) {
       if (y < 3.5) c = h > 4.7 ? cream : mix(c, dark, 0.5);
       if (y > 72.2) c = h > 5.4 ? mix(paintDeep, dark, 0.5) : mix(c, dark, 0.5);
+    }
+    if (isHero) {
+      // only the nose/tail cliff faces take side colours; low-door paint is
+      // always hidden under upper layers in a sprite-stack render
+      if (y < 3.5) {
+        if (h > 7.4 && h < 10.2) c = mix(cream, hex('#ffffff'), 0.55); // light bar
+        else if (h > 3.7) c = mix(c, heroTrim, 0.8);                  // graphite bumper
+      }
+      if (y > 72.2) {
+        if (h > 6.8 && h < 10.2) c = red;                             // tail light bar
+        else if (h > 3.2) c = mix(c, heroTrim, 0.8);                  // graphite diffuser band
+      }
     }
     if (isDog && h > roof - 3.6 && y > 14.6 && y < 61.4) c = sausage;
     return c;
@@ -547,7 +549,10 @@ function carAtlas(spec) {
       const top = Math.min(H - 1, base + Math.ceil(EXTRA.rise));
       for (let x = 0; x < W; x++) {
         if (!inExtraX(x, y)) continue;
+        const dx = Math.abs(x - C);
         for (let z = base + 1; z <= top; z++) {
+          // a spoiler on stalks: only the stalk columns fill the gap
+          if (EXTRA.gap && z - base <= EXTRA.gap && Math.abs(dx - EXTRA.stalkDx) > 1.9) continue;
           occ[at(z, y, x)] = 1;
           const c = extraColor(x, y);
           const shade = z === top ? 1.0 : 0.72 + 0.16 * (z / H);
@@ -784,7 +789,7 @@ function shadowPng(size = 64) {
 fs.mkdirSync(OUT, { recursive: true });
 console.log('generating sprite stacks…');
 
-for (const spec of CAR_SPECS) stack(32, 52, 17, carAtlas(spec), `${spec.file}.png`);
+for (const spec of CAR_SPECS) stack(48, 76, 28, carAtlas(spec), `${spec.file}.png`);
 stack(40, 40, 18, pineAtlas(), 'pine.png');
 stack(40, 40, 18, palmAtlas(), 'palm.png');
 stack(28, 28, 10, rockAtlas(), 'rock.png');

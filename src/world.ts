@@ -50,8 +50,9 @@ export interface MapDef {
 export const MAPS: MapDef[] = [
   {
     id: 'coast', name: 'Saltmarsh Coast', roadHalf: 4.4,
-    ctrl: [[0, -34], [16, -32], [30, -22], [34, -4], [26, 10], [30, 24],
-      [18, 34], [0, 34], [-14, 28], [-24, 16], [-30, 2], [-26, -14], [-16, -26]],
+    ctrl: [[32.7, 0], [29, 13.9], [16.1, 20.2], [5, 22], [-6.1, 26.9], [-21.7, 27.2],
+      [-31.1, 15], [-27.6, 0], [-21.4, -10.3], [-17, -21.3], [-7, -30.7],
+      [6.7, -29.5], [16.8, -21.1], [25.6, -12.3]],
     palette: {
       grass: '#4f7c46', tones: ['#5b8c4e', '#3d6636', '#6fa05d', '#33582f', '#7fb367'],
       bladeA: '#8cc274', bladeB: '#356031',
@@ -59,13 +60,14 @@ export const MAPS: MapDef[] = [
       shoulder: '#6b6350', asphalt: '#43434b', grainA: '#6a6a76', grainB: '#2b2b33',
       line: 'rgba(232,226,206,0.85)', kerbA: '#d8d2bc', kerbB: '#c8463c',
     },
-    lake: { x: 30, z: -36, rx: 15, rz: 11 },
+    lake: { x: 34, z: -37, rx: 11, rz: 8 },
     trees: 'mixed', density: 1,
   },
   {
-    id: 'canyon', name: 'Redrock Canyon', roadHalf: 4.8,
-    ctrl: [[0, -36], [22, -34], [34, -20], [32, -2], [20, 8], [28, 22],
-      [18, 34], [0, 36], [-16, 30], [-26, 18], [-34, 4], [-28, -12], [-16, -26]],
+    id: 'canyon', name: 'Redrock Canyon', roadHalf: 4.4,
+    ctrl: [[37.9, 0], [30.1, 14.5], [17, 21.3], [5.7, 24.9], [-6.3, 27.8], [-19.9, 25],
+      [-30.3, 14.6], [-34, 0], [-30.4, -14.6], [-19.5, -24.4], [-6, -26.3],
+      [5.6, -24.5], [18.1, -22.7], [32.1, -15.4]],
     palette: {
       grass: '#c9a86a', tones: ['#d4b476', '#b8955a', '#dcc086', '#a88450', '#e2cb95'],
       bladeA: '#e8d29b', bladeB: '#96754a',
@@ -73,13 +75,14 @@ export const MAPS: MapDef[] = [
       shoulder: '#8d7348', asphalt: '#4a4740', grainA: '#6d6a5f', grainB: '#2f2d29',
       line: 'rgba(238,228,200,0.8)', kerbA: '#e6ddc4', kerbB: '#b5432f',
     },
-    lake: { x: -30, z: 30, rx: 11, rz: 8 },
+    lake: { x: -35, z: 31, rx: 9, rz: 7 },
     trees: 'pine', density: 0.55, tint: '#f0d9b0',
   },
   {
-    id: 'night', name: 'Neon Docks', roadHalf: 4.0,
-    ctrl: [[0, -34], [20, -32], [30, -20], [24, -4], [32, 8], [26, 22],
-      [12, 30], [-4, 30], [-16, 22], [-22, 10], [-34, 6], [-32, -10], [-18, -26]],
+    id: 'night', name: 'Neon Docks', roadHalf: 3.8,
+    ctrl: [[28.3, 0], [19.1, 9.2], [14.6, 18.3], [6.7, 29.3], [-6.4, 27.9], [-16.7, 21],
+      [-27.5, 13.3], [-28.3, 0], [-19.1, -9.2], [-14.6, -18.3], [-6.7, -29.3],
+      [6.4, -27.9], [16.7, -21], [27.5, -13.3]],
     palette: {
       grass: '#243a34', tones: ['#2b463c', '#1c2f2a', '#33524a', '#16241f', '#3d5f52'],
       bladeA: '#4b7a68', bladeB: '#12201c',
@@ -87,13 +90,14 @@ export const MAPS: MapDef[] = [
       shoulder: '#232a2c', asphalt: '#2b2b33', grainA: '#454552', grainB: '#1b1b21',
       line: 'rgba(240,230,190,0.7)', kerbA: '#e0c05a', kerbB: '#b5432f',
     },
-    lake: { x: 28, z: 32, rx: 12, rz: 9 },
+    lake: { x: 33, z: 34, rx: 9, rz: 7 },
     trees: 'pine', density: 0.5, tint: '#5c7f86',
   },
   {
-    id: 'alpine', name: 'Frostbite Pass', roadHalf: 4.2,
-    ctrl: [[0, -34], [20, -30], [32, -18], [30, 0], [20, 10], [26, 22],
-      [14, 32], [-4, 34], [-18, 26], [-26, 14], [-34, 0], [-26, -14], [-12, -26]],
+    id: 'alpine', name: 'Frostbite Pass', roadHalf: 3.9,
+    ctrl: [[33, 0], [24.1, 11.6], [16.3, 20.4], [6.7, 29.5], [-7.1, 31.1], [-18.2, 22.8],
+      [-25.3, 12.2], [-31.8, 0], [-31.2, -15], [-19.2, -24.1], [-5.5, -23.9],
+      [5.5, -24], [19.8, -24.8], [32.9, -15.8]],
     palette: {
       grass: '#dfe6ea', tones: ['#eef3f6', '#c9d5dc', '#f7fafc', '#b6c6d0', '#ffffff'],
       bladeA: '#ffffff', bladeB: '#a9bcc8',
@@ -101,7 +105,7 @@ export const MAPS: MapDef[] = [
       shoulder: '#93a2ab', asphalt: '#4a4f57', grainA: '#737a84', grainB: '#2f333a',
       line: 'rgba(250,252,255,0.85)', kerbA: '#f2f6f8', kerbB: '#3f6fb0',
     },
-    lake: { x: -28, z: -30, rx: 13, rz: 10 },
+    lake: { x: -34, z: -34, rx: 9, rz: 7 },
     trees: 'pine', density: 1.15, tint: '#eef4f8',
   },
 ];

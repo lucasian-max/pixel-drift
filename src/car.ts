@@ -3,7 +3,7 @@ import { loadSheet, SpriteStack, type StackDef } from './stack';
 import type { World } from './world';
 
 const WHEELBASE = 1.75;
-const MAX_STEER = 0.6;
+const MAX_STEER = 0.64;
 
 export interface CarControls {
   throttle: number;   // -1 … 1
@@ -27,7 +27,7 @@ export class Car {
   driftScore = 0;
   private skidTimer = 0;
 
-  private def: StackDef = { layers: 17, sheetW: 32, sheetH: 52, worldW: 2.0, lift: 0.028 };
+  private def: StackDef = { layers: 28, sheetW: 48, sheetH: 76, worldW: 2.2, lift: 0.022 };
 
   async init(world: World) {
     await this.setSkin('car-red');
@@ -85,7 +85,8 @@ export class Car {
     vLong = THREE.MathUtils.clamp(vLong, -10, 32);
 
     // steering: less lock at speed, smooth into it
-    const lock = MAX_STEER * (0.45 + 0.55 * Math.min(1, Math.abs(vLong) / 12));
+    // less lock the faster you go: full lock at a crawl, ~18deg at top speed
+    const lock = MAX_STEER * (1 - 0.68 * Math.min(1, Math.abs(vLong) / 24));
     const target = c.steer * lock;
     this.steerAngle += (target - this.steerAngle) * Math.min(1, dt * 9);
 
@@ -147,7 +148,7 @@ export class Car {
         }
       }
     }
-    const edge = 40.5;
+    const edge = 44;
     if (Math.abs(this.x) > edge) { this.x = Math.sign(this.x) * edge; this.vx *= -0.3; }
     if (Math.abs(this.z) > edge) { this.z = Math.sign(this.z) * edge; this.vz *= -0.3; }
   }
