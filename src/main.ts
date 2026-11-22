@@ -12,7 +12,7 @@ const uiCanvas = document.getElementById('ui') as HTMLCanvasElement;
 const bootError = document.getElementById('boot-error') as HTMLDivElement;
 
 const BASE_HEIGHT = 360;
-const CAR_DEF: StackDef = { layers: 28, sheetW: 48, sheetH: 76, worldW: 2.2, lift: 0.022 };
+const CAR_DEF: StackDef = { layers: 17, sheetW: 27, sheetH: 52, worldW: 1.9, lift: 0.026 };
 
 async function boot() {
   const params = new URLSearchParams(location.search);
@@ -76,7 +76,7 @@ async function boot() {
     running = true;
     sound.start();
   };
-  car.setSkin('car-hero');
+  car.setSkin('car-ai');
 
   const gotoMap = (delta: number) => {
     const m = MAPS[(mapIndex + delta + MAPS.length) % MAPS.length];

@@ -179,7 +179,7 @@ const CAR_SHAPES = {
 
 const CAR_SPECS = [
   { file: 'car-hero', shape: 'sport', livery: 'hero', extra: 'spoiler',
-    paint: { body: '#eae6db', light: '#fffdf4', dark: '#8b877c' } },
+    paint: { body: '#26408f', light: '#4d6dd6', dark: '#131f4a' } },
   { file: 'car-red', shape: 'sport', livery: 'stripe', extra: 'lip',
     paint: { body: '#d93b34', light: '#ff6f5f', dark: '#8a1d1a' } },
   { file: 'car-teal', shape: 'sport', livery: 'twin', extra: 'lip',
@@ -431,16 +431,14 @@ function carAtlas(spec) {
       return h < 1.6 ? mix(tyre, dark, 0.6) : band ? mix(tyre, hex('#3a3a44'), 0.5) : tyre;
     }
     if (h > roof) return null;
-    if (h <= 0.9) return dark;
+    if (h <= 0.9) return mix(dark, paintDk, 0.35);
 
     if (y > cabLo + 3 && y < cabHi - 3
       && h > roof - (spec.shape === 'van' ? 6.8 : isSofa ? 5.3 : 6.8)) {
       if (h > roof - 1.7) return mix(paintDk, paint, 0.5);
       return mix(glass, glassLt, clamp((h - (roof - 6.8)) / 6.6, 0, 1));
     }
-    let c = mix(paintDk, paint, clamp(h / Math.max(roof, 1), 0, 1) * 0.7);
-    if (h > roof - 1.5) c = mix(c, paintLt, 0.35);
-    if (h < 3.4) c = mix(c, paintDeep, 0.4);
+    let c = mix(paintDk, paint, 0.62);
     if (spec.livery === 'police' && h > 6.2 && h < 12.4 && y > cabZ0 && y < cabZ1) c = mix(c, hex('#e9e6da'), 0.85);
     if (spec.livery === 'checker' && h > 4.7 && h < 9.3 && y > cabZ0 && y < cabZ1
       && (Math.floor(y / 3) + Math.floor(h / 3)) % 2 === 0) c = mix(c, dark, 0.75);
@@ -474,8 +472,8 @@ function carAtlas(spec) {
     if (h > glassLine && dx < 9.6 && !isSofa && !isDog) {
       return mix(glass, glassLt, clamp((h - glassLine) / 8.4, 0, 1));
     }
-    let c = mix(paintDk, paint, clamp(h / 20.3, 0, 1) * 0.8);
-    if (h < 3.1) c = mix(c, paintDeep, 0.45);
+    let c = mix(paintDk, paint, 0.4 + clamp(h / 20.3, 0, 1) * 0.45);
+    if (h < 3.1) c = mix(c, paintDeep, 0.18);
     if (h > 3.7 && h < 6.2 && dx < hw - 1.2) c = mix(dark, c, 0.25);
     if (!back && !isDog && !isSofa && h > 6.8 && h < 10.3 && dx > 3.9 && dx < 8.4) c = cream;
     if (back && h > 6.8 && h < 10.3 && dx > 3.0 && dx < 9.0) c = red;
@@ -537,7 +535,7 @@ function carAtlas(spec) {
           const above = vox[at(z + 1, y, x)];
           c = above ? mul(above, 0.94) : mix(paintDk, paint, 0.4);
         }
-        vox[at(z, y, x)] = mul(c, 0.46 + 0.34 * (z / H));
+        vox[at(z, y, x)] = mul(c, 0.78 + 0.16 * (z / H));
       }
     }
   }
