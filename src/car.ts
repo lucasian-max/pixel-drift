@@ -38,7 +38,7 @@ export class Car {
   async setSkin(file: string) {
     const sheet = await loadSheet(`/sprites/${file}.png`);
     if (this.model) this.group.remove(this.model);
-    this.model = new DirectionalCar(sheet, 32, 3.0, 43, 61);
+    this.model = new DirectionalCar(sheet, 8, 3.4, 65, 56);
     this.group.add(this.model);
   }
 
@@ -122,10 +122,8 @@ export class Car {
 
     this.sync();
     // heading -> baked direction; the sheet's frame 0 points up (-Z)
-    const hx = -Math.sin(this.heading);
-    const hz = -Math.cos(this.heading);
-    const turn = Math.atan2(hz, hx) - Math.PI * 0.5;
-    const frame = Math.round((this.heading / (Math.PI * 2)) * this.model.dirs) + 16;
+    // drawn turntable: frame 0 faces the camera, so driving away is +180deg
+    const frame = Math.round(((this.heading + Math.PI) / (Math.PI * 2)) * this.model.dirs);
     this.model.setFrame(frame);
     const t = performance.now() * 0.001;
     this.model.position.y = Math.sin(t * 46) * 0.0016 * Math.min(1, Math.abs(vLong) / 8);

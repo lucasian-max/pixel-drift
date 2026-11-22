@@ -29,7 +29,7 @@ def main():
 
     fw = int(math.ceil(w * 1.45)) + 2
     fh = int(math.ceil(h * a.squash)) + a.slices + 4
-    cx, cy = fw // 2, fh - a.slices - 2
+    cx, cy = fw // 2, fh - 2
 
     out = Image.new("RGBA", (fw * a.dirs, fh), (0, 0, 0, 0))
     for d in range(a.dirs):
@@ -39,7 +39,7 @@ def main():
             piece = sl[z].rotate(turn, resample=Image.NEAREST, expand=True)
             sq = piece.resize((piece.width, max(1, int(round(piece.height * a.squash)))), Image.NEAREST)
             x = cx - sq.width // 2
-            y = cy + sq.height // 2 - z - sq.height + 1
+            y = cy - z - sq.height
             frame.alpha_composite(sq, (x, y))
         out.paste(frame, (d * fw, 0))
 
