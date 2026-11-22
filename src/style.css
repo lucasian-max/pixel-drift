@@ -36,6 +36,7 @@ html, body {
 
 #ui {
   pointer-events: none;
+  z-index: 3;
 }
 
 #grade {
