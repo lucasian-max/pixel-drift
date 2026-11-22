@@ -13,16 +13,28 @@ export interface StackDef {
 
 const loader = new THREE.TextureLoader();
 
-export function loadSheet(url: string): Promise<THREE.Texture> {
+// bump when sprites change so edge caches never serve a stale 404
+const ASSET_V = 'v6';
+
+/** Load a sheet, retrying transient tunnel/proxy drops with a fresh cache key. */
+export function loadSheet(url: string, attempt = 0): Promise<THREE.Texture> {
+  const sep = url.includes('?') ? '&' : '?';
+  const bust = `${sep}${ASSET_V}${attempt ? `r${attempt}` : ''}`;
   return new Promise((res, rej) => {
-    loader.load(url, (t) => {
+    loader.load(url + bust, (t) => {
       t.magFilter = THREE.NearestFilter;
       t.minFilter = THREE.NearestFilter;
       t.generateMipmaps = false;
       t.colorSpace = THREE.SRGBColorSpace;
       t.wrapS = t.wrapT = THREE.ClampToEdgeWrapping;
       res(t);
-    }, undefined, rej);
+    }, undefined, () => {
+      if (attempt < 4) {
+        setTimeout(() => loadSheet(url, attempt + 1).then(res, rej), 120 * (attempt + 1));
+      } else {
+        rej(new Error(`sprite failed after retries: ${url}`));
+      }
+    });
   });
 }
 
