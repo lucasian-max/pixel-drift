@@ -38,7 +38,7 @@ export class Car {
   async setSkin(file: string) {
     const sheet = await loadSheet(`/sprites/${file}.png`);
     if (this.model) this.group.remove(this.model);
-    this.model = new DirectionalCar(sheet, 32, 2.35, 43, 61);
+    this.model = new DirectionalCar(sheet, 32, 3.0, 43, 61);
     this.group.add(this.model);
   }
 
