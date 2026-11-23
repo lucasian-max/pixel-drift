@@ -571,6 +571,48 @@ export async function buildWorld(scene: THREE.Scene, mapId?: string): Promise<Wo
   const s0 = track[si], s1 = track[(si + 12) % track.length];
   const start = { x: s0.x, z: s0.z, heading: Math.atan2(-(s1.x - s0.x), -(s1.z - s0.z)) };
 
+  // ---- start gantry over the line
+  {
+    const g = new THREE.Group();
+    const post = new THREE.BoxGeometry(0.32, 4.4, 0.32);
+    const dark = new THREE.MeshBasicMaterial({ color: 0x1b1d22, toneMapped: false });
+    for (const side of [-1, 1]) {
+      const p = new THREE.Mesh(post, dark);
+      p.position.set(side * (ROAD_HALF + 1.4), 2.2, 0);
+      g.add(p);
+    }
+    const beam = new THREE.Mesh(
+      new THREE.BoxGeometry((ROAD_HALF + 1.4) * 2 + 0.4, 0.7, 0.5),
+      new THREE.MeshBasicMaterial({ color: 0x24262c, toneMapped: false }),
+    );
+    beam.position.set(0, 4.5, 0);
+    g.add(beam);
+
+    // banner: checkered strip with a pale band
+    const cv = document.createElement('canvas');
+    cv.width = 256; cv.height = 64;
+    const c2 = cv.getContext('2d')!;
+    c2.fillStyle = '#f2eee1'; c2.fillRect(0, 0, 256, 64);
+    for (let i = 0; i < 16; i++) for (let j = 0; j < 2; j++) {
+      if ((i + j) % 2 === 0) { c2.fillStyle = '#23262b'; c2.fillRect(i * 16, j * 16, 16, 16); }
+      if ((i + j) % 2 === 0) { c2.fillStyle = '#23262b'; c2.fillRect(i * 16, 32 + j * 16, 16, 16); }
+    }
+    const tex = new THREE.CanvasTexture(cv);
+    tex.magFilter = THREE.NearestFilter;
+    tex.minFilter = THREE.NearestFilter;
+    tex.colorSpace = THREE.SRGBColorSpace;
+    const banner = new THREE.Mesh(
+      new THREE.PlaneGeometry((ROAD_HALF + 1.4) * 2, 1.1),
+      new THREE.MeshBasicMaterial({ map: tex, side: THREE.DoubleSide, toneMapped: false }),
+    );
+    banner.position.set(0, 3.75, 0.26);
+    g.add(banner);
+
+    g.position.set(start.x, 0, start.z);
+    g.rotation.y = start.heading + Math.PI / 2;
+    group.add(g);
+  }
+
   return {
     group, colliders, roadAt, nearbyRoad, start, addSkid, clearSkid,
     name: map.name,
