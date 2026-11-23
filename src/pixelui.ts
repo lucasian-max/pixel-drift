@@ -244,7 +244,7 @@ export class PixelUI {
     }
 
     /* ---- minimap + stage name chip (bottom-left) ---- */
-    const ms = 64, mx = 8, my = this.h - ms - 32;
+    const ms = 96, mx = 8, my = this.h - ms - 26;
     pxRect(c, mx, my, ms, ms, SLAB);
     pxBorder(c, mx, my, ms, ms, LINE);
     this.drawMap(car, mx + 5, my + 5, ms - 10);
@@ -252,7 +252,7 @@ export class PixelUI {
     this.font(8, 700);
     const nw = Math.max(ms, Math.ceil(c.measureText(stage).width) + 12);
     pxRect(c, mx, my + ms + 6, nw, 14, CREAM);
-    this.text(stage, mx + nw / 2, my + ms + 8, { size: 8, weight: 700, color: INK, align: 'center' });
+    this.text(stage, mx + nw / 2, my + ms + 8, { size: 8, weight: 700, color: INK, align: "center" });
 
     /* ---- dashboard (bottom-right): big digits, gear, 14-seg bar ---- */
     const sw = 150, sh = 82, sx = this.w - sw - 8, sy = this.h - sh - 8;

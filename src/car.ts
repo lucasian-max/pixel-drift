@@ -144,7 +144,7 @@ export class Car {
         }
       }
     }
-    const edge = 44;
+    const edge = 52;
     if (Math.abs(this.x) > edge) { this.x = Math.sign(this.x) * edge; this.vx *= -0.3; }
     if (Math.abs(this.z) > edge) { this.z = Math.sign(this.z) * edge; this.vz *= -0.3; }
   }

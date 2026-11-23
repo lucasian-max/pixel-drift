@@ -1,7 +1,7 @@
 import * as THREE from 'three';
 import { instancedStack, loadSheet, shadowPatch, type Placement, type StackDef } from './stack';
 
-export const WORLD = 84;
+export const WORLD = 108;
 let ROAD_HALF = 4.4;
 // set from the active map when the world is built          // world is WORLD × WORLD units
 const PX = 2048;                  // ground texture resolution
@@ -54,9 +54,9 @@ export const MAPS: MapDef[] = [
   {
     id: 'coast', name: 'Saltmarsh Coast', roadHalf: 4.4,
     ctrl: [
-      [-26, 20], [-6, 21], [13, 21], [23, 18], [28, 10], [24, 2], [14, -2],
-      [10, -10], [15, -18], [5, -23], [-9, -23], [-21, -17], [-28, -6],
-      [-30, 8], [-28, 16]],
+      [-35, 27], [-8, 28], [18, 28], [31, 24], [38, 14], [32, 3], [19, -3],
+      [14, -14], [20, -24], [7, -31], [-12, -31], [-28, -23], [-38, -8],
+      [-41, 11], [-38, 22]],
     palette: {
       grass: '#4f7c46', tones: ['#5b8c4e', '#3d6636', '#6fa05d', '#33582f', '#7fb367'],
       bladeA: '#8cc274', bladeB: '#356031',
