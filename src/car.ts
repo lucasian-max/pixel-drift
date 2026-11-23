@@ -38,6 +38,7 @@ export class Car {
   async setSkin(_file: string) {
     if (this.model) this.group.remove(this.model);
     this.model = buildCarModel();
+    this.model.rotation.y = Math.PI;   // the model is built nose toward +Z
     this.group.add(this.model);
   }
 
