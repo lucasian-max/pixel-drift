@@ -429,10 +429,12 @@ async function boot() {
       laps++;
       console.log(`lap ${laps} ${lapTime.toFixed(2)}s`);
     }
-    net.update(dt, running ? {
+    // Send a pose even on the title screen: a lobby player parks on the grid
+    // instead of showing up as a ghost at the world origin.
+    net.update(dt, {
       x: car.x, z: car.z, heading: car.heading,
       speed: car.speed, u, lap: laps,
-    } : null);
+    });
     world.update();
 
     dustTimer -= dt;
