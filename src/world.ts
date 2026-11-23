@@ -203,27 +203,19 @@ function paintGround(track: P2[], map: MapDef): HTMLCanvasElement {
   g.fillStyle = map.palette.grass;
   g.fillRect(0, 0, PX, PX);
 
-  // very soft broad variation, kept faint
-  for (let i = 0; i < 260; i++) {
-    const x = rnd() * PX, y = rnd() * PX, r = 90 + rnd() * 260;
-    g.fillStyle = rnd() > 0.5 ? 'rgba(255,255,255,0.05)' : 'rgba(0,0,0,0.06)';
-    g.beginPath();
-    g.arc(x, y, r, 0, Math.PI * 2);
-    g.fill();
-  }
 
   // dense pixel grain: 1–2 texel specks in four grass tones
   const tones = map.palette.tones;
-  for (let i = 0; i < 96000; i++) {
+  for (let i = 0; i < 42000; i++) {
     const x = (rnd() * PX) | 0, y = (rnd() * PX) | 0;
     g.fillStyle = tones[(rnd() * tones.length) | 0];
     g.globalAlpha = 0.55 + rnd() * 0.45;
-    g.fillRect(x, y, rnd() > 0.55 ? 2 : 1, rnd() > 0.55 ? 2 : 1);
+    g.fillRect(x, y, 2, 2);
   }
   g.globalAlpha = 1;
 
   // blades: short vertical light specks
-  for (let i = 0; i < 7000; i++) {
+  for (let i = 0; i < 3000; i++) {
     const x = (rnd() * PX) | 0, y = (rnd() * PX) | 0;
     g.fillStyle = rnd() > 0.6 ? map.palette.bladeA : map.palette.bladeB;
     g.globalAlpha = 0.6 + rnd() * 0.4;
@@ -288,10 +280,10 @@ function paintGround(track: P2[], map: MapDef): HTMLCanvasElement {
 
   // red/white kerbs
   for (const side of [1, -1]) {
-    const edge = offsetPath(track, side * (ROAD_HALF + 0.5));
-    strokePath(g, edge, map.palette.kerbA, 0.9 * PPU);
-    dotted(g, edge, map.palette.kerbB, 0.9 * PPU, 2.1 * PPU, 2.1 * PPU);
-    strokePath(g, offsetPath(track, side * (ROAD_HALF + 0.95)), 'rgba(30,30,36,0.45)', 0.12 * PPU);
+    const edge = offsetPath(track, side * (ROAD_HALF + 0.15));
+    strokePath(g, edge, map.palette.kerbA, 0.7 * PPU);
+    dotted(g, edge, map.palette.kerbB, 0.7 * PPU, 1.5 * PPU, 1.5 * PPU);
+
   }
 
   // centre dashes
