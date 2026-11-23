@@ -82,6 +82,7 @@ export class Net {
   count = 0;
   place = 0;
   best: { name: string; ms: number } | null = null;
+  topLap = 0;   // highest lap count anyone in the room has reached
   /** transient "ACE JOINED" text; draw while `performance.now()/1000 < noticeUntil` */
   notice = '';
   noticeUntil = 0;
@@ -91,6 +92,11 @@ export class Net {
   private scene: THREE.Scene | null = null;
   private start: GridStart = { x: 0, z: 0, heading: 0 };
   private remotes = new Map<string, Remote>();
+
+  /** display name for a racer id */
+  nameOf(id: string): string {
+    return this.known.get(id) ?? 'RACER';
+  }
 
   /** best lap per other racer, for the shared results board */
   peerLaps(): { id: string; best: number }[] {
@@ -176,6 +182,7 @@ export class Net {
     if (msg.t === 'states') {
       const list = Array.isArray(msg.racers) ? (msg.racers as NetState[]) : [];
       this.count = Number(msg.count) || list.length;
+      this.topLap = list.reduce((m, r) => Math.max(m, Math.round(Number(r.lap) || 0)), 0);
       this.best = (msg.best as { name: string; ms: number } | null) ?? null;
       const seen = new Set<string>();
       for (const r of list) {

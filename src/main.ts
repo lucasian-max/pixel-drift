@@ -386,6 +386,9 @@ async function boot() {
       controls.throttle = 0;
       controls.handbrake = true;
     }
+    if (net.connected && !finished && net.topLap >= 3) {
+      finished = true;   // someone crossed the line first: show the board to everyone
+    }
     if (finished) { controls.throttle = 0; }
     camYaw += input.look * dt * 1.8;
     if (input.zoom !== 0) {
@@ -514,7 +517,10 @@ async function boot() {
       paused: input.paused, throttle: controls.throttle, laps,
       maps: MAPS.filter((m) => m.id === 'coast').map((m) => ({ id: m.id, name: m.name })),
       lapHistory: [...lapHistory],
-      results: net.connected ? net.peerLaps().map((p) => ({ name: p.id, best: p.best })) : undefined,
+      results: net.connected ? [
+        ...(bestTime ? [{ name: account.user?.username?.toUpperCase() ?? 'YOU', best: bestTime * 1000 }] : []),
+        ...net.peerLaps().map((p) => ({ name: net.nameOf(p.id), best: p.best })),
+      ].sort((a, b) => a.best - b.best) : undefined,
       countdown,
       finished,
       mapIndex,
