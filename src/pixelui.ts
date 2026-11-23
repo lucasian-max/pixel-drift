@@ -45,6 +45,7 @@ export interface UiState {
   lapHistory?: number[];
   countdown?: number;
   finished?: boolean;
+  results?: { name: string; best: number }[];
   /** force the NEW BEST banner for a couple of seconds (also auto-detected) */
   bestFlash?: boolean;
   account?: AccountView;
@@ -340,7 +341,12 @@ export class PixelUI {
       c.fillRect(0, 0, this.w, this.h);
       this.text('RACE COMPLETE', this.w / 2, this.h / 2 - 26, { size: 24, weight: 700, align: 'center' });
       this.text(`BEST OF 3   ${fmt(state.bestTime)}`, this.w / 2, this.h / 2 + 8, { size: 8, color: CREAM, align: 'center' });
-      this.text('R TO RACE AGAIN', this.w / 2, this.h / 2 + 24, { size: 8, color: DIM, align: 'center' });
+      (state.results ?? []).slice(0, 5).forEach((r, i) => {
+        this.text(`${i + 1}  ${r.name.slice(0, 8)}  ${fmt(r.best)}`, this.w / 2, this.h / 2 + 24 + i * 11, {
+          size: 8, color: DIM, align: 'center',
+        });
+      });
+      this.text('R TO RACE AGAIN', this.w / 2, this.h / 2 + 24 + Math.max(1, (state.results ?? []).length) * 11 + 6, { size: 8, color: DIM, align: 'center' });
     }
 
     if (state.paused) {
@@ -404,6 +410,16 @@ export class PixelUI {
     c.strokeStyle = 'rgba(242,238,225,0.9)';
     c.lineWidth = 2;
     c.stroke();
+
+    // start line tick
+    if (this.tickX || this.tickZ) {
+      c.strokeStyle = 'rgba(242,238,225,0.55)';
+      c.lineWidth = 1;
+      c.beginPath();
+      c.moveTo(px(this.tickX - this.tickNX * 0.05), pz(this.tickZ - this.tickNZ * 0.05));
+      c.lineTo(px(this.tickX + this.tickNX * 0.05), pz(this.tickZ + this.tickNZ * 0.05));
+      c.stroke();
+    }
 
     // car: a filled wedge pointing where it faces
     const cx = px((car.x - this.mapCX) / this.mapExt);

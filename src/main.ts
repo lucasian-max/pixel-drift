@@ -329,7 +329,7 @@ async function boot() {
 
   const autopilot = () => {
     const n = track.length;
-    const ahead = 24 + Math.round(Math.abs(car.speed) * 1.5);
+    const ahead = 40 + Math.round(Math.abs(car.speed) * 2.2);
     const target = track[(nearest + ahead) % n];
     const dx = target.x - car.x, dz = target.z - car.z;
     const want = Math.atan2(-dx, -dz);
@@ -417,6 +417,11 @@ async function boot() {
     }
 
     const idx = nearestIndex(car.x, car.z);
+    {
+      const np = track[idx];
+      const d = Math.hypot(car.x - np.x, car.z - np.z);
+      car.onKerb = car.onRoad && d > 3.4;
+    }
     const u = ((idx - startIdx + track.length) % track.length) / track.length;
     const crossed = started && prevU > 0.8 && u < 0.2;
     prevU = u;
@@ -509,6 +514,7 @@ async function boot() {
       paused: input.paused, throttle: controls.throttle, laps,
       maps: MAPS.filter((m) => m.id === 'coast').map((m) => ({ id: m.id, name: m.name })),
       lapHistory: [...lapHistory],
+      results: net.connected ? net.peerLaps().map((p) => ({ name: p.id, best: p.best })) : undefined,
       countdown,
       finished,
       mapIndex,

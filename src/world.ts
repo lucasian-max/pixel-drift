@@ -782,7 +782,7 @@ export async function buildWorld(scene: THREE.Scene, mapId?: string): Promise<Wo
     group, colliders, roadAt, kerbAt, nearbyRoad, start, addSkid, clearSkid,
     name: map.name,
     mapId: map.id,
-    minimapPath: track.filter((_, i) => i % 4 === 0),
+    minimapPath: track.filter((_, i) => i % 2 === 0),
     track,
     update() {
       if (skidDirty) {

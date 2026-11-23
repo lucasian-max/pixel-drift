@@ -18,6 +18,7 @@ interface NetState {
 
 interface Remote {
   group: THREE.Group;
+  laps: number[];
   target: THREE.Vector3;
   targetHeading: number;
   heading: number;
@@ -90,6 +91,13 @@ export class Net {
   private scene: THREE.Scene | null = null;
   private start: GridStart = { x: 0, z: 0, heading: 0 };
   private remotes = new Map<string, Remote>();
+
+  /** best lap per other racer, for the shared results board */
+  peerLaps(): { id: string; best: number }[] {
+    return [...this.remotes.entries()]
+      .filter(([, r]) => r && r.laps.length > 0)
+      .map(([id, r]) => ({ id, best: Math.min(...r!.laps) }));
+  }
 
   /** world positions of every other racer (for local car-vs-car collision) */
   remoteBodies(): { id: string; x: number; z: number }[] {
@@ -202,6 +210,8 @@ export class Net {
       return;
     }
     if (msg.t === 'lap') {
+      const peer = this.remotes.get(String(msg.id));
+      if (peer && typeof msg.ms === 'number') peer.laps.push(msg.ms);
       this.best = (msg.best as { name: string; ms: number } | null) ?? null;
     }
   }
@@ -221,11 +231,13 @@ export class Net {
         target: new THREE.Vector3(s.x, 0, s.z),
         targetHeading: s.h,
         heading: s.h,
+        laps: [],
       };
       group.position.copy(r.target);
       group.rotation.y = s.h;
       this.remotes.set(s.id, r);
     }
+    if (!r) return;
     r.target.set(s.x, 0, s.z);
     r.targetHeading = s.h;
   }

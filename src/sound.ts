@@ -135,7 +135,8 @@ export class Sound {
     while (this.musicNext < t + 0.25) {
       const i = this.musicStep % 8;
       const at = this.musicNext;
-      const root = 110 * Math.pow(2, 0 / 12);
+      const bar = Math.floor(this.musicStep / 8) % 2;
+      const root = 110 * Math.pow(2, (bar === 0 ? 0 : 5) / 12);
       this.blip(root * Math.pow(2, bass[i] / 12), at, step * 1.8, 0.10, 'triangle');
       if (i % 2 === 0) {
         this.blip(root * Math.pow(2, arp[i] / 12), at, step * 0.9, 0.035, 'square');
