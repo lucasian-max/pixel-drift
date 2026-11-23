@@ -64,8 +64,8 @@ room race does not bypass the account API.
 - **Unknown room code:** the upgrade is rejected with 404 before a socket is
   accepted.
 - **Duplicate tab:** each connection gets its own id and grid slot.
-- **Tab hidden:** the game keeps the socket alive (20 Hz messages), while the
-  render loop pauses; poses resume on focus.
+- **Tab hidden:** the socket stays open but the render loop pauses, so the
+  car's last pose freezes for other racers and resumes on focus.
 - **Reset (R):** the local car returns to its grid slot; the server sees the
   jump and does not count it as lap progress.
 
