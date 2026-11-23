@@ -242,14 +242,13 @@ async function boot() {
     else if (a === 'logout') void account.logout();
   };
 
-  const input = new Input(() => begin());
+  const input = new Input();
   if (params.has('skip') || params.has('demo')) begin();
 
   addEventListener('pointerdown', (e) => {
     if (running || loginForm.isOpen()) return;
     const hit = ui.hit(e.clientX, e.clientY);
-    if (hit) ui.onAction?.(hit);
-    else begin();
+    if (hit) ui.onAction?.(hit);   // only the PLAY button starts a race
   });
   addEventListener('keydown', (e) => {
     if (loginForm.isOpen()) return;   // the form handles its own keys
@@ -440,7 +439,7 @@ async function boot() {
         try { localStorage.setItem(bestKey, String(bestTime)); } catch { /* private mode */ }
       }
       /* leaderboard: submit and let the store refresh the board from the response */
-      void account.submitLap(Math.round(lapTime * 1000));
+      void account.submitLap(Math.round(lapTime * 1000)).then(() => account.refresh());
       net.sendLap(Math.round(lapTime * 1000), laps + 1);
       lapTime = 0;
       progress -= 1;
