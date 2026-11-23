@@ -11,6 +11,10 @@ export class Sound {
   private squeal!: GainNode;
   private rumble!: GainNode;
   muted = false;
+  private musicGain!: GainNode;
+  private musicNext = 0;
+  private musicStep = 0;
+  private noiseBuf: AudioBuffer | null = null;
 
   start() {
     if (this.ctx) { this.ctx.resume(); return; }
@@ -66,6 +70,13 @@ export class Sound {
     this.rumble.gain.value = 0;
     noise.connect(lp).connect(this.rumble).connect(this.master);
     noise.start();
+    this.noiseBuf = buf;
+
+    // music bus, ducked under the engine
+    this.musicGain = ctx.createGain();
+    this.musicGain.gain.value = 0.16;
+    this.musicGain.connect(this.master);
+    this.musicNext = ctx.currentTime + 0.2;
 
     addEventListener('keydown', (e) => {
       if (e.code === 'KeyM') {
@@ -73,6 +84,67 @@ export class Sound {
         this.master.gain.setTargetAtTime(this.muted ? 0 : 0.55, ctx.currentTime, 0.05);
       }
     });
+  }
+
+  /** one-shot thud + gravel burst, strength 0..1 */
+  impact(strength: number) {
+    if (!this.ctx || this.muted) return;
+    const ctx = this.ctx, t = ctx.currentTime;
+    const g = ctx.createGain();
+    g.gain.setValueAtTime(Math.min(0.5, 0.15 + strength * 0.45), t);
+    g.gain.exponentialRampToValueAtTime(0.001, t + 0.22);
+    g.connect(this.master);
+    const o = ctx.createOscillator();
+    o.type = 'triangle';
+    o.frequency.setValueAtTime(120, t);
+    o.frequency.exponentialRampToValueAtTime(42, t + 0.18);
+    o.connect(g);
+    o.start(t); o.stop(t + 0.24);
+
+    if (this.noiseBuf) {
+      const src = ctx.createBufferSource();
+      src.buffer = this.noiseBuf;
+      src.playbackRate.value = 0.7 + Math.random() * 0.3;
+      const bp = ctx.createBiquadFilter();
+      bp.type = 'bandpass'; bp.frequency.value = 900 + strength * 900; bp.Q.value = 0.8;
+      const ng = ctx.createGain();
+      ng.gain.setValueAtTime(0.16 * strength, t);
+      ng.gain.exponentialRampToValueAtTime(0.001, t + 0.3);
+      src.connect(bp).connect(ng).connect(this.master);
+      src.start(t); src.stop(t + 0.32);
+    }
+  }
+
+  /** 8-step chiptune loop, scheduled ahead of the clock */
+  private pump(t: number) {
+    if (!this.ctx) return;
+    const step = 60 / 132 / 2;                 // 132 bpm, eighth notes
+    const bass = [0, 0, 7, 0, 5, 0, 3, 0];     // semitones over A2
+    const arp = [12, 19, 24, 19, 15, 19, 24, 27];
+    while (this.musicNext < t + 0.25) {
+      const i = this.musicStep % 8;
+      const at = this.musicNext;
+      const root = 110 * Math.pow(2, 0 / 12);
+      this.blip(root * Math.pow(2, bass[i] / 12), at, step * 1.8, 0.10, 'triangle');
+      if (i % 2 === 0) {
+        this.blip(root * Math.pow(2, arp[i] / 12), at, step * 0.9, 0.035, 'square');
+      }
+      this.musicStep++;
+      this.musicNext += step;
+    }
+  }
+
+  private blip(freq: number, at: number, dur: number, vol: number, type: OscillatorType) {
+    const ctx = this.ctx!;
+    const o = ctx.createOscillator();
+    o.type = type;
+    o.frequency.value = freq;
+    const g = ctx.createGain();
+    g.gain.setValueAtTime(0, at);
+    g.gain.linearRampToValueAtTime(vol, at + 0.01);
+    g.gain.exponentialRampToValueAtTime(0.001, at + dur);
+    o.connect(g).connect(this.musicGain);
+    o.start(at); o.stop(at + dur + 0.02);
   }
 
   update(car: Car, throttle: number, paused: boolean) {
@@ -93,5 +165,9 @@ export class Sound {
     const slip = Math.min(1, car.slip / 7);
     this.squeal.gain.setTargetAtTime(paused ? 0 : slip * 0.055 * Math.min(1, sp / 6), t, 0.05);
     this.rumble.gain.setTargetAtTime(paused || car.onRoad ? 0 : Math.min(0.06, sp * 0.0022), t, 0.1);
+
+    // music: duck with throttle, stop when paused
+    this.musicGain.gain.setTargetAtTime(paused ? 0 : 0.13, t, 0.2);
+    if (!paused) this.pump(t);
   }
 }

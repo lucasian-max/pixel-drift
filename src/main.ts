@@ -191,6 +191,7 @@ async function boot() {
   // ---- ui + net ------------------------------------------------------------
   const ui = new PixelUI(uiCanvas, world.minimapPath);
   const sound = new Sound();
+  car.onImpact = (s: number) => sound.impact(s);
   let running = false;
   let laps = 0;
 

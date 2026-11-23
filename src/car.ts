@@ -26,6 +26,7 @@ export class Car {
   model!: THREE.Group;
   variant = 0;
   driftScore = 0;
+  onImpact?: (strength: number) => void;
   private skidTimer = 0;
 
   async init(world: World) {
@@ -160,6 +161,7 @@ export class Car {
         if (vn < 0) {
           this.vx -= vn * nx * 1.4;
           this.vz -= vn * nz * 1.4;
+          if (-vn > 2 && this.onImpact) this.onImpact(Math.min(1, -vn / 14));
         }
       }
     }
