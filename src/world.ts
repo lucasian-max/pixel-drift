@@ -1,7 +1,7 @@
 import * as THREE from 'three';
 import { instancedStack, loadSheet, shadowPatch, type Placement, type StackDef } from './stack';
 
-export const WORLD = 108;
+export const WORLD = 140;
 let ROAD_HALF = 4.4;
 // set from the active map when the world is built          // world is WORLD × WORLD units
 const PX = 2048;                  // ground texture resolution
@@ -58,12 +58,12 @@ export const MAPS: MapDef[] = [
     // exit corner rolling onto the back run, a quick left-right chicane, and
     // a stadium 180° U-turn up the west side back onto the straight.
     ctrl: [
-      [-39.5, 14.3], [-45.4, 20.2], [-47.5, 28.2], [-45.4, 36.2], [-39.5, 42.1],
-      [-31.5, 44.2], [-19.5, 44.2], [-7.5, 44.2], [4.5, 44.2], [16.5, 44.2], [24, 44.2],
-      [32.5, 42.4], [39.4, 37], [44.5, 31], [46.9, 22.6], [47.2, 13.9],
-      [46.2, -4], [43, -14], [34.5, -20.2], [24, -20.2], [15.5, -14],
-      [12.2, -4], [9.5, 6], [2.2, 13.3], [-7.8, 16],
-      [-16, 15.7], [-24.5, 12.6], [-31.5, 12.2]],
+      [-51.4, 18.6], [-59.0, 26.3], [-61.8, 36.7], [-59.0, 47.1], [-51.4, 54.7],
+      [-41.0, 57.5], [-25.4, 57.5], [-9.8, 57.5], [5.9, 57.5], [21.4, 57.5], [31.2, 57.5],
+      [42.2, 55.1], [51.2, 48.1], [57.9, 40.3], [61.0, 29.4], [61.4, 18.1],
+      [60.1, -5.2], [55.9, -18.2], [44.9, -26.3], [31.2, -26.3], [20.2, -18.2],
+      [15.9, -5.2], [12.3, 7.8], [2.9, 17.3], [-10.1, 20.8],
+      [-20.8, 20.4], [-31.9, 16.4], [-41.0, 15.9]],
     palette: {
       grass: '#4f7c46', tones: ['#5b8c4e', '#3d6636', '#6fa05d', '#33582f', '#7fb367'],
       bladeA: '#8cc274', bladeB: '#356031',
