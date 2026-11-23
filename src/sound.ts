@@ -10,6 +10,7 @@ export class Sound {
   private filter!: BiquadFilterNode;
   private squeal!: GainNode;
   private rumble!: GainNode;
+  private rumbleFilter!: BiquadFilterNode;
   private kerb!: GainNode;
   muted = false;
   private musicGain!: GainNode;
@@ -69,6 +70,7 @@ export class Sound {
     lp.frequency.value = 420;
     this.rumble = ctx.createGain();
     this.rumble.gain.value = 0;
+    this.rumbleFilter = lp;
     noise.connect(lp).connect(this.rumble).connect(this.master);
 
     // kerb: low, hollow rattle — the painted strip under two wheels
