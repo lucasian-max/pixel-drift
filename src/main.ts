@@ -161,9 +161,11 @@ async function boot() {
   // ---- lap timing ----------------------------------------------------------
   const track = world.track;
   let nearest = 0, progress = 0, lapTime = 0, started = false;
+  let prevU = 0;
   const bestKey = `sprite-drift:best:${mapId}`;
   let bestTime = Number(localStorage.getItem(bestKey) || 0) || 0;
 
+  let startIdx = 0;
   const nearestIndex = (x: number, z: number) => {
     let best = 0, bd = Infinity;
     for (let i = 0; i < track.length; i++) {
@@ -172,6 +174,8 @@ async function boot() {
     }
     return best;
   };
+  startIdx = nearestIndex(world.start.x, world.start.z);
+  prevU = ((nearestIndex(car.x, car.z) - startIdx + track.length) % track.length) / track.length;
 
   const autopilot = () => {
     const n = track.length;
@@ -250,14 +254,13 @@ async function boot() {
     }
 
     const idx = nearestIndex(car.x, car.z);
-    let d = idx - nearest;
-    if (d > track.length / 2) d -= track.length;
-    if (d < -track.length / 2) d += track.length;
-    progress += d / track.length;
+    const u = ((idx - startIdx + track.length) % track.length) / track.length;
+    const crossed = started && prevU > 0.8 && u < 0.2;
+    prevU = u;
     nearest = idx;
     if (!started && Math.hypot(car.x - world.start.x, car.z - world.start.z) > 5) started = true;
     if (started) lapTime += dt;
-    if (progress >= 1) {
+    if (crossed) {
       if (lapTime > 8 && (bestTime === 0 || lapTime < bestTime)) {
         bestTime = lapTime;
         try { localStorage.setItem(bestKey, String(bestTime)); } catch { /* private mode */ }

@@ -237,7 +237,8 @@ export function buildCarModel(): THREE.Group {
   }
 
   // ---------- Nose ----------
-  box(1.2, 0.06, 0.1, M.dark, 0, 0.21, 2.27); // chin bar
+  box(1.3, 0.05, 0.16, M.cream, 0, 0.16, 2.26);   // cream splitter lip
+  box(0.7, 0.04, 0.05, M.dark, 0, 0.24, 2.29);  // slim intake slot
   for (const s of [1, -1]) {
     const l = box(0.18, 0.03, 0.08, M.amber, s * 0.4, 0.43, 2.1);
     l.rotation.x = 0.38;

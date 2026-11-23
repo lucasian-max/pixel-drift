@@ -121,6 +121,8 @@ export class Car {
     }
 
     this.sync();
+    const wheels = (this.model.userData.wheels as THREE.Object3D[] | undefined) ?? [];
+    for (const w of wheels) w.rotation.x -= (vLong * dt) / 0.33;
     const t = performance.now() * 0.001;
     this.model.position.y = Math.sin(t * 46) * 0.0016 * Math.min(1, Math.abs(vLong) / 8);
   }
