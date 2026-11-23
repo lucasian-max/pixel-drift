@@ -574,39 +574,46 @@ export async function buildWorld(scene: THREE.Scene, mapId?: string): Promise<Wo
   // ---- start gantry over the line
   {
     const g = new THREE.Group();
-    const post = new THREE.BoxGeometry(0.32, 4.4, 0.32);
-    const dark = new THREE.MeshBasicMaterial({ color: 0x1b1d22, toneMapped: false });
+    const steel = new THREE.MeshBasicMaterial({ color: 0x2a2d33, toneMapped: false });
+    const span = (ROAD_HALF + 1.6) * 2;
     for (const side of [-1, 1]) {
-      const p = new THREE.Mesh(post, dark);
-      p.position.set(side * (ROAD_HALF + 1.4), 2.2, 0);
-      g.add(p);
+      const post = new THREE.Mesh(new THREE.BoxGeometry(0.28, 5.2, 0.28), steel);
+      post.position.set(side * (span / 2 - 0.14), 2.6, 0);
+      g.add(post);
+      const foot = new THREE.Mesh(new THREE.BoxGeometry(0.7, 0.18, 0.7), steel);
+      foot.position.set(side * (span / 2 - 0.14), 0.09, 0);
+      g.add(foot);
     }
-    const beam = new THREE.Mesh(
-      new THREE.BoxGeometry((ROAD_HALF + 1.4) * 2 + 0.4, 0.7, 0.5),
-      new THREE.MeshBasicMaterial({ color: 0x24262c, toneMapped: false }),
-    );
-    beam.position.set(0, 4.5, 0);
+    const beam = new THREE.Mesh(new THREE.BoxGeometry(span, 0.3, 0.36), steel);
+    beam.position.set(0, 5.2, 0);
     g.add(beam);
 
-    // banner: checkered strip with a pale band
+    // banner: cream field, black chequer band, hanging under the beam
     const cv = document.createElement('canvas');
-    cv.width = 256; cv.height = 64;
+    cv.width = 256; cv.height = 48;
     const c2 = cv.getContext('2d')!;
-    c2.fillStyle = '#f2eee1'; c2.fillRect(0, 0, 256, 64);
-    for (let i = 0; i < 16; i++) for (let j = 0; j < 2; j++) {
-      if ((i + j) % 2 === 0) { c2.fillStyle = '#23262b'; c2.fillRect(i * 16, j * 16, 16, 16); }
-      if ((i + j) % 2 === 0) { c2.fillStyle = '#23262b'; c2.fillRect(i * 16, 32 + j * 16, 16, 16); }
+    c2.fillStyle = '#f2eee1'; c2.fillRect(0, 0, 256, 48);
+    for (let i = 0; i < 32; i++) {
+      c2.fillStyle = i % 2 === 0 ? '#22252a' : '#f2eee1';
+      c2.fillRect(i * 8, 0, 8, 10);
     }
+    c2.fillStyle = '#22252a';
+    c2.font = 'bold 16px monospace';
+    c2.textAlign = 'center';
+    c2.fillText('SPRITE DRIFT', 128, 34);
     const tex = new THREE.CanvasTexture(cv);
     tex.magFilter = THREE.NearestFilter;
     tex.minFilter = THREE.NearestFilter;
     tex.colorSpace = THREE.SRGBColorSpace;
-    const banner = new THREE.Mesh(
-      new THREE.PlaneGeometry((ROAD_HALF + 1.4) * 2, 1.1),
-      new THREE.MeshBasicMaterial({ map: tex, side: THREE.DoubleSide, toneMapped: false }),
-    );
-    banner.position.set(0, 3.75, 0.26);
-    g.add(banner);
+    const bannerGeo = new THREE.PlaneGeometry(span - 0.6, 0.95);
+    for (const zside of [0.19, -0.19]) {
+      const banner = new THREE.Mesh(bannerGeo, new THREE.MeshBasicMaterial({
+        map: tex, side: THREE.DoubleSide, toneMapped: false,
+      }));
+      banner.position.set(0, 4.6, zside);
+      banner.rotation.y = zside > 0 ? 0 : Math.PI;
+      g.add(banner);
+    }
 
     g.position.set(start.x, 0, start.z);
     g.rotation.y = start.heading + Math.PI / 2;
