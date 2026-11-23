@@ -437,6 +437,22 @@ async function boot() {
     });
     world.update();
 
+    // other racers are solid: push out and kill the closing speed
+    if (net.connected) {
+      for (const b of net.remoteBodies()) {
+        const dx = car.x - b.x, dz = car.z - b.z;
+        const d = Math.hypot(dx, dz);
+        const min = 2.05;
+        if (d > 0.001 && d < min) {
+          const nx = dx / d, nz = dz / d;
+          car.x = b.x + nx * min;
+          car.z = b.z + nz * min;
+          const vn = car.vx * nx + car.vz * nz;
+          if (vn < 0) { car.vx -= vn * nx * 1.25; car.vz -= vn * nz * 1.25; }
+        }
+      }
+    }
+
     dustTimer -= dt;
     if (dustTimer <= 0 && Math.abs(car.speed) > 4) {
       if (car.drifting || (!car.onRoad && Math.abs(car.speed) > 7)) {
@@ -490,6 +506,7 @@ async function boot() {
       racers: net.count || 1,
       connected: net.connected,
       place: net.place,
+      toast: net.notice && now < net.noticeUntil ? net.notice : undefined,
     }, now);
     sound.update(car, controls.throttle, input.paused);
   };

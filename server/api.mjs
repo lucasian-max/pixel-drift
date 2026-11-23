@@ -277,7 +277,7 @@ function attachClient(ws, req, room) {
   ws.on('close', () => {
     room.clients.delete(client.id);
     console.log(`[room ${room.code}] - ${name} (${client.id})`);
-    broadcast(room, { t: 'left', id: client.id, count: room.clients.size });
+    broadcast(room, { t: 'left', id: client.id, name, count: room.clients.size });
   });
   ws.on('error', () => { /* close follows */ });
 }

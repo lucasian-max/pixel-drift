@@ -37,6 +37,8 @@ export interface UiState {
   racers?: number;
   connected?: boolean;
   place?: number;
+  /** transient room notice, e.g. "ACE JOINED" */
+  toast?: string;
   maps?: { id: string; name: string }[];
   mapIndex?: number;
   mapName?: string;
@@ -250,6 +252,7 @@ export class PixelUI {
       pxBorder(c, rx, 8, cw, 16, state.connected ? 'rgba(242,238,225,0.3)' : ACCENT);
       this.text(label, this.w / 2, 12, { size: 8, color: state.connected ? CREAM : ACCENT, align: 'center' });
     }
+    if (state.toast) this.drawToast(state.toast, 58);
 
     /* ---- NEW BEST banner ---- */
     if (time < this.bestUntil) {
@@ -331,8 +334,18 @@ export class PixelUI {
     }
   }
 
-  /* ----------------------------------------------------------- minimap --- */
+  /** transient room notice: cream on red, centred */
+  private drawToast(text: string, y: number) {
+    const c = this.ctx;
+    this.font(8, 700);
+    const w = Math.ceil(c.measureText(text).width) + 18;
+    const x = Math.round((this.w - w) / 2);
+    pxRect(c, x, y, w, 15, ACCENT);
+    pxBorder(c, x, y, w, 15, 'rgba(242,238,225,0.85)');
+    this.text(text, this.w / 2, y + 4, { size: 8, weight: 700, color: CREAM, align: 'center' });
+  }
 
+  /* ----------------------------------------------------------- minimap --- */
   private drawMap(car: Car, x: number, y: number, size: number) {
     const c = this.ctx;
 
@@ -403,8 +416,13 @@ export class PixelUI {
 
     const cx = Math.round(w / 2);
 
-    const kicker = state.room ? `ROOM ${state.room} — SHARE THIS LINK` : 'SPRITE-STACKED PIXEL RACER';
+    const kicker = state.room
+      ? state.connected === false
+        ? `ROOM ${state.room} · CONNECTING…`
+        : `ROOM ${state.room} · ${state.racers ?? 1} IN ROOM · SHARE THIS LINK`
+      : 'SPRITE-STACKED PIXEL RACER';
     this.text(kicker, cx, 56, { size: 8, weight: 700, color: ACCENT, align: 'center', spacing: 2 });
+    if (state.toast) this.drawToast(state.toast, 26);
 
     /* lockup with hard offset shadow blocks */
     this.text('SPRITE', cx + 3, 77, { size: 48, weight: 700, color: SHADOW, align: 'center' });

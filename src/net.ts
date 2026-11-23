@@ -81,12 +81,23 @@ export class Net {
   count = 0;
   place = 0;
   best: { name: string; ms: number } | null = null;
+  /** transient "ACE JOINED" text; draw while `performance.now()/1000 < noticeUntil` */
+  notice = '';
+  noticeUntil = 0;
   onWelcome?: (slot: number) => void;
 
   private ws: WebSocket | null = null;
   private scene: THREE.Scene | null = null;
   private start: GridStart = { x: 0, z: 0, heading: 0 };
   private remotes = new Map<string, Remote>();
+
+  /** world positions of every other racer (for local car-vs-car collision) */
+  remoteBodies(): { id: string; x: number; z: number }[] {
+    const out: { id: string; x: number; z: number }[] = [];
+    for (const [id, r] of this.remotes) out.push({ id, x: r.target.x, z: r.target.z });
+    return out;
+  }
+  private known = new Map<string, string>();   // id -> name, for join/leave notices
   private sendIn = 0;
   private retry: ReturnType<typeof setTimeout> | null = null;
   private closed = true;
@@ -121,6 +132,8 @@ export class Net {
       this.id = '';
       this.count = 0;
       this.place = 0;
+      this.notice = '';
+      this.known.clear();
       this.clearRemotes();
       if (this.ws === ws) this.ws = null;
       this.scheduleRetry();
@@ -141,6 +154,14 @@ export class Net {
       this.id = typeof msg.id === 'string' ? msg.id : '';
       this.count = Number(msg.count) || 1;
       this.best = (msg.best as { name: string; ms: number } | null) ?? null;
+      // seed the roster so the first states frame does not announce everyone
+      this.known.clear();
+      const listed = Array.isArray(msg.racers) ? (msg.racers as NetState[]) : [];
+      for (const r of listed) {
+        if (r && typeof r.id === 'string' && r.id !== this.id) {
+          this.known.set(r.id, String(r.name || 'RACER'));
+        }
+      }
       this.onWelcome?.(Number(msg.slot) || 0);
       return;
     }
@@ -156,15 +177,27 @@ export class Net {
           this.place = Number(r.place) || 0;
           continue;
         }
+        const name = String(r.name || 'RACER');
+        if (!this.known.has(r.id)) {
+          this.announce(`${name} JOINED`);
+        }
+        this.known.set(r.id, name);
         this.upsert(r);
       }
       for (const id of [...this.remotes.keys()]) {
-        if (!seen.has(id) && this.id) this.remove(id);
+        if (!seen.has(id) && this.id) {
+          this.known.delete(id);
+          this.remove(id);
+        }
       }
       return;
     }
     if (msg.t === 'left' && typeof msg.id === 'string') {
       this.count = Number(msg.count) || this.count;
+      const name = this.known.get(msg.id)
+        ?? (typeof msg.name === 'string' ? msg.name : '');
+      if (name) this.announce(`${name} LEFT`);
+      this.known.delete(msg.id);
       this.remove(msg.id);
       return;
     }
@@ -202,6 +235,11 @@ export class Net {
     if (!r || !this.scene) return;
     this.scene.remove(r.group);
     this.remotes.delete(id);
+  }
+
+  private announce(text: string) {
+    this.notice = text;
+    this.noticeUntil = performance.now() / 1000 + 3;
   }
 
   private clearRemotes() {
@@ -245,6 +283,8 @@ export class Net {
     this.id = '';
     this.count = 0;
     this.place = 0;
+    this.notice = '';
+    this.known.clear();
     this.clearRemotes();
     if (this.ws) {
       const ws = this.ws;
