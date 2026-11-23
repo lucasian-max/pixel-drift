@@ -255,15 +255,16 @@ function paintGround(track: P2[], map: MapDef): HTMLCanvasElement {
   for (const side of [1, -1]) {
     const edge = offsetPath(track, side * (ROAD_HALF + 0.5));
     strokePath(g, edge, map.palette.kerbA, 0.9 * PPU);
-    dotted(g, edge, map.palette.kerbB, 0.9 * PPU, 1.6 * PPU, 1.6 * PPU);
+    dotted(g, edge, map.palette.kerbB, 0.9 * PPU, 2.1 * PPU, 2.1 * PPU);
+    strokePath(g, offsetPath(track, side * (ROAD_HALF + 0.95)), 'rgba(30,30,36,0.45)', 0.12 * PPU);
   }
 
   // centre dashes
-  dotted(g, track, map.palette.line, 0.3 * PPU, 2.6 * PPU, 2.6 * PPU);
+  dotted(g, track, 'rgba(246,246,240,0.62)', 0.16 * PPU, 1.9 * PPU, 2.4 * PPU);
 
   // start / finish checker
   const s = track[300], s2 = track[303];
-  const ang = Math.atan2(s2.z - s.z, s2.x - s.x);
+  const ang = Math.atan2(s2.z - s.z, s2.x - s.x) + Math.PI * 0.5;   // start line runs ACROSS the road
   g.save();
   g.translate((s.x + HALF_G) * PPU, (s.z + HALF_G) * PPU);
   g.rotate(ang);
