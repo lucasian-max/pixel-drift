@@ -209,6 +209,8 @@ async function boot() {
   car.onImpact = (s: number) => sound.impact(s);
   let running = false;
   let laps = 0;
+  let countdown = net.connected ? 3.6 : 0;
+  let finished = false;
 
 
   const begin = () => {
@@ -379,6 +381,12 @@ async function boot() {
     last = now;
 
     const controls = params.has('demo') ? autopilot() : input.read();
+    if (countdown > 0 && !input.paused) {
+      countdown = Math.max(0, countdown - dt);
+      controls.throttle = 0;
+      controls.handbrake = true;
+    }
+    if (finished) { controls.throttle = 0; }
     camYaw += input.look * dt * 1.8;
     if (input.zoom !== 0) {
       viewHeight = THREE.MathUtils.clamp(viewHeight * (1 + input.zoom), 13, 40);
@@ -402,7 +410,8 @@ async function boot() {
           car.reset(world);
         }
         world.clearSkid();
-        progress = 0; lapTime = 0; started = false; laps = 0;
+        progress = 0; lapTime = 0; started = false; laps = 0; finished = false;
+        countdown = net.connected ? 3.6 : 0;
         nearest = nearestIndex(car.x, car.z);
       }
     }
@@ -416,6 +425,7 @@ async function boot() {
     if (started) lapTime += dt;
     if (crossed) {
       lapHistory.unshift(lapTime);
+      if (net.connected && laps >= 3) finished = true;
       if (lapHistory.length > 5) lapHistory.length = 5;
       if (lapTime > 8 && (bestTime === 0 || lapTime < bestTime)) {
         bestTime = lapTime;
@@ -499,6 +509,8 @@ async function boot() {
       paused: input.paused, throttle: controls.throttle, laps,
       maps: MAPS.filter((m) => m.id === 'coast').map((m) => ({ id: m.id, name: m.name })),
       lapHistory: [...lapHistory],
+      countdown,
+      finished,
       mapIndex,
       mapName: MAPS[mapIndex]?.name,
       account,

@@ -43,6 +43,8 @@ export interface UiState {
   mapIndex?: number;
   mapName?: string;
   lapHistory?: number[];
+  countdown?: number;
+  finished?: boolean;
   /** force the NEW BEST banner for a couple of seconds (also auto-detected) */
   bestFlash?: boolean;
   account?: AccountView;
@@ -321,6 +323,26 @@ export class PixelUI {
     }
 
     /* ---- pause ---- */
+    if ((state.countdown ?? 0) > 0) {
+      const n = Math.ceil(state.countdown!);
+      const cx2 = Math.round(this.w / 2);
+      const y0 = 54;
+      pxRect(c, cx2 - 26, y0 - 8, 52, 22, 'rgba(16,19,22,0.85)');
+      pxBorder(c, cx2 - 26, y0 - 8, 52, 22, 'rgba(242,238,225,0.25)');
+      for (let i = 0; i < 3; i++) {
+        const lit = n <= 3 - i;
+        c.fillStyle = lit ? (n === 1 ? '#49c46a' : ACCENT) : 'rgba(242,238,225,0.14)';
+        c.fillRect(cx2 - 18 + i * 13, y0, 9, 9);
+      }
+    }
+    if (state.finished) {
+      c.fillStyle = 'rgba(8,11,10,0.6)';
+      c.fillRect(0, 0, this.w, this.h);
+      this.text('RACE COMPLETE', this.w / 2, this.h / 2 - 26, { size: 24, weight: 700, align: 'center' });
+      this.text(`BEST OF 3   ${fmt(state.bestTime)}`, this.w / 2, this.h / 2 + 8, { size: 8, color: CREAM, align: 'center' });
+      this.text('R TO RACE AGAIN', this.w / 2, this.h / 2 + 24, { size: 8, color: DIM, align: 'center' });
+    }
+
     if (state.paused) {
       c.fillStyle = 'rgba(10,12,16,0.68)';
       c.fillRect(0, 0, this.w, this.h);
