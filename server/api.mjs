@@ -399,11 +399,11 @@ server.on('upgrade', (req, socket, head) => {
   }
   const code = (url.searchParams.get('room') ?? '').toUpperCase();
   if (!ROOM_CODE_RE.test(code)) { socket.destroy(); return; }
-  const room = rooms.get(code);
+  // arcade rules: any code is a room, created on first join
+  let room = rooms.get(code);
   if (!room) {
-    socket.write('HTTP/1.1 404 Not Found\r\nConnection: close\r\n\r\n');
-    socket.destroy();
-    return;
+    room = { code, createdAt: Date.now(), clients: new Map(), best: null };
+    rooms.set(code, room);
   }
   wss.handleUpgrade(req, socket, head, (ws) => attachClient(ws, req, room));
 });
