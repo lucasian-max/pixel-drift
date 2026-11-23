@@ -73,7 +73,7 @@ export const MAPS: MapDef[] = [
     },
     lake: { x: 34, z: -37, rx: 11, rz: 8 },
     trees: 'mixed', density: 1,
-    props: { trees: 190, rocks: 34, buildings: 15, lampStride: 58, rockScale: 1 },
+    props: { trees: 280, rocks: 58, buildings: 15, lampStride: 58, rockScale: 1 },
   },
   {
     // NASCAR-style stadium: two long straights, two banked U-turns, no sweepers
@@ -455,9 +455,9 @@ export async function buildWorld(scene: THREE.Scene, mapId?: string): Promise<Wo
 
   // town in the infield
   const TOWN: [number, number][] = [
-    [-6, -8], [5, -10], [12, -2], [-2, 2], [9, 7], [-10, 6],
-    [-4, 14], [6, 16], [-14, -2], [14, 26], [-18, 12], [2, 22],
-    [-22, -4], [18, 14], [-8, 26],
+    [2, -8], [13, -10], [20, -2], [6, 2], [17, 7], [-2, 6],
+    [4, 14], [14, 16], [-6, -2], [22, 26], [-10, 12], [10, 22],
+    [-14, -4], [26, 14], [0, 26],
   ];
   const buildings: Placement[][] = [[], [], []];
   const town = map.town ?? TOWN;
