@@ -3,34 +3,33 @@
 Cadence per block: design note → implement in slices (one commit each) → verify three
 states (parked / mid-corner / at speed) → failure cases → tests → docs.
 
-## Now: map detail pass (from the annotated overview)
+## Done
 
-**What changes**
-1. Shift the town right (+8 x) so it sits in the open half of the infield.
-2. Fill the empty infield and the right-hand void: more trees, scattered rocks, a few
-   tyre stacks and lamp posts, so the centre reads as a place, not a lawn.
-3. Add roadside furniture along the main straight: marker boards, a start gantry later.
+- **Map detail pass** — town shifted into the infield, forested outside, kerbs,
+  start gantry, sponsor boards down the main straight, turn boards at the sharp
+  corners.
+- **Block 3 — audio** — engine synth with gear bands, tyre squeal from slip,
+  kerb rattle, gravel rumble, impact thud, and a chip loop ducked under the
+  engine.
+- **Accounts + leaderboard** — sign in, one best lap per player, top 10 board on
+  the title screen and in the API.
 
-**Why**
-The annotated overview shows a big empty lawn inside the loop and a bare strip on the
-right. Props are the cheapest way to make the circuit feel like a venue.
+## Now: Block 5 — multiplayer rooms
 
-**What could break**
-- Prop placement is rejection-tested against the road; raising counts can starve the
-  sampler if the `free()` radius is too generous. Cap iterations and assert a minimum.
-- Colliders grow with props: too many near the racing line makes the track feel narrower.
-  Keep a 2.4-unit clearance from the kerb.
-- The town shift must stay clear of the hairpin and the lake.
+Design note: [docs/multiplayer.md](multiplayer.md).
 
-## Next: Block 3 — audio
-1. Engine synth (RPM from speed + gear, load from throttle) — one commit.
-2. Tyre squeal from slip, kerb rumble when on a kerb — one commit.
-3. Impact thud + gravel crunch — one commit.
-4. Music loop, ducked under the engine — one commit.
+1. `POST /api/rooms` creates a four-character room code.
+2. `WS /api/ws?room=CODE` joins; 20 Hz aggregate state at 8 racers.
+3. Client interpolates remote stacks and draws a name tag.
+4. Server-side lap sanity: accumulated progress, minimum lap time, lap order.
+5. Room code lives in the URL and on the title screen, so a room is a link.
 
-Failure cases to write down first: 0 speed, max speed, reversing, off-road, wall hit,
-tab hidden (must suspend), mute toggle, audio context suspended until first gesture.
+What could break: a tunnel/proxy that does not forward WebSocket upgrades;
+rooms leaking memory (TTL cleanup); a client with a paused tab starving the
+socket; lap timing drifting between clients (each client owns its own clock).
 
-## Later: Block 5 — multiplayer rooms
-Reuse the nest API host; WebSocket rooms, 20 Hz state, interpolation, join/leave,
-server-side lap validation. Design note before any code.
+## Later
+
+- Chat / emotes in the room chip.
+- Server-side checkpoint timestamps to tighten validation beyond progress.
+- Replays from the recorded pose stream.

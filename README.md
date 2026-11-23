@@ -22,6 +22,16 @@ npm run dev      # http://127.0.0.1:5180
 | Pause | P or Esc |
 | Mute | M |
 
+## Race online
+
+Pick **RACE ONLINE** on the title screen to make a room. The four-character
+code is in the URL (`?room=WUAP`) and on the title, so sending the link is
+joining the room. Up to eight racers share the circuit; each car is simulated
+locally and broadcast at 20 Hz, with server-side lap sanity checks.
+
+The API and WebSocket live at `api.lucasian.tech`; see
+[`docs/multiplayer.md`](docs/multiplayer.md) and [`server/README.md`](server/README.md).
+
 ## Four circuits
 
 | | |

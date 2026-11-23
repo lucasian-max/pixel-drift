@@ -1,13 +1,15 @@
 # sprite-drift API
 
-Dependency-free accounts + leaderboard API for the game. Uses only Node
-built-ins (`node:http`, `node:crypto`, `node:fs`) — no npm packages.
+Accounts, leaderboard and multiplayer rooms for the game. Uses Node built-ins
+for HTTP and storage plus [`ws`](https://github.com/websockets/ws) for the
+WebSocket upgrade — no framework.
 
 - **Listen address:** `127.0.0.1:8790` (localhost only; it is never exposed
   directly — the Vite dev server proxies `/api` to it, and the Cloudflare
   tunnel fronts Vite).
 - **Data:** `server/data/db.json` (created on first run, gitignored).
-- **Log:** one line per request — `METHOD path STATUS ms`.
+- **Log:** one line per request — `METHOD path STATUS ms`; room joins/leaves
+  add `[room CODE] + name` lines.
 
 ## Run
 
@@ -15,30 +17,29 @@ built-ins (`node:http`, `node:crypto`, `node:fs`) — no npm packages.
 node server/api.mjs        # or: npm run api
 ```
 
+`ws` is already in the project's dev dependencies. On a deploy host, create a
+`package.json` with `{ "type": "module", "dependencies": { "ws": "^8.23.0" } }`
+next to `server/` and run `npm install --omit=dev` once.
+
 The server does not touch the Vite dev server; start/stop them independently.
 It flushes pending writes and exits cleanly on SIGINT/SIGTERM.
 
 ## Wire it into Vite
 
-Add the `proxy` entry to the existing `server` block in `vite.config.ts`:
+`vite.config.ts` already proxies `/api` to the deployed API and forwards the
+WebSocket upgrade:
 
 ```ts
 // vite.config.ts
-export default defineConfig({
-  server: {
-    host: '127.0.0.1',
-    port: 5180,
-    allowedHosts: ['drift.lucasian.tech', '.lucasian.tech', '.trycloudflare.com', '.cfargotunnel.com'],
-    proxy: {
-      '/api': 'http://127.0.0.1:8790',
-    },
-  },
-  // ...preview, build unchanged
-});
+proxy: { '/api': { target: 'https://api.lucasian.tech', changeOrigin: true, secure: true, ws: true } },
 ```
 
+For a local API, start a second dev server with
+`SPRITE_API=http://127.0.0.1:8790 npx vite --port 5182`.
+
 With this in place, pages on `https://drift.lucasian.tech` can call
-`fetch('/api/...')` same-origin, so no CORS handling is needed anywhere.
+`fetch('/api/...')` and `new WebSocket('/api/ws')` same-origin, so no CORS
+handling is needed anywhere.
 
 ## Endpoints
 
@@ -50,6 +51,24 @@ With this in place, pages on `https://drift.lucasian.tech` can call
 | GET    | `/api/me`     | cookie | —                         | `200 {user:{id,username}}` or `401` |
 | GET    | `/api/times`  | —      | —                         | `200 {times:[{rank,username,ms,at}]}` top 10, ascending |
 | POST   | `/api/times`  | cookie | `{ms}` (`map` optional, default `"coast"`) | `200 {times}` after upsert, `401`, `400` ms out of range |
+| POST   | `/api/rooms`  | —      | —                         | `200 {room, players}`, `429` too many rooms |
+| GET    | `/api/ws?room=CODE` | cookie | —                  | WebSocket upgrade; `404` unknown code, `4005` room full |
+
+## Rooms
+
+`POST /api/rooms` returns a four-character code (alphabet excludes `I/O/0/1`).
+Clients join `GET /api/ws?room=CODE`; the socket is a plain JSON protocol:
+
+- client → server: `{t:'state',x,z,h,sp,u,lap}` at 20 Hz, `{t:'lap',ms,lap}`.
+- server → client: `welcome`, `states` (20 Hz, up to 8 racers), `lap`, `left`.
+
+The server owns slots, places, and best lap in the room. A lap counts only when
+the client's reported progress added up to at least 0.85 of the circuit, the
+clock is between 8.5 s and 10 min, and the lap number is sequential. See
+[`docs/multiplayer.md`](../docs/multiplayer.md) for the full protocol.
+
+Rooms are in memory and expire two hours after going empty. No room state is
+written to `db.json`.
 
 Notes:
 

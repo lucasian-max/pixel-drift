@@ -7,6 +7,7 @@ import { loadSheet, shadowPatch } from './stack';
 import type { StackDef } from './stack';
 import { Sound } from './sound';
 import { account } from './account';
+import { Net, createRoom, gridPoint } from './net';
 
 const gameCanvas = document.getElementById('game') as HTMLCanvasElement;
 const uiCanvas = document.getElementById('ui') as HTMLCanvasElement;
@@ -153,6 +154,20 @@ async function boot() {
   const car = await new Car().init(world);
   scene.add(car.group);
 
+  // ---- multiplayer room ----------------------------------------------------
+  const roomParam = (params.get('room') ?? '').toUpperCase();
+  const net = new Net();
+  let mySlot = 0;
+  net.connect(roomParam, scene, world.start);
+  net.onWelcome = (slot) => {
+    mySlot = slot;
+    // drop the local car onto its grid slot while it is still parked
+    if (Math.abs(car.speed) < 1 && Math.hypot(car.x - world.start.x, car.z - world.start.z) < 6) {
+      const p = gridPoint(world.start, slot);
+      car.place(p.x, p.z, world.start.heading);
+    }
+  };
+
   const shadowTex = await loadSheet('/sprites/shadow.png');
   const carShadow = shadowPatch(shadowTex, [{ x: 0, z: 0, rot: 0, scale: 1 }], 2.7);
   (carShadow.material as THREE.MeshBasicMaterial).opacity = 0.5;
@@ -213,6 +228,14 @@ async function boot() {
     if (a === 'solo') begin();
     else if (a === 'prev-map') gotoMap(-1);
     else if (a === 'next-map') gotoMap(1);
+    else if (a === 'online') {
+      void createRoom().then((code) => {
+        if (!code) return;
+        const url = new URL(location.href);
+        url.searchParams.set('room', code);
+        location.href = url.toString();
+      });
+    }
     else if (a === 'login') loginForm.open();
     else if (a === 'logout') void account.logout();
   };
@@ -372,7 +395,12 @@ async function boot() {
       }
       if (input.consumeKey('KeyC')) car.nextVariant();
       if (input.consumeReset()) {
-        car.reset(world);
+        if (roomParam) {
+          const p = gridPoint(world.start, mySlot);
+          car.place(p.x, p.z, world.start.heading);
+        } else {
+          car.reset(world);
+        }
         world.clearSkid();
         progress = 0; lapTime = 0; started = false; laps = 0;
         nearest = nearestIndex(car.x, car.z);
@@ -395,11 +423,16 @@ async function boot() {
       }
       /* leaderboard: submit and let the store refresh the board from the response */
       void account.submitLap(Math.round(lapTime * 1000));
+      net.sendLap(Math.round(lapTime * 1000), laps + 1);
       lapTime = 0;
       progress -= 1;
       laps++;
       console.log(`lap ${laps} ${lapTime.toFixed(2)}s`);
     }
+    net.update(dt, running ? {
+      x: car.x, z: car.z, heading: car.heading,
+      speed: car.speed, u, lap: laps,
+    } : null);
     world.update();
 
     dustTimer -= dt;
@@ -451,12 +484,16 @@ async function boot() {
       mapIndex,
       mapName: MAPS[mapIndex]?.name,
       account,
+      room: roomParam || undefined,
+      racers: net.count || 1,
+      connected: net.connected,
+      place: net.place,
     }, now);
     sound.update(car, controls.throttle, input.paused);
   };
   frame();
 
-  (window as unknown as { game: unknown }).game = { car, world, camera, renderer, scene };
+  (window as unknown as { game: unknown }).game = { car, world, camera, renderer, scene, net };
 }
 
 boot().catch((e) => {

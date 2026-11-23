@@ -79,7 +79,7 @@ function pxBorder(c: CanvasRenderingContext2D, x: number, y: number, w: number, 
 }
 
 /** every clickable thing on the canvas */
-export type HitId = 'prev-map' | 'next-map' | 'solo' | 'login' | 'logout';
+export type HitId = 'prev-map' | 'next-map' | 'solo' | 'online' | 'login' | 'logout';
 
 interface Button { id: HitId; x: number; y: number; w: number; h: number; label: string }
 
@@ -96,7 +96,8 @@ export class PixelUI {
   /* persistent buttons (no per-frame allocation) */
   private bPrev: Button = { id: 'prev-map', x: 0, y: 0, w: 24, h: 24, label: '<' };
   private bNext: Button = { id: 'next-map', x: 0, y: 0, w: 24, h: 24, label: '>' };
-  private bSolo: Button = { id: 'solo', x: 0, y: 0, w: 148, h: 28, label: 'RACE SOLO' };
+  private bSolo: Button = { id: 'solo', x: 0, y: 0, w: 148, h: 28, label: 'SOLO' };
+  private bOnline: Button = { id: 'online', x: 0, y: 0, w: 112, h: 28, label: 'ONLINE' };
   private bLogin: Button = { id: 'login', x: 0, y: 0, w: 72, h: 14, label: 'SIGN IN' };
   private bLogout: Button = { id: 'logout', x: 0, y: 0, w: 72, h: 14, label: 'SIGN OUT' };
   private buttons: Button[] = [];
@@ -430,19 +431,31 @@ export class PixelUI {
     }
     this.text(name, cx, nameY, { size: 16, weight: 700, color: CREAM, align: 'center' });
 
-    /* SOLO button: chunky arcade key with offset block */
-    this.bSolo.x = Math.round(cx - this.bSolo.w / 2);
+    /* SOLO + ONLINE buttons: chunky arcade keys with offset blocks */
+    const hasRoom = !!state.room;
+    this.bSolo.label = hasRoom ? 'START' : 'SOLO';
+    this.bSolo.w = 104;
+    this.bSolo.x = Math.round(hasRoom ? cx - 52 : cx - 114);
     this.bSolo.y = 256;
-    pxRect(c, this.bSolo.x + 2, this.bSolo.y + 2, this.bSolo.w, this.bSolo.h, SHADOW);
-    pxRect(c, this.bSolo.x, this.bSolo.y, this.bSolo.w, this.bSolo.h, ACCENT);
-    /* full 1px cream border (uncapped so it reads as one solid key) */
-    c.fillStyle = CREAM;
-    c.fillRect(this.bSolo.x, this.bSolo.y, this.bSolo.w, 1);
-    c.fillRect(this.bSolo.x, this.bSolo.y + this.bSolo.h - 1, this.bSolo.w, 1);
-    c.fillRect(this.bSolo.x, this.bSolo.y + 1, 1, this.bSolo.h - 2);
-    c.fillRect(this.bSolo.x + this.bSolo.w - 1, this.bSolo.y + 1, 1, this.bSolo.h - 2);
-    this.text(this.bSolo.label, cx, this.bSolo.y + 6, { size: 16, weight: 700, color: CREAM, align: 'center' });
-    this.buttons.push(this.bSolo);
+    const key = (b: Button, fill: string) => {
+      pxRect(c, b.x + 2, b.y + 2, b.w, b.h, SHADOW);
+      pxRect(c, b.x, b.y, b.w, b.h, fill);
+      c.fillStyle = CREAM;
+      c.fillRect(b.x, b.y, b.w, 1);
+      c.fillRect(b.x, b.y + b.h - 1, b.w, 1);
+      c.fillRect(b.x, b.y + 1, 1, b.h - 2);
+      c.fillRect(b.x + b.w - 1, b.y + 1, 1, b.h - 2);
+      this.text(b.label, b.x + b.w / 2, b.y + 6, {
+        size: 16, weight: 700, color: CREAM, align: 'center',
+      });
+      this.buttons.push(b);
+    };
+    key(this.bSolo, ACCENT);
+    if (!hasRoom) {
+      this.bOnline.x = Math.round(cx + 2);
+      this.bOnline.y = 256;
+      key(this.bOnline, 'rgba(18,22,26,0.92)');
+    }
 
     /* ---- account line under SOLO ---- */
     const acct = state.account;
