@@ -45,6 +45,7 @@ export interface MapDef {
   lake?: { x: number; z: number; rx: number; rz: number };
   tint?: string;
   trees?: 'pine' | 'palm' | 'mixed';
+  props?: { trees: number; rocks: number; buildings: number; lampStride: number; rockScale: number };
   density?: number;
 }
 
@@ -63,6 +64,7 @@ export const MAPS: MapDef[] = [
     },
     lake: { x: 34, z: -37, rx: 11, rz: 8 },
     trees: 'mixed', density: 1,
+    props: { trees: 190, rocks: 34, buildings: 15, lampStride: 58, rockScale: 1 },
   },
   {
     // NASCAR-style stadium: two long straights, two banked U-turns, no sweepers
@@ -78,6 +80,7 @@ export const MAPS: MapDef[] = [
     },
     lake: { x: -35, z: 31, rx: 9, rz: 7 },
     trees: 'pine', density: 0.55, tint: '#f0d9b0',
+    props: { trees: 18, rocks: 120, buildings: 4, lampStride: 78, rockScale: 1.9 },
   },
   {
     // city block: four 90-degree corners plus an inward chicane notch
@@ -93,6 +96,7 @@ export const MAPS: MapDef[] = [
     },
     lake: { x: 33, z: 34, rx: 9, rz: 7 },
     trees: 'pine', density: 0.35, tint: '#42604f',
+    props: { trees: 12, rocks: 18, buildings: 15, lampStride: 34, rockScale: 0.8 },
   },
   {
     // dumbbell: two round ends joined by a tight waist
@@ -108,6 +112,7 @@ export const MAPS: MapDef[] = [
     },
     lake: { x: -34, z: -34, rx: 9, rz: 7 },
     trees: 'pine', density: 1.0, tint: '#eef4f8',
+    props: { trees: 130, rocks: 55, buildings: 6, lampStride: 52, rockScale: 1.3 },
   },
 ];
 
@@ -445,7 +450,8 @@ export async function buildWorld(scene: THREE.Scene, mapId?: string): Promise<Wo
     [-22, -4], [18, 14], [-8, 26],
   ];
   const buildings: Placement[][] = [[], [], []];
-  town.forEach(([x, z], i) => {
+  const townCount = map.props?.buildings ?? town.length;
+  town.slice(0, townCount).forEach(([x, z], i) => {
     const r = 4.2;
     if (!free(x, z, r)) return;
     const rot = Math.round(rnd() * 3) * (Math.PI / 2) + (rnd() - 0.5) * 0.15;
@@ -482,7 +488,7 @@ export async function buildWorld(scene: THREE.Scene, mapId?: string): Promise<Wo
   }
   // scattered woodland
   let guard = 0;
-  const treeTarget = Math.round(190 * (map.density ?? 1));
+  const treeTarget = map.props?.trees ?? Math.round(190 * (map.density ?? 1));
   while (pines.length + palms.length < treeTarget && guard++ < 3000) {
     const x = (rnd() - 0.5) * (WORLD - 8);
     const z = (rnd() - 0.5) * (WORLD - 8);
@@ -491,11 +497,12 @@ export async function buildWorld(scene: THREE.Scene, mapId?: string): Promise<Wo
 
   // rocks
   const rocks: Placement[] = [];
-  for (let i = 0; i < 34; i++) {
+  const rockCount = map.props?.rocks ?? 34;
+  for (let i = 0; i < rockCount; i++) {
     const x = (rnd() - 0.5) * (WORLD - 10);
     const z = (rnd() - 0.5) * (WORLD - 10);
     if (!free(x, z, 1.3)) continue;
-    rocks.push({ x, z, rot: rnd() * 6.28, scale: 0.7 + rnd() * 0.7 });
+    rocks.push({ x, z, rot: rnd() * 6.28, scale: (0.7 + rnd() * 0.7) * (map.props?.rockScale ?? 1) });
     taken.push({ x, z, r: 1.3 });
     colliders.push({ x, z, r: 0.7 });
     shadows.push({ x, z, rot: 0, scale: 1.5 });
@@ -503,7 +510,7 @@ export async function buildWorld(scene: THREE.Scene, mapId?: string): Promise<Wo
 
   // lamps along the outside of the track
   const lamps: Placement[] = [];
-  for (let i = 0; i < track.length; i += 58) {
+  for (let i = 0; i < track.length; i += (map.props?.lampStride ?? 58)) {
     const p = track[i];
     const q = track[(i + 6) % track.length];
     const dx = q.x - p.x, dz = q.z - p.z;
