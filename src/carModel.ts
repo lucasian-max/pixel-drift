@@ -231,8 +231,6 @@ export function buildCarModel(): THREE.Group {
   for (const s of [1, -1] as const) {
     sidePanel(teal, s, 0.98 + 0.006, M.teal);
     sidePanel(mag, s, 0.98 + 0.006, M.magenta);
-    sidePanel(archPts(FRONT_Z), s, bodyAt(FRONT_Z).hw + 0.003, M.arch);
-    sidePanel(archPts(REAR_Z), s, bodyAt(REAR_Z).hw + 0.003, M.arch);
     box(0.02, 0.04, 0.12, M.amber, s * (bodyAt(1.75).hw + 0.005), 0.36, 1.75); // side marker
   }
 
