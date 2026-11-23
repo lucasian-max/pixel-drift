@@ -8,8 +8,6 @@ depth fighting.
   python tools/bake_directions.py slices.png out.png --slices 17 --dirs 32
 """
 import argparse
-import math
-import numpy as np
 from PIL import Image
 
 
@@ -27,8 +25,16 @@ def main():
     h = sheet.height
     sl = [sheet.crop((i * w, 0, (i + 1) * w, h)) for i in range(a.slices)]
 
-    fw = int(math.ceil(w * 1.45)) + 2
-    fh = int(math.ceil(h * a.squash)) + a.slices + 4
+    # the frame must hold every rotated slice with room to spare: measure the
+    # widest and tallest rotation instead of guessing (a too-narrow frame
+    # shears the car at the diagonal headings)
+    max_w = max_h = 0
+    for d in range(a.dirs):
+        piece = sl[0].rotate(d * 360.0 / a.dirs, resample=Image.NEAREST, expand=True)
+        max_w = max(max_w, piece.width)
+        max_h = max(max_h, max(1, int(round(piece.height * a.squash))))
+    fw = max_w + 2                       # 1px of margin either side
+    fh = max_h + a.slices + 4            # 1px lift per slice + margins
     cx, cy = fw // 2, fh - 2
 
     out = Image.new("RGBA", (fw * a.dirs, fh), (0, 0, 0, 0))
