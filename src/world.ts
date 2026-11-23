@@ -1,11 +1,11 @@
 import * as THREE from 'three';
 import { instancedStack, loadSheet, shadowPatch, type Placement, type StackDef } from './stack';
 
-export const WORLD = 140;
+export const WORLD = 172;
 let ROAD_HALF = 4.4;
 // set from the active map when the world is built          // world is WORLD × WORLD units
 const PX = 2048;                  // ground texture resolution
-const GX = 132;                   // ground is painted wider than the playable area
+const GX = 180;                   // ground is painted wider than the playable area
 const HALF_G = GX / 2;
 const PPU = PX / GX;              // pixels per world unit
 const HALF = WORLD / 2;
