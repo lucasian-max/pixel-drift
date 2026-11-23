@@ -34,6 +34,7 @@ export interface MapDef {
   name: string;
   ctrl: [number, number][];
   roadHalf: number;
+  smooth?: boolean;
   palette: {
     grass: string; tones: [string, string, string, string, string];
     bladeA: string; bladeB: string;
@@ -51,8 +52,8 @@ export const MAPS: MapDef[] = [
   {
     id: 'coast', name: 'Saltmarsh Coast', roadHalf: 4.4,
     ctrl: [[32.7, 0], [29, 13.9], [16.1, 20.2], [5, 22], [-6.1, 26.9], [-21.7, 27.2],
-      [-31.1, 15], [-27.6, 0], [-21.4, -10.3], [-17, -21.3], [-7, -30.7],
-      [6.7, -29.5], [16.8, -21.1], [25.6, -12.3]],
+      [-31.1, 15], [-27.6, 0], [-21.4, -10.3], [-17.9, -21.3], [-7.9, -30.7],
+      [6.7, -31.5], [16.8, -22.1], [25.6, -13.3]],
     palette: {
       grass: '#4f7c46', tones: ['#5b8c4e', '#3d6636', '#6fa05d', '#33582f', '#7fb367'],
       bladeA: '#8cc274', bladeB: '#356031',
@@ -64,10 +65,10 @@ export const MAPS: MapDef[] = [
     trees: 'mixed', density: 1,
   },
   {
-    id: 'canyon', name: 'Redrock Canyon', roadHalf: 4.4,
-    ctrl: [[37.9, 0], [30.1, 14.5], [17, 21.3], [5.7, 24.9], [-6.3, 27.8], [-19.9, 25],
-      [-30.3, 14.6], [-34, 0], [-30.4, -14.6], [-19.5, -24.4], [-6, -26.3],
-      [5.6, -24.5], [18.1, -22.7], [32.1, -15.4]],
+    // NASCAR-style stadium: two long straights, two banked U-turns, no sweepers
+    id: 'canyon', name: 'Redrock Speedway', roadHalf: 5.2, smooth: false,
+    ctrl: [[-30, -22], [6, -22], [22, -18], [28, -8], [28, 8], [22, 18], [6, 22],
+      [-30, 22], [-38, 14], [-38, -14]],
     palette: {
       grass: '#c9a86a', tones: ['#d4b476', '#b8955a', '#dcc086', '#a88450', '#e2cb95'],
       bladeA: '#e8d29b', bladeB: '#96754a',
@@ -79,10 +80,10 @@ export const MAPS: MapDef[] = [
     trees: 'pine', density: 0.55, tint: '#f0d9b0',
   },
   {
-    id: 'night', name: 'Neon Docks', roadHalf: 3.8,
-    ctrl: [[28.3, 0], [19.1, 9.2], [14.6, 18.3], [6.7, 29.3], [-6.4, 27.9], [-16.7, 21],
-      [-27.5, 13.3], [-28.3, 0], [-19.1, -9.2], [-14.6, -18.3], [-6.7, -29.3],
-      [6.4, -27.9], [16.7, -21], [27.5, -13.3]],
+    // city block: four 90-degree corners plus an inward chicane notch
+    id: 'night', name: 'Neon Blocks', roadHalf: 4.0, smooth: false,
+    ctrl: [[-26, -26], [26, -26], [26, -8], [12, -8], [12, 8], [26, 8], [26, 26],
+      [-26, 26], [-26, 0]],
     palette: {
       grass: '#243a34', tones: ['#2b463c', '#1c2f2a', '#33524a', '#16241f', '#3d5f52'],
       bladeA: '#4b7a68', bladeB: '#12201c',
@@ -91,13 +92,13 @@ export const MAPS: MapDef[] = [
       line: 'rgba(240,230,190,0.7)', kerbA: '#e0c05a', kerbB: '#b5432f',
     },
     lake: { x: 33, z: 34, rx: 9, rz: 7 },
-    trees: 'pine', density: 0.5, tint: '#42604f',
+    trees: 'pine', density: 0.35, tint: '#42604f',
   },
   {
-    id: 'alpine', name: 'Frostbite Pass', roadHalf: 3.9,
-    ctrl: [[33, 0], [24.1, 11.6], [16.3, 20.4], [6.7, 29.5], [-7.1, 31.1], [-18.2, 22.8],
-      [-25.3, 12.2], [-31.8, 0], [-31.2, -15], [-19.2, -24.1], [-5.5, -23.9],
-      [5.5, -24], [19.8, -24.8], [32.9, -15.8]],
+    // dumbbell: two round ends joined by a tight waist
+    id: 'alpine', name: 'Frostbite Pass', roadHalf: 4.0,
+    ctrl: [[-30, -12], [-16, -20], [-4, -8], [4, -8], [16, -20], [30, -12],
+      [30, 10], [16, 18], [4, 6], [-4, 6], [-16, 18], [-30, 10]],
     palette: {
       grass: '#dfe6ea', tones: ['#eef3f6', '#c9d5dc', '#f7fafc', '#b6c6d0', '#ffffff'],
       bladeA: '#ffffff', bladeB: '#a9bcc8',
@@ -106,15 +107,39 @@ export const MAPS: MapDef[] = [
       line: 'rgba(250,252,255,0.85)', kerbA: '#f2f6f8', kerbB: '#3f6fb0',
     },
     lake: { x: -34, z: -34, rx: 9, rz: 7 },
-    trees: 'pine', density: 1.15, tint: '#eef4f8',
+    trees: 'pine', density: 1.0, tint: '#eef4f8',
   },
 ];
 
-function sampleTrack(ctrl: [number, number][]): P2[] {
-  const curve = new THREE.CatmullRomCurve3(
-    ctrl.map(([x, z]) => new THREE.Vector3(x, 0, z)), true, 'catmullrom', 0.5,
-  );
-  return curve.getPoints(900).map((p) => ({ x: p.x, z: p.z }));
+function sampleTrack(ctrl: [number, number][], smooth = true): P2[] {
+  if (smooth) {
+    const curve = new THREE.CatmullRomCurve3(
+      ctrl.map(([x, z]) => new THREE.Vector3(x, 0, z)), true, 'catmullrom', 0.5,
+    );
+    return curve.getPoints(900).map((p) => ({ x: p.x, z: p.z }));
+  }
+  // polygon with filleted corners: keeps the hard layout while giving the
+  // kerb offset a radius to work with
+  const n = ctrl.length;
+  const r = 4.5;
+  const out: P2[] = [];
+  for (let i = 0; i < n; i++) {
+    const a = ctrl[(i - 1 + n) % n], b = ctrl[i], c = ctrl[(i + 1) % n];
+    const la = Math.hypot(a[0] - b[0], a[1] - b[1]) || 1;
+    const lc = Math.hypot(c[0] - b[0], c[1] - b[1]) || 1;
+    const p1 = { x: b[0] + ((a[0] - b[0]) / la) * r, z: b[1] + ((a[1] - b[1]) / la) * r };
+    const p2 = { x: b[0] + ((c[0] - b[0]) / lc) * r, z: b[1] + ((c[1] - b[1]) / lc) * r };
+    out.push(p1);
+    for (let k = 1; k <= 6; k++) {
+      const t = k / 6;
+      const u = 1 - t;
+      out.push({
+        x: u * u * p1.x + 2 * u * t * b[0] + t * t * p2.x,
+        z: u * u * p1.z + 2 * u * t * b[1] + t * t * p2.z,
+      });
+    }
+  }
+  return out;
 }
 
 function offsetPath(pts: P2[], dist: number): P2[] {
@@ -263,7 +288,8 @@ function paintGround(track: P2[], map: MapDef): HTMLCanvasElement {
   dotted(g, track, 'rgba(246,246,240,0.62)', 0.16 * PPU, 1.9 * PPU, 2.4 * PPU);
 
   // start / finish checker
-  const s = track[300], s2 = track[303];
+  const si = Math.floor(track.length / 3);
+  const s = track[si], s2 = track[(si + 3) % track.length];
   const ang = Math.atan2(s2.z - s.z, s2.x - s.x) + Math.PI * 0.5;   // start line runs ACROSS the road
   g.save();
   g.translate((s.x + HALF_G) * PPU, (s.z + HALF_G) * PPU);
@@ -295,7 +321,7 @@ export async function buildWorld(scene: THREE.Scene, mapId?: string): Promise<Wo
   const group = new THREE.Group();
   scene.add(group);
 
-  const track = sampleTrack(map.ctrl);
+  const track = sampleTrack(map.ctrl, map.smooth !== false);
 
   // ---- road membership grid -------------------------------------------------
   const cell = 1;
@@ -523,7 +549,8 @@ export async function buildWorld(scene: THREE.Scene, mapId?: string): Promise<Wo
   group.add(shadowPatch(shadowTex, shadows, 2.6));
 
   // start on the long bottom straight, facing along the tangent
-  const s0 = track[300], s1 = track[312];
+  const si = Math.floor(track.length / 3);
+  const s0 = track[si], s1 = track[(si + 12) % track.length];
   const start = { x: s0.x, z: s0.z, heading: Math.atan2(-(s1.x - s0.x), -(s1.z - s0.z)) };
 
   return {

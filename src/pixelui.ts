@@ -309,47 +309,54 @@ export class PixelUI {
 
   private drawMap(car: Car, x: number, y: number, size: number) {
     const c = this.ctx;
-    const half = size / 2;
-    const sc = size * 0.96;
-    const ox = x + half, oz = y + half;
-    const mx = (v: number) => ox + v * sc;   // world x -> screen x
-    const mz = (v: number) => oz + v * sc;   // world z -> screen y
 
-    /* road: dim outer stroke + bright 1px centreline (crisp outline look) */
-    c.beginPath();
+    // fit the whole circuit, with a margin, from its own bounds
+    let minX = 1e9, maxX = -1e9, minZ = 1e9, maxZ = -1e9;
     for (let i = 0; i < this.mapPts.length; i += 2) {
-      if (i === 0) c.moveTo(mx(this.mapPts[0]), mz(this.mapPts[1]));
-      else c.lineTo(mx(this.mapPts[i]), mz(this.mapPts[i + 1]));
+      minX = Math.min(minX, this.mapPts[i]); maxX = Math.max(maxX, this.mapPts[i]);
+      minZ = Math.min(minZ, this.mapPts[i + 1]); maxZ = Math.max(maxZ, this.mapPts[i + 1]);
     }
-    c.closePath();
+    const span = Math.max(maxX - minX, maxZ - minZ, 0.001);
+    const inner = size - 6;
+    const sc = inner / span;
+    const ox = x + size / 2 - ((minX + maxX) / 2) * sc;
+    const oz = y + size / 2 - ((minZ + maxZ) / 2) * sc;
+    const px = (v: number) => ox + v * sc;
+    const pz = (v: number) => oz + v * sc;
+
+    // road: dark casing then a bright line, 1px, no glow
+    const path = () => {
+      c.beginPath();
+      for (let i = 0; i < this.mapPts.length; i += 2) {
+        if (i === 0) c.moveTo(px(this.mapPts[0]), pz(this.mapPts[1]));
+        else c.lineTo(px(this.mapPts[i]), pz(this.mapPts[i + 1]));
+      }
+      c.closePath();
+    };
     c.lineJoin = 'round';
-    c.strokeStyle = 'rgba(242,238,225,0.35)';
+    c.lineCap = 'round';
+    path();
+    c.strokeStyle = 'rgba(10,12,16,0.85)';
     c.lineWidth = 4;
     c.stroke();
-    c.strokeStyle = 'rgba(242,238,225,0.95)';
-    c.lineWidth = 1;
+    path();
+    c.strokeStyle = 'rgba(242,238,225,0.9)';
+    c.lineWidth = 2;
     c.stroke();
 
-    /* start-line mini-checker: cream + ink cells across the road */
-    const sx = mx(this.tickX), sz = mz(this.tickZ);
-    c.fillStyle = CREAM;
-    c.fillRect(Math.round(sx + this.tickNX * -3), Math.round(sz + this.tickNZ * -3), 3, 3);
-    c.fillStyle = 'rgba(16,19,22,0.85)';
-    c.fillRect(Math.round(sx), Math.round(sz), 3, 3);
-
-    /* car wedge */
-    const cx = ox + ((car.x - this.mapCX) / this.mapExt) * sc;
-    const cz = oz + ((car.z - this.mapCZ) / this.mapExt) * sc;
+    // car: a filled wedge pointing where it faces
+    const cx = px(car.x / 84), cz = pz(car.z / 84);
     const fx = -Math.sin(car.heading), fz = -Math.cos(car.heading);
     const rx = Math.cos(car.heading), rz = -Math.sin(car.heading);
-    c.fillStyle = ACCENT;
     c.beginPath();
-    c.moveTo(cx + fx * 3.5, cz + fz * 3.5);
-    c.lineTo(cx - fx * 2.2 + rx * 2.4, cz - fz * 2.2 + rz * 2.4);
-    c.lineTo(cx - fx * 2.2 - rx * 2.4, cz - fz * 2.2 - rz * 2.4);
+    c.moveTo(cx + fx * 4.2, cz + fz * 4.2);
+    c.lineTo(cx - fx * 2.4 + rx * 2.6, cz - fz * 2.4 + rz * 2.6);
+    c.lineTo(cx - fx * 1.0, cz - fz * 1.0);
+    c.lineTo(cx - fx * 2.4 - rx * 2.6, cz - fz * 2.4 - rz * 2.6);
     c.closePath();
+    c.fillStyle = ACCENT;
     c.fill();
-    c.strokeStyle = INK;
+    c.strokeStyle = '#f2eee1';
     c.lineWidth = 1;
     c.stroke();
   }
