@@ -53,9 +53,10 @@ export interface MapDef {
 export const MAPS: MapDef[] = [
   {
     id: 'coast', name: 'Saltmarsh Coast', roadHalf: 4.4,
-    ctrl: [[32.7, 0], [29, 13.9], [16.1, 20.2], [5, 22], [-6.1, 26.9], [-21.7, 27.2],
-      [-31.1, 15], [-27.6, 0], [-21.4, -10.3], [-17.9, -21.3], [-7.9, -30.7],
-      [6.7, -31.5], [16.8, -22.1], [25.6, -13.3]],
+    ctrl: [
+      [-26, 20], [-6, 21], [13, 21], [23, 18], [28, 10], [24, 2], [14, -2],
+      [10, -10], [15, -18], [5, -23], [-9, -23], [-21, -17], [-28, -6],
+      [-30, 8], [-28, 16]],
     palette: {
       grass: '#4f7c46', tones: ['#5b8c4e', '#3d6636', '#6fa05d', '#33582f', '#7fb367'],
       bladeA: '#8cc274', bladeB: '#356031',
@@ -575,7 +576,7 @@ export async function buildWorld(scene: THREE.Scene, mapId?: string): Promise<Wo
     group, colliders, roadAt, nearbyRoad, start, addSkid, clearSkid,
     name: map.name,
     mapId: map.id,
-    minimapPath: track.filter((_, i) => i % 12 === 0),
+    minimapPath: track.filter((_, i) => i % 4 === 0),
     track,
     update() {
       if (skidDirty) {
