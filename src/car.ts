@@ -22,6 +22,7 @@ export class Car {
   slip = 0;           // |lateral velocity|
   drifting = false;
   onRoad = true;
+  onKerb = false;
   group = new THREE.Group();
   model!: THREE.Group;
   variant = 0;
@@ -59,6 +60,16 @@ export class Car {
     this.sync();
   }
 
+  /** put the car down at a known point (grid slots, respawns) */
+  place(x: number, z: number, heading: number) {
+    this.x = x;
+    this.z = z;
+    this.heading = heading;
+    this.vx = this.vz = 0;
+    this.steerAngle = 0;
+    this.sync();
+  }
+
   private sync() {
     this.group.position.set(this.x, 0, this.z);
     this.group.rotation.y = this.heading;
@@ -71,6 +82,7 @@ export class Car {
     let vLat = this.vx * rx + this.vz * rz;
 
     this.onRoad = world.roadAt(this.x, this.z);
+    this.onKerb = world.kerbAt(this.x, this.z);
     const surface = this.onRoad ? 1 : 0.62;
 
     // engine / brakes

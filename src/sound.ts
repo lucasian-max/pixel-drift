@@ -10,6 +10,7 @@ export class Sound {
   private filter!: BiquadFilterNode;
   private squeal!: GainNode;
   private rumble!: GainNode;
+  private kerb!: GainNode;
   muted = false;
   private musicGain!: GainNode;
   private musicNext = 0;
@@ -69,6 +70,16 @@ export class Sound {
     this.rumble = ctx.createGain();
     this.rumble.gain.value = 0;
     noise.connect(lp).connect(this.rumble).connect(this.master);
+
+    // kerb: low, hollow rattle — the painted strip under two wheels
+    const kp = ctx.createBiquadFilter();
+    kp.type = 'bandpass';
+    kp.frequency.value = 150;
+    kp.Q.value = 0.7;
+    this.kerb = ctx.createGain();
+    this.kerb.gain.value = 0;
+    noise.connect(kp).connect(this.kerb).connect(this.master);
+
     noise.start();
     this.noiseBuf = buf;
 
@@ -164,8 +175,21 @@ export class Sound {
     this.engGain.gain.setTargetAtTime(load, t, 0.08);
 
     const slip = Math.min(1, car.slip / 7);
-    this.squeal.gain.setTargetAtTime(paused ? 0 : slip * 0.055 * Math.min(1, sp / 6), t, 0.05);
-    this.rumble.gain.setTargetAtTime(paused || car.onRoad ? 0 : Math.min(0.06, sp * 0.0022), t, 0.1);
+    const rolling = car.onRoad || car.onKerb;
+    this.squeal.gain.setTargetAtTime(
+      paused || !rolling ? 0 : slip * 0.055 * Math.min(1, sp / 6), t, 0.05,
+    );
+
+    // gravel outside the kerb, a pulsed rattle on the kerb itself
+    const gravel = !car.onRoad && !car.onKerb;
+    this.rumble.gain.setTargetAtTime(
+      paused || !gravel ? 0 : Math.min(0.06, sp * 0.0022), t, 0.1,
+    );
+    const kerbPulse = 0.55 + 0.45 * Math.sin(t * 150);
+    const kerb = Math.min(1, Math.abs(car.speed) / 9);
+    this.kerb.gain.setTargetAtTime(
+      paused || !car.onKerb ? 0 : kerbPulse * kerb * 0.05, t, 0.02,
+    );
 
     // music: duck with throttle, stop when paused
     this.musicGain.gain.setTargetAtTime(paused ? 0 : 0.13, t, 0.2);

@@ -19,6 +19,7 @@ export interface World {
   update(): void;
   colliders: Collider[];
   roadAt(x: number, z: number): boolean;
+  kerbAt(x: number, z: number): boolean;
   nearbyRoad(x: number, z: number, dist: number): boolean;
   start: { x: number; z: number; heading: number };
   addSkid(x: number, z: number, angle: number, strength: number): void;
@@ -324,6 +325,65 @@ function mulberry(seed: number) {
   };
 }
 
+/** Cream sponsor board with a hard accent rule, drawn at pixel scale. */
+function boardTexture(label: string, accent: string): THREE.Texture {
+  const cv = document.createElement('canvas');
+  cv.width = 160; cv.height = 48;
+  const g = cv.getContext('2d')!;
+  g.fillStyle = '#f2eee1';
+  g.fillRect(0, 0, 160, 48);
+  g.fillStyle = accent;
+  g.fillRect(0, 0, 160, 4);
+  g.fillRect(0, 44, 160, 4);
+  g.fillStyle = '#14161a';
+  g.fillRect(6, 9, 148, 2);
+  g.fillRect(6, 37, 148, 2);
+  g.font = 'bold 20px monospace';
+  g.textAlign = 'center';
+  g.textBaseline = 'middle';
+  g.fillText(label, 80, 25);
+  for (let i = 0; i < 4; i++) {
+    g.fillStyle = i % 2 === 0 ? accent : '#14161a';
+    g.fillRect(4 + i * 4, 4, 3, 3);
+    g.fillRect(160 - 7 - i * 4, 41, 3, 3);
+  }
+  const tex = new THREE.CanvasTexture(cv);
+  tex.magFilter = THREE.NearestFilter;
+  tex.minFilter = THREE.NearestFilter;
+  tex.colorSpace = THREE.SRGBColorSpace;
+  return tex;
+}
+
+/** Turn board: three chunky chevrons, pointing left (-1) or right (+1). */
+function arrowTexture(dir: number): THREE.Texture {
+  const cv = document.createElement('canvas');
+  cv.width = 64; cv.height = 64;
+  const g = cv.getContext('2d')!;
+  g.fillStyle = '#14161a';
+  g.fillRect(0, 0, 64, 64);
+  g.fillStyle = '#f2eee1';
+  g.fillRect(0, 0, 64, 3);
+  g.fillRect(0, 61, 64, 3);
+  g.fillRect(0, 0, 3, 64);
+  g.fillRect(61, 0, 3, 64);
+  g.fillStyle = '#e0513f';
+  for (let i = 0; i < 3; i++) {
+    const x = 18 + i * 14;
+    for (let k = 0; k < 6; k++) {
+      const w = 3;
+      const up = 8 + k * 4;
+      const down = 56 - k * 4;
+      g.fillRect(dir > 0 ? x + k * 3 : x - k * 3, up, w, 6);
+      g.fillRect(dir > 0 ? x + k * 3 : x - k * 3, down, w, 6);
+    }
+  }
+  const tex = new THREE.CanvasTexture(cv);
+  tex.magFilter = THREE.NearestFilter;
+  tex.minFilter = THREE.NearestFilter;
+  tex.colorSpace = THREE.SRGBColorSpace;
+  return tex;
+}
+
 export async function buildWorld(scene: THREE.Scene, mapId?: string): Promise<World> {
   const map = MAPS.find((m) => m.id === mapId) ?? MAPS[0];
   ROAD_HALF = map.roadHalf ?? 4.4;
@@ -336,6 +396,7 @@ export async function buildWorld(scene: THREE.Scene, mapId?: string): Promise<Wo
   const cell = 1;
   const dim = Math.ceil(WORLD / cell);
   const grid = new Uint8Array(dim * dim);
+  const kerbs = new Uint8Array(dim * dim);
   const gx = (x: number) => Math.floor((x + HALF) / cell);
   for (let i = 0; i < dim; i++) {
     for (let j = 0; j < dim; j++) {
@@ -346,13 +407,22 @@ export async function buildWorld(scene: THREE.Scene, mapId?: string): Promise<Wo
         const d = (p.x - x) ** 2 + (p.z - z) ** 2;
         if (d < best) best = d;
       }
-      if (Math.sqrt(best) < ROAD_HALF) grid[j * dim + i] = 1;
+      const d = Math.sqrt(best);
+      const at = j * dim + i;
+      if (d < ROAD_HALF) grid[at] = 1;
+      // a wheel-width either side of the painted kerb band
+      if (d >= ROAD_HALF - 1.0 && d <= ROAD_HALF + 0.55) kerbs[at] = 1;
     }
   }
   const roadAt = (x: number, z: number) => {
     const i = gx(x), j = gx(z);
     if (i < 0 || j < 0 || i >= dim || j >= dim) return false;
     return grid[j * dim + i] === 1;
+  };
+  const kerbAt = (x: number, z: number) => {
+    const i = gx(x), j = gx(z);
+    if (i < 0 || j < 0 || i >= dim || j >= dim) return false;
+    return kerbs[j * dim + i] === 1;
   };
   const nearbyRoad = (x: number, z: number, dist: number) => {
     for (const p of track) {
@@ -620,8 +690,96 @@ export async function buildWorld(scene: THREE.Scene, mapId?: string): Promise<Wo
     group.add(g);
   }
 
+  // ---- marker boards --------------------------------------------------------
+  {
+    const furniture = new THREE.Group();
+    const postMat = new THREE.MeshBasicMaterial({ color: 0x24262b, toneMapped: false });
+    const backMat = new THREE.MeshBasicMaterial({ color: 0xe8e2d2, toneMapped: false });
+    const n = track.length;
+
+    const placeBoard = (x: number, z: number, rot: number, tex: THREE.Texture,
+      w: number, h: number, bottom: number) => {
+      const g = new THREE.Group();
+      for (const side of [-1, 1]) {
+        const post = new THREE.Mesh(new THREE.BoxGeometry(0.12, bottom + h * 0.5, 0.12), postMat);
+        post.position.set(side * (w / 2 - 0.22), (bottom + h * 0.5) / 2, 0);
+        g.add(post);
+      }
+      const geo = new THREE.PlaneGeometry(w, h);
+      const face = new THREE.Mesh(geo, new THREE.MeshBasicMaterial({ map: tex, toneMapped: false }));
+      face.position.set(0, bottom + h / 2, 0.02);
+      g.add(face);
+      const back = new THREE.Mesh(geo, backMat);
+      back.position.set(0, bottom + h / 2, -0.02);
+      back.rotation.y = Math.PI;
+      g.add(back);
+      g.position.set(x, 0, z);
+      g.rotation.y = rot;
+      furniture.add(g);
+    };
+
+    // outward is whichever side of the track is farther from the infield
+    let ccx = 0, ccz = 0;
+    for (const p of track) { ccx += p.x; ccz += p.z; }
+    ccx /= n; ccz /= n;
+
+    const sideAt = (p: P2, nx: number, nz: number) => {
+      const a = Math.hypot(p.x + nx * 4 - ccx, p.z + nz * 4 - ccz);
+      const b = Math.hypot(p.x - nx * 4 - ccx, p.z - nz * 4 - ccz);
+      return a > b ? 1 : -1;
+    };
+
+    const straightLabels = ['SPRITE', 'TURBO', 'DRIFT', '8-BIT', 'PIXEL', 'OIL'];
+    const accents = ['#e0513f', '#2b6d7a', '#b5432f'];
+
+    // sponsor boards flank the start straight, clear of the gantry
+    let bi = 0;
+    for (let k = -140; k <= 140; k += 34) {
+      if (Math.abs(k) < 22) continue;
+      const i = (si + k + n) % n;
+      const p = track[i], q = track[(i + 4) % n];
+      const dx = q.x - p.x, dz = q.z - p.z;
+      const len = Math.hypot(dx, dz) || 1;
+      const nx = dz / len, nz = -dx / len;
+      const side = sideAt(p, nx, nz);
+      const off = ROAD_HALF + 2.0 + (bi % 2) * 0.3;
+      const x = p.x + nx * side * off;
+      const z = p.z + nz * side * off;
+      // face down the straight toward oncoming cars, so the lettering reads
+      const rot = Math.atan2(-dx, -dz);
+      const tex = boardTexture(straightLabels[bi % straightLabels.length], accents[bi % accents.length]);
+      placeBoard(x, z, rot, tex, 3.9, 1.18, 1.05);
+      bi++;
+    }
+
+    // turn boards at the sharpest corners, placed on the outside of the bend
+    const curvAt = (i: number) => {
+      const a = track[(i - 8 + n) % n], b = track[i], c = track[(i + 8) % n];
+      const v1x = b.x - a.x, v1z = b.z - a.z, v2x = c.x - b.x, v2z = c.z - b.z;
+      const l1 = Math.hypot(v1x, v1z) || 1, l2 = Math.hypot(v2x, v2z) || 1;
+      return (v1x * v2z - v1z * v2x) / (l1 * l2);
+    };
+    let lastBoard = -999;
+    for (let i = 0; i < n; i++) {
+      const c = Math.abs(curvAt(i));
+      if (c < 0.14 || c < Math.abs(curvAt((i - 1 + n) % n)) || c < Math.abs(curvAt((i + 1) % n))) continue;
+      if (i - lastBoard < 80) continue;
+      const p = track[i], q = track[(i + 4) % n], r = track[(i - 4 + n) % n];
+      const tx = q.x - r.x, tz = q.z - r.z;
+      const len = Math.hypot(tx, tz) || 1;
+      const nx = tz / len, nz = -tx / len;
+      const side = sideAt(p, nx, nz);
+      const x = p.x + nx * side * (ROAD_HALF + 3.0);
+      const z = p.z + nz * side * (ROAD_HALF + 3.0);
+      const rot = Math.atan2(-tx, -tz);
+      placeBoard(x, z, rot, arrowTexture(curvAt(i) > 0 ? 1 : -1), 2.1, 2.1, 1.0);
+      lastBoard = i;
+    }
+    group.add(furniture);
+  }
+
   return {
-    group, colliders, roadAt, nearbyRoad, start, addSkid, clearSkid,
+    group, colliders, roadAt, kerbAt, nearbyRoad, start, addSkid, clearSkid,
     name: map.name,
     mapId: map.id,
     minimapPath: track.filter((_, i) => i % 4 === 0),
