@@ -574,7 +574,7 @@ const angNorm = (a) => Math.atan2(Math.sin(a), Math.cos(a));
 
 // pine: 40×40, 18 layers — stepped bough platters over a trunk that pokes
 // through the south rim. Each platter is flat with a ragged, tip-serrated edge.
-function pineAtlas() {
+function pineAtlas(snow = false) {
   const W = 40, H = 40, L = 18, C = 20, CZ = 20;
   const leafLt = hex('#86cf6a'), leafDk = hex('#2a6138'), leafDeep = hex('#1b4227');
   const crownC = hex('#b9e489');
@@ -1060,6 +1060,77 @@ function tyreAtlas() {
   };
 }
 
+
+// ---------------------------------------------------------------- biomes ----
+// cactus: 24x24, 12 layers
+function cactusAtlas() {
+  const W = 24, H = 24, L = 12, C = 12;
+  const green = hex('#3f7d4a'), lt = hex('#63b06d'), dk = hex('#2a5c37');
+  const hAt = (x, z) => {
+    const col = Math.abs(x - C) < 3.1 && z > 3 && z < 21 ? 10.5 : 0;
+    const armL = x > 3 && x < 8 && z > 10 && z < 15 ? 7 : 0;
+    const armR = x > 16 && x < 21 && z > 8 && z < 13 ? 7 : 0;
+    return Math.max(col, armL, armR);
+  };
+  return (x, z, y) => {
+    const h = hAt(x, z);
+    if (h <= 0 || y > h) return [0, 0, 0, 0];
+    const top = Math.abs(y - h) < 0.6;
+    const gx = hAt(x - 1, z) - hAt(x + 1, z);
+    const gz = hAt(x, z - 1) - hAt(x, z + 1);
+    const light = clamp(0.95 + gx * 0.12 - gz * 0.1, 0.65, 1.2);
+    let c = top ? lt : (y % 3 === 0 ? dk : green);
+    if (top && (x + z) % 3 === 0) c = mix(c, hex('#a9e3a0'), 0.5);   // spines
+    const ao = 0.7 + 0.3 * (y / Math.max(h, 1));
+    return [c[0] * light * ao, c[1] * light * ao, c[2] * light * ao, 255];
+  };
+}
+
+// mesa: 40x40, 10 layers
+function mesaAtlas() {
+  const W = 40, H = 40, L = 10, C = 20;
+  const rock = hex('#b3603c'), rockLt = hex('#d98a5c'), rockDk = hex('#7d3c26'), sand = hex('#d8b48a');
+  const hAt = (x, z) => {
+    const d = Math.hypot((x - C) / 15, (z - C) / 13);
+    if (d > 1) return 0;
+    const band = d < 0.55 ? 9 : d < 0.8 ? 8 : 7;
+    return band + Math.sin(x * 0.7) * 0.3;
+  };
+  return (x, z, y) => {
+    const h = hAt(x, z);
+    if (h <= 0 || y > h) return [0, 0, 0, 0];
+    const top = Math.abs(y - h) < 0.6;
+    const gx = hAt(x - 1, z) - hAt(x + 1, z);
+    const gz = hAt(x, z - 1) - hAt(x, z + 1);
+    const light = clamp(0.95 + gx * 0.09 - gz * 0.08, 0.6, 1.2);
+    let c = top ? mix(rock, sand, 0.25) : (y % 4 < 2 ? rock : rockDk);
+    if (!top && y > h - 2) c = mix(c, rockLt, 0.4);
+    const ao = 0.65 + 0.35 * (y / h);
+    return [c[0] * light * ao, c[1] * light * ao, c[2] * light * ao, 255];
+  };
+}
+
+// neon pylon: 16x16, 24 layers
+function pylonAtlas() {
+  const W = 16, H = 16, L = 24, C = 8;
+  const metal = hex('#20242e'), metalLt = hex('#454c5c');
+  const glow = hex('#48e0d0'), glow2 = hex('#ff4fa3');
+  return (x, z, y) => {
+    const pole = Math.hypot(x - C, z - 12) < 1.3 && y <= 18;
+    const board = sdRect(x, z, C, 9, 6.2, 3.2, 1.2) < 0 && y >= 16 && y <= 23;
+    if (!pole && !board) return [0, 0, 0, 0];
+    let c;
+    if (board) {
+      const edge = Math.abs(x - C) > 5.2;
+      c = edge ? metal : (y === 23 ? metalLt : (x + y) % 5 < 2 ? glow : glow2);
+    } else {
+      c = y % 4 === 0 ? metalLt : metal;
+    }
+    const k = 0.75 + (y / 24) * 0.35;
+    return [c[0] * k, c[1] * k, c[2] * k, 255];
+  };
+}
+
 /* -------------------------------------------------------- shadows etc ----- */
 function shadowPng(size = 64) {
   const px = new Uint8Array(size * size * 4);
@@ -1082,7 +1153,8 @@ fs.mkdirSync(OUT, { recursive: true });
 console.log('generating sprite stacks…');
 
 for (const spec of CAR_SPECS) stack(48, 76, 28, carAtlas(spec), `${spec.file}.png`);
-stack(40, 40, 18, pineAtlas(), 'pine.png');
+stack(40, 40, 18, pineAtlas(false), 'pine.png');
+stack(40, 40, 18, pineAtlas(true), 'pine-snow.png');
 stack(40, 40, 18, palmAtlas(), 'palm.png');
 stack(28, 28, 10, rockAtlas(), 'rock.png');
 stack(64, 64, 14, buildingAtlas('res'), 'building-a.png');     // residential red
@@ -1090,6 +1162,9 @@ stack(64, 64, 14, buildingAtlas('office'), 'building-b.png');  // office blue
 stack(64, 64, 14, buildingAtlas('shop'), 'building-c.png');    // shop ochre
 stack(16, 16, 26, lampAtlas(), 'lamp.png');
 stack(24, 24, 12, tyreAtlas(), 'tyres.png');
+stack(24, 24, 12, cactusAtlas(), 'cactus.png');
+stack(40, 40, 10, mesaAtlas(), 'mesa.png');
+stack(16, 16, 24, pylonAtlas(), 'pylon.png');
 shadowPng();
 
 // contact sheet so the art can be eyeballed without opening the game

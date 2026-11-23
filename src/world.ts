@@ -45,6 +45,7 @@ export interface MapDef {
   lake?: { x: number; z: number; rx: number; rz: number };
   tint?: string;
   trees?: 'pine' | 'palm' | 'mixed';
+  town?: [number, number][];
   props?: { trees: number; rocks: number; buildings: number; lampStride: number; rockScale: number };
   density?: number;
 }
@@ -81,6 +82,7 @@ export const MAPS: MapDef[] = [
     lake: { x: -35, z: 31, rx: 9, rz: 7 },
     trees: 'pine', density: 0.55, tint: '#f0d9b0',
     props: { trees: 18, rocks: 120, buildings: 4, lampStride: 78, rockScale: 1.9 },
+    town: [[-8, -6], [7, -8], [-9, 9], [8, 10]],
   },
   {
     // city block: four 90-degree corners plus an inward chicane notch
@@ -97,6 +99,7 @@ export const MAPS: MapDef[] = [
     lake: { x: 33, z: 34, rx: 9, rz: 7 },
     trees: 'pine', density: 0.35, tint: '#42604f',
     props: { trees: 12, rocks: 18, buildings: 15, lampStride: 34, rockScale: 0.8 },
+    town: [[-12, -12], [-2, -12], [8, -12], [-12, 0], [8, 0], [-12, 12], [-2, 12], [8, 12]],
   },
   {
     // dumbbell: two round ends joined by a tight waist
@@ -113,6 +116,7 @@ export const MAPS: MapDef[] = [
     lake: { x: -34, z: -34, rx: 9, rz: 7 },
     trees: 'pine', density: 1.0, tint: '#eef4f8',
     props: { trees: 130, rocks: 55, buildings: 6, lampStride: 52, rockScale: 1.3 },
+    town: [[-9, -5], [9, -3], [0, 9]],
   },
 ];
 
@@ -413,11 +417,13 @@ export async function buildWorld(scene: THREE.Scene, mapId?: string): Promise<Wo
   };
 
   // ---- props ----------------------------------------------------------------
-  const [pineTex, palmTex, rockTex, lampTex, tyreTex, bldA, bldB, bldC, shadowTex] = await Promise.all([
-    loadSheet('/sprites/pine.png'), loadSheet('/sprites/palm.png'),
+  const [pineTex, snowTex, palmTex, rockTex, lampTex, tyreTex, bldA, bldB, bldC, shadowTex,
+    cactusTex, mesaTex, pylonTex] = await Promise.all([
+    loadSheet('/sprites/pine.png'), loadSheet('/sprites/pine-snow.png'), loadSheet('/sprites/palm.png'),
     loadSheet('/sprites/rock.png'), loadSheet('/sprites/lamp.png'), loadSheet('/sprites/tyres.png'),
     loadSheet('/sprites/building-a.png'), loadSheet('/sprites/building-b.png'),
     loadSheet('/sprites/building-c.png'), loadSheet('/sprites/shadow.png'),
+    loadSheet('/sprites/cactus.png'), loadSheet('/sprites/mesa.png'), loadSheet('/sprites/pylon.png'),
   ]);
 
   const defs: Record<string, StackDef> = {
@@ -426,6 +432,10 @@ export async function buildWorld(scene: THREE.Scene, mapId?: string): Promise<Wo
     rock: { url: '', layers: 10, sheetW: 28, sheetH: 28, worldW: 1.9, lift: 0.09 },
     lamp: { url: '', layers: 26, sheetW: 16, sheetH: 16, worldW: 1.0, lift: 0.075 },
     tyres: { url: '', layers: 12, sheetW: 24, sheetH: 24, worldW: 1.5, lift: 0.072 },
+    cactus: { url: '', layers: 12, sheetW: 24, sheetH: 24, worldW: 1.7, lift: 0.062 },
+    mesa: { url: '', layers: 10, sheetW: 40, sheetH: 40, worldW: 6.0, lift: 0.17 },
+    pylon: { url: '', layers: 24, sheetW: 16, sheetH: 16, worldW: 1.2, lift: 0.058 },
+    snowpine: { url: '', layers: 18, sheetW: 40, sheetH: 40, worldW: 3.1, lift: 0.125 },
     bldA: { url: '', layers: 14, sheetW: 64, sheetH: 64, worldW: 7.0, lift: 0.30 },
     bldB: { url: '', layers: 14, sheetW: 64, sheetH: 64, worldW: 7.0, lift: 0.30 },
     bldC: { url: '', layers: 14, sheetW: 64, sheetH: 64, worldW: 7.0, lift: 0.30 },
@@ -444,12 +454,13 @@ export async function buildWorld(scene: THREE.Scene, mapId?: string): Promise<Wo
   };
 
   // town in the infield
-  const town: [number, number][] = [
+  const TOWN: [number, number][] = [
     [-6, -8], [5, -10], [12, -2], [-2, 2], [9, 7], [-10, 6],
     [-4, 14], [6, 16], [-14, -2], [14, 26], [-18, 12], [2, 22],
     [-22, -4], [18, 14], [-8, 26],
   ];
   const buildings: Placement[][] = [[], [], []];
+  const town = map.town ?? TOWN;
   const townCount = map.props?.buildings ?? town.length;
   town.slice(0, townCount).forEach(([x, z], i) => {
     const r = 4.2;
