@@ -13,23 +13,19 @@ states (parked / mid-corner / at speed) → failure cases → tests → docs.
   engine.
 - **Accounts + leaderboard** — sign in, one best lap per player, top 10 board on
   the title screen and in the API.
+- **Block 5 — multiplayer rooms** — room codes in the URL, 20 Hz WebSocket
+  state, interpolated remote stacks, and server-side lap sanity. Design note:
+  [docs/multiplayer.md](multiplayer.md).
 
-## Now: Block 5 — multiplayer rooms
+## Next
 
-Design note: [docs/multiplayer.md](multiplayer.md).
-
-1. `POST /api/rooms` creates a four-character room code.
-2. `WS /api/ws?room=CODE` joins; 20 Hz aggregate state at 8 racers.
-3. Client interpolates remote stacks and draws a name tag.
-4. Server-side lap sanity: accumulated progress, minimum lap time, lap order.
-5. Room code lives in the URL and on the title screen, so a room is a link.
-
-What could break: a tunnel/proxy that does not forward WebSocket upgrades;
-rooms leaking memory (TTL cleanup); a client with a paused tab starving the
-socket; lap timing drifting between clients (each client owns its own clock).
-
-## Later
-
-- Chat / emotes in the room chip.
-- Server-side checkpoint timestamps to tighten validation beyond progress.
+- Room chip: show the room best and a lap-complete flash.
+- Server checkpoint timestamps to tighten validation beyond accumulated `u`.
 - Replays from the recorded pose stream.
+- Chat / emotes in the room chip.
+
+## Known gaps
+
+- Room races are not server-authoritative; a determined client could still
+  fake progress. The server catches instant laps, not a patient cheater.
+- The live dev server must keep `ws: true` on the `/api` proxy for rooms.
