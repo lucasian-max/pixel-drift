@@ -153,8 +153,9 @@ def match_top(top, side):
     return "down" if (dark * tall).sum() >= (dark[::-1] * tall).sum() else "up"
 
 
-def views_to_slices(sheet, top_nose="auto", side_nose="left", colours=24, shade=0.0, flat=None):
-    top, side, front, back = one_palette([strip_outline(v) for v in find_views(sheet)], colours)
+def views_to_slices(sheet, top_nose="auto", side_nose="left", colours=24, shade=0.0, flat=None, override=None):
+    views = list(override) if override is not None else find_views(sheet)
+    top, side, front, back = one_palette([strip_outline(v) for v in views], colours)
     if side_nose == "left":
         side = side[:, ::-1]                                         # now column = y, front at the end
     if top_nose == "auto":
