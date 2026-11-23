@@ -22,6 +22,10 @@ async function boot() {
 
   const scene = new THREE.Scene();
   scene.background = new THREE.Color('#4e7a45');
+  scene.add(new THREE.AmbientLight(0xffffff, 2.1));
+  const sun = new THREE.DirectionalLight(0xffffff, 1.6);
+  sun.position.set(-0.6, 1.2, -0.35);
+  scene.add(sun);
 
   const mapId = params.get('map') || MAPS[0].id;
   const world = await buildWorld(scene, mapId);
@@ -297,7 +301,6 @@ async function boot() {
     camera.position.set(focus.x + cx, Math.sin(PITCH) * CAM_DIST, focus.z + cz);
     camera.lookAt(focus.x, 0, focus.z);
 
-    car.model.quaternion.copy(camera.quaternion);
 
     shadowDummy.position.set(car.x + 0.22, 0.016, car.z + 0.26);
     shadowDummy.rotation.set(0, car.heading, 0);

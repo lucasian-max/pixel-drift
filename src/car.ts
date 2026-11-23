@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import { DirectionalCar, loadSheet } from './stack';
+import { buildCarModel } from './carModel';
 import type { World } from './world';
 
 const WHEELBASE = 1.75;
@@ -23,7 +23,7 @@ export class Car {
   drifting = false;
   onRoad = true;
   group = new THREE.Group();
-  model!: DirectionalCar;
+  model!: THREE.Group;
   driftScore = 0;
   private skidTimer = 0;
 
@@ -35,10 +35,9 @@ export class Car {
     return this;
   }
 
-  async setSkin(file: string) {
-    const sheet = await loadSheet(`/sprites/${file}.png`);
+  async setSkin(_file: string) {
     if (this.model) this.group.remove(this.model);
-    this.model = new DirectionalCar(sheet, 32, 2.2, 52, 57);
+    this.model = buildCarModel();
     this.group.add(this.model);
   }
 
@@ -54,7 +53,7 @@ export class Car {
 
   private sync() {
     this.group.position.set(this.x, 0, this.z);
-    this.group.rotation.y = 0;   // the sprite carries the heading via its frame
+    this.group.rotation.y = this.heading;
   }
 
   update(dt: number, c: CarControls, world: World) {
@@ -121,10 +120,6 @@ export class Car {
     }
 
     this.sync();
-    // heading -> baked direction; the sheet's frame 0 points up (-Z)
-    // stacked slices baked to 32 directions
-    const frame = Math.round((this.heading / (Math.PI * 2)) * this.model.dirs) + 16;
-    this.model.setFrame(frame);
     const t = performance.now() * 0.001;
     this.model.position.y = Math.sin(t * 46) * 0.0016 * Math.min(1, Math.abs(vLong) / 8);
   }
