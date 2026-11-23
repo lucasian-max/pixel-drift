@@ -104,7 +104,15 @@ function loft(secs: Section[], matFor: (j: number) => number): THREE.BufferGeome
   return g;
 }
 
-export function buildCarModel(): THREE.Group {
+const PALETTES = [
+  { body: 0xf1e4bc, a: 0x1fa59a, b: 0xc2287e },
+  { body: 0xd93b34, a: 0xf1e4bc, b: 0xd9a02c },
+  { body: 0x2b3a67, a: 0x48e0d0, b: 0xf2f2f2 },
+  { body: 0x7a56c9, a: 0x2aa197, b: 0xf2c94c },
+];
+
+export function buildCarModel(variant = 0): THREE.Group {
+  const pal = PALETTES[((variant % PALETTES.length) + PALETTES.length) % PALETTES.length];
   const car = new THREE.Group();
   car.name = 'car';
 
@@ -112,7 +120,7 @@ export function buildCarModel(): THREE.Group {
     new THREE.MeshLambertMaterial({ color, flatShading: true, ...extra });
 
   const M = {
-    cream: lam(0xf1e4bc),
+    cream: lam(pal.body),
     dark: lam(0x17191f),
     glass: lam(0x141821),
     well: lam(0x0c0d10),
@@ -120,11 +128,13 @@ export function buildCarModel(): THREE.Group {
     gold: lam(0xc49a2c),
     red: lam(0xd02a2a, { emissive: 0x550000 }),
     amber: lam(0xf0a030, { emissive: 0x402000 }),
-    teal: lam(0x1fa59a, { side: THREE.DoubleSide, polygonOffset: true, polygonOffsetFactor: -2, polygonOffsetUnits: -2 }),
-    magenta: lam(0xc2287e, { side: THREE.DoubleSide, polygonOffset: true, polygonOffsetFactor: -2, polygonOffsetUnits: -2 }),
+    teal: lam(pal.a, { side: THREE.DoubleSide, polygonOffset: true, polygonOffsetFactor: -2, polygonOffsetUnits: -2 }),
+    magenta: lam(pal.b, { side: THREE.DoubleSide, polygonOffset: true, polygonOffsetFactor: -2, polygonOffsetUnits: -2 }),
     arch: lam(0x0c0d10, { side: THREE.DoubleSide, polygonOffset: true, polygonOffsetFactor: -1, polygonOffsetUnits: -1 }),
   };
   const outlineMat = new THREE.MeshBasicMaterial({ color: 0x050505, side: THREE.BackSide });
+  const brakeMat = new THREE.MeshLambertMaterial({ color: 0xd02a2a, emissive: 0x330000 });
+  const brakes: THREE.Mesh[] = [];
 
   /** Inverted-hull outline scaled about the geometry's bbox centre. */
   const outline = (mesh: THREE.Mesh, s = 1.03) => {
@@ -244,7 +254,10 @@ export function buildCarModel(): THREE.Group {
 
   // ---------- Tail: black bar, red lights, diffuser ----------
   box(1.72, 0.15, 0.04, M.dark, 0, 0.52, -2.31);
-  for (const s of [1, -1]) box(0.42, 0.07, 0.02, M.red, s * 0.55, 0.53, -2.335);
+  for (const s of [1, -1]) {
+    const tl = box(0.42, 0.07, 0.02, brakeMat, s * 0.55, 0.53, -2.335);
+    brakes.push(tl);
+  }
   outline(box(1.5, 0.1, 0.3, M.dark, 0, 0.17, -2.2));
   for (let i = 0; i < 4; i++) box(0.02, 0.12, 0.28, M.dark, -0.45 + i * 0.3, 0.12, -2.22);
 
@@ -312,6 +325,8 @@ export function buildCarModel(): THREE.Group {
     wheels.push(spin);
   }
   car.userData.wheels = wheels;
+  car.userData.frontMounts = car.children.filter((c) => c.name === 'wheelFLMount' || c.name === 'wheelFRMount');
+  car.userData.brakes = brakes;
 
   car.traverse(o => {
     if ((o as THREE.Mesh).isMesh && !o.userData.isOutline) {

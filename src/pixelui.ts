@@ -1,4 +1,5 @@
 import type { Car } from './car';
+import type { TimeEntry, User } from './account';
 
 /* ------------------------------------------------------------ palette ----- */
 const CREAM = '#f2eee1';
@@ -15,6 +16,14 @@ const RULE = 'rgba(20,22,26,0.18)';           // ruled line on cream
 const SHADOW = 'rgba(8,10,12,0.8)';          // hard offset block
 const HINT = 'rgba(242,238,225,0.58)';
 const ASPHALT = '#2b2b33';
+
+/** live view of the account store (src/account.ts) */
+export interface AccountView {
+  user: User | null;
+  times: TimeEntry[];
+  offline: boolean;
+  busy: boolean;
+}
 
 export interface UiState {
   car: Car;
@@ -34,6 +43,7 @@ export interface UiState {
   lapHistory?: number[];
   /** force the NEW BEST banner for a couple of seconds (also auto-detected) */
   bestFlash?: boolean;
+  account?: AccountView;
 }
 
 const fmt = (t: number) => {
@@ -41,6 +51,15 @@ const fmt = (t: number) => {
   const m = Math.floor(t / 60);
   const s = Math.floor(t % 60);
   const cs = Math.floor((t * 100) % 100);
+  return `${m}:${s.toString().padStart(2, '0')}.${cs.toString().padStart(2, '0')}`;
+};
+
+/** leaderboard times arrive from the server as integer milliseconds */
+const fmtMs = (ms: number) => {
+  if (!isFinite(ms) || ms <= 0) return '--:--.--';
+  const m = Math.floor(ms / 60000);
+  const s = Math.floor((ms % 60000) / 1000);
+  const cs = Math.floor((ms % 1000) / 10);
   return `${m}:${s.toString().padStart(2, '0')}.${cs.toString().padStart(2, '0')}`;
 };
 
@@ -59,7 +78,10 @@ function pxBorder(c: CanvasRenderingContext2D, x: number, y: number, w: number, 
   c.fillRect(x + w - 1, y + 1, 1, h - 2);
 }
 
-interface Button { id: string; x: number; y: number; w: number; h: number; label: string }
+/** every clickable thing on the canvas */
+export type HitId = 'prev-map' | 'next-map' | 'solo' | 'login' | 'logout';
+
+interface Button { id: HitId; x: number; y: number; w: number; h: number; label: string }
 
 export class PixelUI {
   private ctx: CanvasRenderingContext2D;
@@ -75,13 +97,15 @@ export class PixelUI {
   private bPrev: Button = { id: 'prev-map', x: 0, y: 0, w: 24, h: 24, label: '<' };
   private bNext: Button = { id: 'next-map', x: 0, y: 0, w: 24, h: 24, label: '>' };
   private bSolo: Button = { id: 'solo', x: 0, y: 0, w: 148, h: 28, label: 'RACE SOLO' };
+  private bLogin: Button = { id: 'login', x: 0, y: 0, w: 72, h: 14, label: 'SIGN IN' };
+  private bLogout: Button = { id: 'logout', x: 0, y: 0, w: 72, h: 14, label: 'SIGN OUT' };
   private buttons: Button[] = [];
 
   /* NEW BEST banner bookkeeping */
   private lastBest = -1;
   private bestUntil = -1;
 
-  onAction?: (a: string) => void;
+  onAction?: (a: HitId) => void;
 
   constructor(private canvas: HTMLCanvasElement, track: { x: number; z: number }[]) {
     this.ctx = canvas.getContext('2d')!;
@@ -138,7 +162,7 @@ export class PixelUI {
   }
 
   /** Convert a pointer event to internal pixels and return the button under it. */
-  hit(clientX: number, clientY: number): string | null {
+  hit(clientX: number, clientY: number): HitId | null {
     const r = this.canvas.getBoundingClientRect();
     if (!r.width || !r.height) return null;
     const x = ((clientX - r.left) / r.width) * this.w;
@@ -368,6 +392,7 @@ export class PixelUI {
   private drawTitle(time: number, state: UiState) {
     const c = this.ctx;
     const { w, h } = this;
+    this.buttons.length = 0;   // rebuilt every frame
     c.fillStyle = 'rgba(12,14,18,0.72)';
     c.fillRect(0, 0, w, h);
 
@@ -419,9 +444,63 @@ export class PixelUI {
     this.text(this.bSolo.label, cx, this.bSolo.y + 6, { size: 16, weight: 700, color: CREAM, align: 'center' });
     this.buttons.push(this.bSolo);
 
+    /* ---- account line under SOLO ---- */
+    const acct = state.account;
+    let blinkY = 296;
+    if (acct) {
+      if (acct.user) {
+        this.text('SIGNED IN AS ' + acct.user.username.toUpperCase(), cx, 290, {
+          size: 8, color: 'rgba(242,238,225,0.8)', align: 'center', spacing: 1,
+        });
+        this.bLogout.label = acct.busy ? '...' : 'SIGN OUT';
+        this.bLogout.x = Math.round(cx - this.bLogout.w / 2);
+        this.bLogout.y = 302;
+        pxRect(c, this.bLogout.x, this.bLogout.y, this.bLogout.w, this.bLogout.h, SLAB);
+        pxBorder(c, this.bLogout.x, this.bLogout.y, this.bLogout.w, this.bLogout.h, 'rgba(242,238,225,0.55)');
+        this.text(this.bLogout.label, cx, this.bLogout.y + 3, { size: 8, color: CREAM, align: 'center' });
+        this.buttons.push(this.bLogout);
+        blinkY = 320;
+      } else {
+        this.bLogin.label = acct.busy ? '...' : 'SIGN IN';
+        this.bLogin.x = Math.round(cx - this.bLogin.w / 2);
+        this.bLogin.y = 292;
+        pxRect(c, this.bLogin.x, this.bLogin.y, this.bLogin.w, this.bLogin.h, SLAB);
+        pxBorder(c, this.bLogin.x, this.bLogin.y, this.bLogin.w, this.bLogin.h, 'rgba(242,238,225,0.55)');
+        this.text(this.bLogin.label, cx, this.bLogin.y + 3, { size: 8, color: CREAM, align: 'center' });
+        this.buttons.push(this.bLogin);
+        blinkY = 312;
+      }
+    }
+
+    /* ---- leaderboard column (right edge) ---- */
+    if (acct && w >= 560) {
+      const lx = w - 176;
+      this.text('LEADERBOARD', w - 8, 48, { size: 8, weight: 700, color: CREAM, align: 'right', spacing: 2 });
+      c.fillStyle = LINE;
+      c.fillRect(lx, 60, 168, 1);
+      if (acct.offline) {
+        this.text('OFFLINE', w - 8, 66, { size: 8, color: DIM, align: 'right', spacing: 1 });
+      } else {
+        this.font(8);
+        const timeW = Math.ceil(c.measureText('00:00.00').width);
+        const nameMax = 168 - 18 - timeW;
+        const n = Math.min(5, acct.times.length);
+        for (let i = 0; i < n; i++) {
+          const t = acct.times[i];
+          const y = 66 + i * 12;
+          this.text(String(t.rank).padStart(2, '0'), lx, y, { size: 8, color: DIM });
+          let name = t.username.toUpperCase();
+          while (name.length > 1 && c.measureText(name).width > nameMax) name = name.slice(0, -1);
+          this.text(name, lx + 18, y, { size: 8, color: CREAM });
+          this.text(fmtMs(t.ms), w - 8, y, { size: 8, color: CREAM, align: 'right' });
+        }
+        if (n === 0) this.text('NO TIMES YET', w - 8, 66, { size: 8, color: DIM, align: 'right', spacing: 1 });
+      }
+    }
+
     /* hard blink, attract-mode style */
     const on = (time % 1.2) < 0.85;
-    this.text('OR PRESS SPACE', cx, 296, { size: 8, color: on ? CREAM : 'rgba(242,238,225,0.15)', align: 'center', spacing: 1 });
+    this.text('OR PRESS SPACE', cx, blinkY, { size: 8, color: on ? CREAM : 'rgba(242,238,225,0.15)', align: 'center', spacing: 1 });
 
     this.text('WASD / ARROWS DRIVE   SPACE HANDBRAKE   Q E LOOK   R RESET   M MUTE', cx, h - 26, {
       size: 8, color: HINT, align: 'center',

@@ -60,6 +60,13 @@ export class Input {
     return { throttle: this.throttle, steer: this.steer, handbrake: this.handbrake };
   }
 
+  /** true once per physical press */
+  consumeKey(code: string) {
+    if (!this.keys.has(code)) return false;
+    this.keys.delete(code);
+    return true;
+  }
+
   consumeReset() {
     const r = this.resetPressed;
     this.resetPressed = false;

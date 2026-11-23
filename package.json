@@ -8,7 +8,8 @@
     "dev": "vite --host 127.0.0.1 --port 5180",
     "build": "tsc --noEmit && vite build",
     "preview": "vite preview --host 127.0.0.1 --port 5181",
-    "assets": "node scripts/gen-assets.mjs"
+    "assets": "node scripts/gen-assets.mjs",
+    "api": "node server/api.mjs"
   },
   "dependencies": {
     "three": "^0.187.0"

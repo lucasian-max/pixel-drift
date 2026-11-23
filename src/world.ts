@@ -53,10 +53,17 @@ export interface MapDef {
 export const MAPS: MapDef[] = [
   {
     id: 'coast', name: 'Saltmarsh Coast', roadHalf: 4.4,
+    // 28-point lap: start/finish on the long top straight, fast double-apex
+    // sweep down the east side, genuine 180° hairpin over the lake, a wide
+    // exit corner rolling onto the back run, a quick left-right chicane, and
+    // a stadium 180° U-turn up the west side back onto the straight.
     ctrl: [
-      [-35, 27], [-8, 28], [18, 28], [31, 24], [38, 14], [32, 3], [19, -3],
-      [14, -14], [20, -24], [7, -31], [-12, -31], [-28, -23], [-38, -8],
-      [-41, 11], [-38, 22]],
+      [-39.5, 11.9], [-44.6, 17], [-46.5, 24], [-44.6, 31], [-39.5, 36.1],
+      [-32.5, 38], [-20.5, 38], [-8.5, 38], [3.5, 38], [15.5, 38], [24, 38],
+      [32.5, 36.2], [39.4, 30.8], [44.5, 24.8], [46.9, 16.4], [47.2, 7.7],
+      [46.2, -4], [43, -14], [34.5, -20.2], [24, -20.2], [15.5, -14],
+      [12.2, -4], [9.8, 5], [3.2, 11.6], [-5.8, 14],
+      [-15, 13.7], [-24, 10.6], [-32.5, 10.2]],
     palette: {
       grass: '#4f7c46', tones: ['#5b8c4e', '#3d6636', '#6fa05d', '#33582f', '#7fb367'],
       bladeA: '#8cc274', bladeB: '#356031',

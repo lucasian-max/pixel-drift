@@ -6,6 +6,7 @@ import { PixelUI } from './pixelui';
 import { loadSheet, shadowPatch } from './stack';
 import type { StackDef } from './stack';
 import { Sound } from './sound';
+import { account } from './account';
 
 const gameCanvas = document.getElementById('game') as HTMLCanvasElement;
 const uiCanvas = document.getElementById('ui') as HTMLCanvasElement;
@@ -14,7 +15,125 @@ const bootError = document.getElementById('boot-error') as HTMLDivElement;
 const BASE_HEIGHT = 360;
 const CAR_DEF: StackDef = { layers: 17, sheetW: 28, sheetH: 53, worldW: 2.0, lift: 0.072 };
 
+/* ---- login / signup overlay (DOM; pixel-styled, CSS injected from TS) -----
+   Flat dark panel, cream Silkscreen text. While hidden it is display:none,
+   so it is out of the accessibility tree, holds no focus and steals no keys. */
+const loginForm = (() => {
+  const style = document.createElement('style');
+  style.textContent = `
+#login-overlay { position: fixed; inset: 0; z-index: 6; display: none;
+  place-items: center; background: rgba(12,14,18,0.55);
+  font-family: Silkscreen, ui-monospace, monospace; color: #f2eee1; }
+#login-overlay.open { display: grid; }
+#login-overlay form { width: 22em; padding: 1em; background: #14161a;
+  border: 2px solid #f2eee1; box-shadow: 4px 4px 0 rgba(8,10,12,0.8); }
+#login-overlay h2 { margin: 0 0 0.75em; font-size: 1em; font-weight: 700;
+  letter-spacing: 0.3em; color: #e0513f; }
+#login-overlay label { display: block; margin: 0.9em 0 0.3em; color: rgba(242,238,225,0.55); }
+#login-overlay input { width: 100%; padding: 0.55em; font: inherit; color: #f2eee1;
+  background: #0e1013; border: 2px solid rgba(242,238,225,0.35); caret-color: #e0513f; }
+#login-overlay input:focus { outline: none; border-color: #f2eee1; }
+#login-overlay button:focus-visible { outline: 2px solid #e0513f; outline-offset: 2px; }
+#login-error { min-height: 1.2em; margin: 0.7em 0 0; color: #e0513f; }
+.login-row { display: flex; gap: 0.5em; margin-top: 0.9em; }
+.login-row button { flex: 1; font: inherit; padding: 0.55em 0.2em; cursor: pointer;
+  border: 2px solid #f2eee1; }
+#login-go { background: #e0513f; color: #f2eee1; }
+#login-new { background: #f2eee1; color: #14161a; }
+#login-cancel { background: #14161a; border-color: rgba(242,238,225,0.55);
+  color: rgba(242,238,225,0.8); }`;
+  document.head.appendChild(style);
+
+  const overlay = document.createElement('div');
+  overlay.id = 'login-overlay';
+  overlay.setAttribute('role', 'dialog');
+  overlay.setAttribute('aria-modal', 'false');
+  overlay.setAttribute('aria-labelledby', 'login-title');
+  overlay.innerHTML = `
+    <form novalidate>
+      <h2 id="login-title">SIGN IN</h2>
+      <label for="login-user">USERNAME</label>
+      <input id="login-user" autocomplete="username" spellcheck="false" maxlength="16" />
+      <label for="login-pass">PASSWORD</label>
+      <input id="login-pass" type="password" autocomplete="current-password" />
+      <p id="login-error" aria-live="polite"></p>
+      <div class="login-row">
+        <button type="submit" id="login-go">SIGN IN</button>
+        <button type="button" id="login-new">CREATE ACCOUNT</button>
+        <button type="button" id="login-cancel">CANCEL</button>
+      </div>
+    </form>`;
+  document.body.appendChild(overlay);
+
+  const form = overlay.querySelector('form')!;
+  const userEl = overlay.querySelector<HTMLInputElement>('#login-user')!;
+  const passEl = overlay.querySelector<HTMLInputElement>('#login-pass')!;
+  const errEl = overlay.querySelector<HTMLElement>('#login-error')!;
+  const newBtn = overlay.querySelector<HTMLButtonElement>('#login-new')!;
+  const cancelBtn = overlay.querySelector<HTMLButtonElement>('#login-cancel')!;
+  const allBtns = Array.from(overlay.querySelectorAll<HTMLButtonElement>('button'));
+
+  /* match the HUD grid: 8px Silkscreen at the canvas upscale factor */
+  const rescale = () => {
+    overlay.style.fontSize = `${Math.max(8, (8 * innerHeight) / 360)}px`;
+  };
+  addEventListener('resize', rescale);
+
+  /* the game listens on window — keep the form's keys and clicks to itself */
+  /* the game listens on window — keep the form's keys and clicks to itself.
+     While open, anything not aimed at the form is stopped at capture so the
+     game never sees it (covers focus escaping the overlay); Escape closes. */
+  addEventListener('keydown', (e) => {
+    if (!overlay.classList.contains('open')) return;
+    if (overlay.contains(e.target as Node)) return;
+    e.stopPropagation();
+    if (e.key === 'Escape') { e.preventDefault(); close(); }
+  }, { capture: true });
+  overlay.addEventListener('keydown', (e) => {
+    e.stopPropagation();
+    if (e.key === 'Escape') { e.preventDefault(); close(); }
+  });
+  overlay.addEventListener('pointerdown', (e) => {
+    e.stopPropagation();
+    if (e.target === overlay) close();   // backdrop click cancels
+  });
+
+  let working = false;
+  async function submit(mode: 'login' | 'signup') {
+    if (working) return;
+    working = true;
+    errEl.textContent = '';
+    for (const b of allBtns) b.disabled = true;
+    const r = await (mode === 'login' ? account.login : account.signup)(
+      userEl.value.trim().toLowerCase(), passEl.value);
+    working = false;
+    for (const b of allBtns) b.disabled = false;
+    if (r.ok) { close(); passEl.value = ''; return; }
+    errEl.textContent = r.error ?? 'something went wrong';
+  }
+
+  function open() {
+    errEl.textContent = '';
+    overlay.classList.add('open');
+    rescale();
+    /* defer: the opening click's default focus action would otherwise win */
+    setTimeout(() => userEl.focus(), 0);
+  }
+  function close() {
+    overlay.classList.remove('open');   // display:none -> no focus, no keys
+    errEl.textContent = '';
+    (document.activeElement as HTMLElement | null)?.blur?.();
+  }
+
+  form.addEventListener('submit', (e) => { e.preventDefault(); void submit('login'); });
+  newBtn.addEventListener('click', () => void submit('signup'));
+  cancelBtn.addEventListener('click', close);
+
+  return { open, isOpen: () => overlay.classList.contains('open') };
+})();
+
 async function boot() {
+  void account.refresh();   // session + leaderboard; the UI reads the store live
   const params = new URLSearchParams(location.search);
   const renderer = new THREE.WebGLRenderer({ canvas: gameCanvas, antialias: false, powerPreference: 'high-performance' });
   renderer.setPixelRatio(1);
@@ -93,18 +212,21 @@ async function boot() {
     if (a === 'solo') begin();
     else if (a === 'prev-map') gotoMap(-1);
     else if (a === 'next-map') gotoMap(1);
+    else if (a === 'login') loginForm.open();
+    else if (a === 'logout') void account.logout();
   };
 
   const input = new Input(() => begin());
   if (params.has('skip') || params.has('demo')) begin();
 
   addEventListener('pointerdown', (e) => {
-    if (running) return;
+    if (running || loginForm.isOpen()) return;
     const hit = ui.hit(e.clientX, e.clientY);
     if (hit) ui.onAction?.(hit);
     else begin();
   });
   addEventListener('keydown', (e) => {
+    if (loginForm.isOpen()) return;   // the form handles its own keys
     if (!running && (e.code === 'Space' || e.code === 'Enter')) begin();
   });
 
@@ -247,6 +369,7 @@ async function boot() {
         car.update(STEP, controls, world);
         acc -= STEP;
       }
+      if (input.consumeKey('KeyC')) car.nextVariant();
       if (input.consumeReset()) {
         car.reset(world);
         world.clearSkid();
@@ -269,6 +392,8 @@ async function boot() {
         bestTime = lapTime;
         try { localStorage.setItem(bestKey, String(bestTime)); } catch { /* private mode */ }
       }
+      /* leaderboard: submit and let the store refresh the board from the response */
+      void account.submitLap(Math.round(lapTime * 1000));
       lapTime = 0;
       progress -= 1;
       laps++;
@@ -324,6 +449,7 @@ async function boot() {
       lapHistory: [...lapHistory],
       mapIndex,
       mapName: MAPS[mapIndex]?.name,
+      account,
     }, now);
     sound.update(car, controls.throttle, input.paused);
   };

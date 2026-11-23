@@ -24,6 +24,7 @@ export class Car {
   onRoad = true;
   group = new THREE.Group();
   model!: THREE.Group;
+  variant = 0;
   driftScore = 0;
   private skidTimer = 0;
 
@@ -37,9 +38,14 @@ export class Car {
 
   async setSkin(_file: string) {
     if (this.model) this.group.remove(this.model);
-    this.model = buildCarModel();
+    this.model = buildCarModel(this.variant);
     this.model.rotation.y = Math.PI;   // the model is built nose toward +Z
     this.group.add(this.model);
+  }
+
+  nextVariant() {
+    this.variant = (this.variant + 1) % 4;
+    this.setSkin('car');
   }
 
   reset(world: World) {
@@ -123,6 +129,19 @@ export class Car {
     this.sync();
     const wheels = (this.model.userData.wheels as THREE.Object3D[] | undefined) ?? [];
     for (const w of wheels) w.rotation.x -= (vLong * dt) / 0.33;
+
+    // front wheels steer, brake lights glow on the pedal / handbrake
+    const mounts = (this.model.userData.frontMounts as THREE.Object3D[] | undefined) ?? [];
+    for (const m of mounts) {
+      if (m.userData.baseY === undefined) m.userData.baseY = m.rotation.y;
+      m.rotation.y = m.userData.baseY + this.steerAngle;
+    }
+    const brakes = (this.model.userData.brakes as THREE.Mesh[] | undefined) ?? [];
+    const lit = c.throttle < -0.05 || c.handbrake;
+    for (const b of brakes) {
+      const mat = b.material as THREE.MeshLambertMaterial;
+      mat.emissiveIntensity = lit ? 3.2 : 0.5;
+    }
     const t = performance.now() * 0.001;
     this.model.position.y = Math.sin(t * 46) * 0.0016 * Math.min(1, Math.abs(vLong) / 8);
   }

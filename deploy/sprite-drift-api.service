@@ -1,0 +1,13 @@
+[Unit]
+Description=Sprite Drift API (accounts + leaderboard, node:http)
+After=network.target
+
+[Service]
+Type=simple
+ExecStart=/usr/bin/env node /home/lucasian/Work/sprite-drift/server/api.mjs
+WorkingDirectory=/home/lucasian/Work/sprite-drift
+Restart=always
+RestartSec=1
+
+[Install]
+WantedBy=default.target
