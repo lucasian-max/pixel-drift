@@ -346,7 +346,8 @@ export class PixelUI {
     c.stroke();
 
     // car: a filled wedge pointing where it faces
-    const cx = px(car.x / 84), cz = pz(car.z / 84);
+    const cx = px((car.x - this.mapCX) / this.mapExt);
+    const cz = pz((car.z - this.mapCZ) / this.mapExt);
     const fx = -Math.sin(car.heading), fz = -Math.cos(car.heading);
     const rx = Math.cos(car.heading), rz = -Math.sin(car.heading);
     c.beginPath();
