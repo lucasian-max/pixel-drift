@@ -128,7 +128,7 @@ export class Car {
   }
 
   private collide(world: World) {
-    const R = 1.15;
+    const R = 1.9;   // the car is 4.6 long, a 1.15 circle let the nose clip through barriers
     for (const c of world.colliders) {
       const dx = this.x - c.x, dz = this.z - c.z;
       const d = Math.hypot(dx, dz);

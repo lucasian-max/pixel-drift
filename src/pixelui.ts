@@ -31,6 +31,7 @@ export interface UiState {
   maps?: { id: string; name: string }[];
   mapIndex?: number;
   mapName?: string;
+  lapHistory?: number[];
   /** force the NEW BEST banner for a couple of seconds (also auto-detected) */
   bestFlash?: boolean;
 }

@@ -27,9 +27,10 @@ async function boot() {
   sun.position.set(-0.6, 1.2, -0.35);
   scene.add(sun);
 
-  const mapId = params.get('map') || MAPS[0].id;
+  const mapId = 'coast';   // focusing on the coast circuit for now
   const world = await buildWorld(scene, mapId);
   const mapIndex = Math.max(0, MAPS.findIndex((m) => m.id === mapId));
+  const overview = params.has('overview');
   const car = await new Car().init(world);
   scene.add(car.group);
 
@@ -43,7 +44,7 @@ async function boot() {
   const camera = new THREE.OrthographicCamera(-1, 1, 1, -1, 0.1, 600);
   const PITCH = THREE.MathUtils.degToRad(50);
   const CAM_DIST = 140;
-  let viewHeight = 14;
+  let viewHeight = params.has('overview') ? 96 : 14;
   let speedZoom = 1;
   let camYaw = 0;
   const focus = new THREE.Vector3(car.x, 0, car.z);
@@ -162,6 +163,7 @@ async function boot() {
   const track = world.track;
   let nearest = 0, progress = 0, lapTime = 0, started = false;
   let prevU = 0;
+  const lapHistory: number[] = [];
   const bestKey = `sprite-drift:best:${mapId}`;
   let bestTime = Number(localStorage.getItem(bestKey) || 0) || 0;
 
@@ -261,6 +263,8 @@ async function boot() {
     if (!started && Math.hypot(car.x - world.start.x, car.z - world.start.z) > 5) started = true;
     if (started) lapTime += dt;
     if (crossed) {
+      lapHistory.unshift(lapTime);
+      if (lapHistory.length > 5) lapHistory.length = 5;
       if (lapTime > 8 && (bestTime === 0 || lapTime < bestTime)) {
         bestTime = lapTime;
         try { localStorage.setItem(bestKey, String(bestTime)); } catch { /* private mode */ }
@@ -297,7 +301,7 @@ async function boot() {
     speedZoom += (wantZoom - speedZoom) * (1 - Math.exp(-dt * 2.5));
     layout();
 
-    desired.set(car.x + car.vx * 0.3, 0, car.z + car.vz * 0.3);
+    desired.set(overview ? 0 : car.x + car.vx * 0.3, 0, overview ? 0 : car.z + car.vz * 0.3);
     focus.lerp(desired, 1 - Math.exp(-dt * 7));
     const cx = Math.sin(camYaw) * Math.cos(PITCH) * CAM_DIST;
     const cz = Math.cos(camYaw) * Math.cos(PITCH) * CAM_DIST;
@@ -316,7 +320,8 @@ async function boot() {
     ui.draw({
       car, lapTime: started ? lapTime : 0, bestTime, started: running,
       paused: input.paused, throttle: controls.throttle, laps,
-      maps: MAPS.map((m) => ({ id: m.id, name: m.name })),
+      maps: MAPS.filter((m) => m.id === 'coast').map((m) => ({ id: m.id, name: m.name })),
+      lapHistory: [...lapHistory],
       mapIndex,
       mapName: MAPS[mapIndex]?.name,
     }, now);
