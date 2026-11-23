@@ -37,11 +37,11 @@ export function buildCarModel(): THREE.Group {
   // ---- side profile, extruded across the width: low nose, high tail
   const p = new THREE.Shape();
   p.moveTo(-2.25, 0.16);          // nose bottom
-  p.lineTo(2.2, 0.16);            // tail bottom
-  p.lineTo(2.2, 0.62);            // tail top
-  p.lineTo(1.15, 0.78);           // boot
-  p.lineTo(-0.35, 0.82);          // shoulder
-  p.lineTo(-1.55, 0.62);          // bonnet
+  p.lineTo(2.24, 0.20);           // tail bottom
+  p.lineTo(2.18, 0.54);           // tail top, tucked in
+  p.lineTo(1.55, 0.70);           // boot
+  p.lineTo(-0.35, 0.80);          // shoulder
+  p.lineTo(-1.55, 0.60);          // bonnet
   p.lineTo(-2.15, 0.44);          // nose top
   p.closePath();
 
@@ -55,13 +55,24 @@ export function buildCarModel(): THREE.Group {
   g.add(outline(body), body);
 
   // ---- canopy: a tapered glass box sitting on the shoulder
-  const canopy = new THREE.Mesh(new THREE.BoxGeometry(1.42, 0.40, 1.75), mat(GLASS));
-  canopy.position.set(0, 0.95, 0.35);
-  g.add(outline(canopy, 1.04), canopy);
+  const c = new THREE.Shape();
+  c.moveTo(-1.05, 0.0);          // windscreen base
+  c.lineTo(0.98, 0.0);           // rear glass base
+  c.lineTo(0.72, 0.40);          // rear roofline
+  c.lineTo(-0.52, 0.40);         // front roofline (raked)
+  c.closePath();
+  const canopyGeo = new THREE.ExtrudeGeometry(c, {
+    depth: 1.30, bevelEnabled: true, bevelSize: 0.05, bevelThickness: 0.05, bevelSegments: 1,
+  });
+  canopyGeo.translate(0, 0, -0.65);
+  canopyGeo.rotateY(Math.PI / 2);
+  const canopy = new THREE.Mesh(canopyGeo, mat(GLASS));
+  canopy.position.set(0, 0.74, 0.30);
+  g.add(outline(canopy, 1.03), canopy);
 
   // ---- roof panel, so the canopy reads as glass with a painted roof
-  const roof = new THREE.Mesh(new THREE.BoxGeometry(1.22, 0.08, 1.35), mat(CREAM));
-  roof.position.set(0, 1.17, 0.35);
+  const roof = new THREE.Mesh(new THREE.BoxGeometry(1.10, 0.07, 1.10), mat(CREAM));
+  roof.position.set(0, 1.16, 0.38);
   g.add(roof);
 
   // ---- livery: two stripes over the body and the roof
@@ -91,8 +102,8 @@ export function buildCarModel(): THREE.Group {
   }
 
   // ---- rear wing on two stalks
-  const wing = new THREE.Mesh(new THREE.BoxGeometry(2.1, 0.08, 0.5), mat(CREAM_D));
-  wing.position.set(0, 1.08, 1.98);
+  const wing = new THREE.Mesh(new THREE.BoxGeometry(2.15, 0.06, 0.42), mat(CREAM_D));
+  wing.position.set(0, 1.02, 2.05);
   g.add(outline(wing), wing);
   for (const x of [-0.75, 0.75]) {
     const stalk = new THREE.Mesh(new THREE.BoxGeometry(0.12, 0.34, 0.14), mat(INK));
