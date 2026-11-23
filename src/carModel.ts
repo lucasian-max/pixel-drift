@@ -1,13 +1,13 @@
 import * as THREE from 'three';
 
 /**
- * Hero car modelled from the four-view sheet: very low wedge, long nose with
- * pop-up headlights, set-back bubble canopy, black skirt, and the tall
- * twin-plate rear wing. Flat shaded, inverted-hull outline.
+ * Hero car lofted from the four-view sheet: the plan view narrows at the nose,
+ * bulges over the arches and tapers at the tail, while the side view sets the
+ * roofline. Lofting (instead of extruding a constant-width profile) is what
+ * gives it the sheet's teardrop plan shape.
  */
 
 const CREAM = 0xe8e0c8;
-const CREAM_D = 0xc9bfa3;
 const GLASS = 0x141b26;
 const TYRE = 0x141419;
 const HUB = 0xc6aa5c;
@@ -27,122 +27,171 @@ function outline(mesh: THREE.Mesh, k = 1.035) {
   return m;
 }
 
-function extrude(shape: THREE.Shape, width: number, bevel = 0.045) {
-  const geo = new THREE.ExtrudeGeometry(shape, {
-    depth: width, bevelEnabled: true, bevelSize: bevel, bevelThickness: bevel, bevelSegments: 1,
-  });
-  geo.translate(0, 0, -width / 2);
-  geo.rotateY(Math.PI / 2);
+const lerpTable = (t: [number, number][], v: number) => {
+  if (v <= t[0][0]) return t[0][1];
+  if (v >= t[t.length - 1][0]) return t[t.length - 1][1];
+  for (let i = 0; i < t.length - 1; i++) {
+    if (v <= t[i + 1][0]) {
+      const k = (v - t[i][0]) / (t[i + 1][0] - t[i][0]);
+      return t[i][1] + (t[i + 1][1] - t[i][1]) * k;
+    }
+  }
+  return 0;
+};
+
+const HALF_W: [number, number][] = [
+  [-2.30, 0.52], [-2.00, 0.74], [-1.55, 0.90], [-1.05, 1.01],
+  [-0.20, 1.04], [0.80, 1.04], [1.40, 1.00], [1.95, 0.94], [2.30, 0.86],
+];
+const TOP_H: [number, number][] = [
+  [-2.30, 0.30], [-1.85, 0.38], [-1.20, 0.46], [-0.55, 0.51],
+  [0.30, 0.54], [1.10, 0.53], [1.75, 0.46], [2.30, 0.34],
+];
+
+function loftedBody(): THREE.BufferGeometry {
+  const N = 30;
+  const z0 = -2.30, z1 = 2.30;
+  const floor = 0.10;
+  const pos: number[] = [];
+  const station = (z: number) => {
+    const w = lerpTable(HALF_W, z);
+    const y = lerpTable(TOP_H, z);
+    return {
+      bl: [-w, floor, z], br: [w, floor, z],
+      tr: [w * 0.94, y, z], tl: [-w * 0.94, y, z],
+    };
+  };
+  const quad = (a: number[], b: number[], c: number[], d: number[]) => {
+    pos.push(...a, ...b, ...c, ...a, ...c, ...d);
+  };
+  for (let i = 0; i < N; i++) {
+    const za = z0 + ((z1 - z0) * i) / N;
+    const zb = z0 + ((z1 - z0) * (i + 1)) / N;
+    const A = station(za), B = station(zb);
+    quad(A.bl as number[], A.br as number[], B.br as number[], B.bl as number[]); // floor
+    quad(A.br as number[], A.tr as number[], B.tr as number[], B.br as number[]); // right
+    quad(A.tr as number[], A.tl as number[], B.tl as number[], B.tr as number[]); // roof
+    quad(A.tl as number[], A.bl as number[], B.bl as number[], B.tl as number[]); // left
+  }
+  const nose = station(z0), tail = station(z1);
+  quad(nose.bl as number[], nose.tl as number[], nose.tr as number[], nose.br as number[]);
+  quad(tail.br as number[], tail.tr as number[], tail.tl as number[], tail.bl as number[]);
+
+  const geo = new THREE.BufferGeometry();
+  geo.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
+  geo.computeVertexNormals();
   return geo;
 }
 
 export function buildCarModel(): THREE.Group {
   const g = new THREE.Group();
 
-  // ---- black skirt / splitter the body sits on
-  const skirt = new THREE.Mesh(new THREE.BoxGeometry(2.04, 0.10, 4.5), mat(INK));
+  // skirt / splitter
+  const skirt = new THREE.Mesh(new THREE.BoxGeometry(1.98, 0.10, 4.4), mat(INK));
   skirt.position.set(0, 0.09, 0);
   g.add(skirt);
 
-  // ---- body: long low nose, shoulder, short tucked deck
-  const p = new THREE.Shape();
-  p.moveTo(-2.32, 0.10);
-  p.lineTo(2.30, 0.10);
-  p.lineTo(2.30, 0.32);
-  p.lineTo(1.62, 0.46);
-  p.lineTo(0.30, 0.52);
-  p.lineTo(-1.30, 0.44);
-  p.lineTo(-2.28, 0.28);
-  p.closePath();
-  const body = new THREE.Mesh(extrude(p, 2.02), mat(CREAM));
+  // lofted body
+  const body = new THREE.Mesh(loftedBody(), mat(CREAM));
   g.add(outline(body), body);
 
-  // ---- cabin: small bubble set back, raked at both ends
+  // cabin: raked bubble, narrower than the body
   const c = new THREE.Shape();
-  c.moveTo(-0.32, 0.0);
-  c.lineTo(1.52, 0.0);
-  c.lineTo(1.24, 0.30);
-  c.lineTo(-0.02, 0.30);
+  c.moveTo(-0.34, 0.0);
+  c.lineTo(1.50, 0.0);
+  c.lineTo(1.20, 0.30);
+  c.lineTo(0.02, 0.30);
   c.closePath();
-  const canopy = new THREE.Mesh(extrude(c, 1.28, 0.035), mat(GLASS));
-  canopy.position.set(0, 0.60, 0.86);
-  g.add(outline(canopy, 1.025), canopy);
+  const canopyGeo = new THREE.ExtrudeGeometry(c, {
+    depth: 1.22, bevelEnabled: true, bevelSize: 0.03, bevelThickness: 0.03, bevelSegments: 1,
+  });
+  canopyGeo.translate(0, 0, -0.61);
+  canopyGeo.rotateY(Math.PI / 2);
+  const canopy = new THREE.Mesh(canopyGeo, mat(GLASS));
+  canopy.position.set(0, 0.62, 0.88);
+  g.add(outline(canopy, 1.02), canopy);
 
-  const roof = new THREE.Mesh(new THREE.BoxGeometry(1.02, 0.055, 0.95), mat(CREAM));
-  roof.position.set(0, 0.91, 0.94);
+  const roof = new THREE.Mesh(new THREE.BoxGeometry(0.96, 0.05, 0.86), mat(CREAM));
+  roof.position.set(0, 0.925, 0.94);
   g.add(roof);
 
-  // ---- pop-up headlight flaps on the bonnet
-  for (const x of [-0.62, 0.62]) {
-    const flap = new THREE.Mesh(new THREE.BoxGeometry(0.46, 0.06, 0.30), mat(CREAM_D));
-    flap.position.set(x, 0.45, -1.62);
-    g.add(flap);
+  // pop-up headlight lids
+  for (const x of [-0.60, 0.60]) {
+    const lid = new THREE.Mesh(new THREE.BoxGeometry(0.42, 0.05, 0.28), mat(0xd8cfb4));
+    lid.position.set(x, 0.405, -1.66);
+    g.add(lid);
   }
 
-  // ---- livery: twin stripe over bonnet/roof, and a diagonal slash on the flank
-  for (const [x, colour] of [[-0.16, TEAL], [0.16, MAGENTA]] as [number, number][]) {
-    const s1 = new THREE.Mesh(new THREE.BoxGeometry(0.12, 0.025, 4.25), mat(colour));
-    s1.position.set(x, 0.70, -0.02);
+  // stripes over bonnet + roof, and the diagonal flank slash
+  for (const [x, colour] of [[-0.15, TEAL], [0.15, MAGENTA]] as [number, number][]) {
+    const s1 = new THREE.Mesh(new THREE.BoxGeometry(0.11, 0.02, 4.2), mat(colour));
+    s1.position.set(x, 0.63, -0.02);
     g.add(s1);
-    const s2 = new THREE.Mesh(new THREE.BoxGeometry(0.12, 0.02, 0.92), mat(colour));
-    s2.position.set(x, 0.95, 0.94);
+    const s2 = new THREE.Mesh(new THREE.BoxGeometry(0.11, 0.02, 0.84), mat(colour));
+    s2.position.set(x, 0.955, 0.94);
     g.add(s2);
   }
-  const slash = new THREE.Mesh(new THREE.BoxGeometry(0.05, 0.24, 1.15), mat(TEAL));
-  slash.position.set(1.015, 0.38, 1.45);
-  slash.rotation.x = -0.34;
+  const slash = new THREE.Mesh(new THREE.BoxGeometry(0.04, 0.26, 1.10), mat(TEAL));
+  slash.position.set(1.01, 0.36, 1.42);
+  slash.rotation.x = -0.36;
   g.add(slash);
-  const slash2 = new THREE.Mesh(new THREE.BoxGeometry(0.05, 0.10, 1.15), mat(MAGENTA));
-  slash2.position.set(1.02, 0.27, 1.45);
-  slash2.rotation.x = -0.34;
+  const slash2 = new THREE.Mesh(new THREE.BoxGeometry(0.04, 0.11, 1.10), mat(MAGENTA));
+  slash2.position.set(1.015, 0.235, 1.42);
+  slash2.rotation.x = -0.36;
   g.add(slash2);
 
-  // ---- wheels: black tyres with big gold hubs
-  const wheelGeo = new THREE.CylinderGeometry(0.33, 0.33, 0.30, 12);
-  wheelGeo.rotateZ(Math.PI / 2);
-  const hubGeo = new THREE.CylinderGeometry(0.19, 0.19, 0.32, 10);
-  hubGeo.rotateZ(Math.PI / 2);
-  for (const z of [-1.42, 1.36]) {
-    for (const x of [-1.00, 1.00]) {
-      const w = new THREE.Mesh(wheelGeo, mat(TYRE));
+  // wheels: tyre + gold hub with spokes
+  const tyre = new THREE.CylinderGeometry(0.33, 0.33, 0.30, 12);
+  tyre.rotateZ(Math.PI / 2);
+  const hub = new THREE.CylinderGeometry(0.19, 0.19, 0.32, 10);
+  hub.rotateZ(Math.PI / 2);
+  for (const z of [-1.44, 1.38]) {
+    for (const x of [-0.99, 0.99]) {
+      const w = new THREE.Mesh(tyre, mat(TYRE));
       w.position.set(x, 0.33, z);
       g.add(w);
-      const hub = new THREE.Mesh(hubGeo, mat(HUB));
-      hub.position.set(x * 1.01, 0.33, z);
-      g.add(hub);
+      const h = new THREE.Mesh(hub, mat(HUB));
+      h.position.set(x * 1.01, 0.33, z);
+      g.add(h);
+      for (let i = 0; i < 4; i++) {
+        const sp = new THREE.Mesh(new THREE.BoxGeometry(0.035, 0.30, 0.035), mat(0x8a7440));
+        sp.position.set(x * 1.02, 0.33, z);
+        sp.rotation.x = (i * Math.PI) / 4;
+        g.add(sp);
+      }
     }
   }
 
-  // ---- rear wing: high blade on two tall end plates
-  const wing = new THREE.Mesh(new THREE.BoxGeometry(2.24, 0.07, 0.40), mat(INK));
-  wing.position.set(0, 0.98, 2.24);
+  // rear wing on tall end plates
+  const wing = new THREE.Mesh(new THREE.BoxGeometry(2.18, 0.07, 0.40), mat(INK));
+  wing.position.set(0, 0.99, 2.22);
   g.add(wing);
-  for (const x of [-1.08, 1.08]) {
-    const plate = new THREE.Mesh(new THREE.BoxGeometry(0.06, 0.52, 0.46), mat(INK));
-    plate.position.set(x, 0.72, 2.22);
+  for (const x of [-1.06, 1.06]) {
+    const plate = new THREE.Mesh(new THREE.BoxGeometry(0.05, 0.54, 0.44), mat(INK));
+    plate.position.set(x, 0.72, 2.20);
     g.add(plate);
   }
 
-  // ---- tail panel: black bar with red lights, plus diffuser
-  const tail = new THREE.Mesh(new THREE.BoxGeometry(1.60, 0.16, 0.06), mat(INK));
-  tail.position.set(0, 0.34, 2.31);
+  // tail bar + diffuser
+  const tail = new THREE.Mesh(new THREE.BoxGeometry(1.52, 0.16, 0.05), mat(INK));
+  tail.position.set(0, 0.32, 2.30);
   g.add(tail);
-  for (const x of [-0.56, 0.56]) {
-    const tl = new THREE.Mesh(new THREE.BoxGeometry(0.40, 0.09, 0.03), mat(RED));
-    tl.position.set(x, 0.34, 2.345);
+  for (const x of [-0.52, 0.52]) {
+    const tl = new THREE.Mesh(new THREE.BoxGeometry(0.36, 0.08, 0.03), mat(RED));
+    tl.position.set(x, 0.32, 2.33);
     g.add(tl);
   }
-  const diffuser = new THREE.Mesh(new THREE.BoxGeometry(1.30, 0.10, 0.22), mat(0x8f96a2));
-  diffuser.position.set(0, 0.16, 2.28);
-  g.add(diffuser);
+  const diff = new THREE.Mesh(new THREE.BoxGeometry(1.24, 0.09, 0.20), mat(0x8f96a2));
+  diff.position.set(0, 0.155, 2.28);
+  g.add(diff);
 
-  // ---- nose: grille + indicators
-  const grille = new THREE.Mesh(new THREE.BoxGeometry(1.10, 0.10, 0.05), mat(INK));
-  grille.position.set(0, 0.22, -2.33);
+  // nose grille + indicators
+  const grille = new THREE.Mesh(new THREE.BoxGeometry(1.02, 0.09, 0.04), mat(INK));
+  grille.position.set(0, 0.21, -2.31);
   g.add(grille);
-  for (const x of [-0.78, 0.78]) {
-    const ind = new THREE.Mesh(new THREE.BoxGeometry(0.24, 0.06, 0.04), mat(0xffe9a8));
-    ind.position.set(x, 0.30, -2.32);
+  for (const x of [-0.62, 0.62]) {
+    const ind = new THREE.Mesh(new THREE.BoxGeometry(0.20, 0.05, 0.03), mat(0xffe9a8));
+    ind.position.set(x, 0.27, -2.30);
     g.add(ind);
   }
 
