@@ -745,8 +745,8 @@ export async function buildWorld(scene: THREE.Scene, mapId?: string): Promise<Wo
       const off = ROAD_HALF + 2.0 + (bi % 2) * 0.3;
       const x = p.x + nx * side * off;
       const z = p.z + nz * side * off;
-      // face down the straight toward oncoming cars, so the lettering reads
-      const rot = Math.atan2(-dx, -dz);
+      // face down the straight toward oncoming cars, angled in toward the road
+      const rot = Math.atan2(-dx, -dz) - side * 0.55;
       const tex = boardTexture(straightLabels[bi % straightLabels.length], accents[bi % accents.length]);
       placeBoard(x, z, rot, tex, 3.9, 1.18, 1.05);
       bi++;
@@ -771,7 +771,7 @@ export async function buildWorld(scene: THREE.Scene, mapId?: string): Promise<Wo
       const side = sideAt(p, nx, nz);
       const x = p.x + nx * side * (ROAD_HALF + 3.0);
       const z = p.z + nz * side * (ROAD_HALF + 3.0);
-      const rot = Math.atan2(-tx, -tz);
+      const rot = Math.atan2(-tx, -tz) - side * 0.35;
       placeBoard(x, z, rot, arrowTexture(curvAt(i) > 0 ? 1 : -1), 2.1, 2.1, 1.0);
       lastBoard = i;
     }
