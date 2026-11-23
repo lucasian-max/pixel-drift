@@ -616,7 +616,7 @@ export async function buildWorld(scene: THREE.Scene, mapId?: string): Promise<Wo
     }
 
     g.position.set(start.x, 0, start.z);
-    g.rotation.y = start.heading + Math.PI / 2;
+    g.rotation.y = start.heading;
     group.add(g);
   }
 

@@ -153,7 +153,8 @@ export class Sound {
     const sp = Math.abs(car.speed);
     const gearSpan = 9;
     const gearFrac = (sp % gearSpan) / gearSpan;
-    const rpm = 0.35 + gearFrac * 0.65;
+    // each gear pulls to the top of its band, then drops on the shift
+    const rpm = 0.30 + Math.pow(gearFrac, 0.7) * 0.70;
     const target = 46 + sp * 1.6 + rpm * 26;
     this.engA.frequency.setTargetAtTime(target, t, 0.06);
     this.engB.frequency.setTargetAtTime(target * 1.51, t, 0.06);
