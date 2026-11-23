@@ -477,14 +477,7 @@ export class PixelUI {
     const nameW = Math.ceil(c.measureText(name).width);
     const nameY = 218;
     const bY = nameY - 5;
-    this.bPrev.x = Math.round(cx - nameW / 2 - 40); this.bPrev.y = bY;
-    this.bNext.x = Math.round(cx + nameW / 2 + 16); this.bNext.y = bY;
-    for (const b of [this.bPrev, this.bNext]) {
-      pxRect(c, b.x, b.y, b.w, b.h, 'rgba(18,22,26,0.92)');
-      pxBorder(c, b.x, b.y, b.w, b.h, 'rgba(242,238,225,0.55)');
-      this.pixelArrow(b.x + b.w / 2 - 4, b.y + b.w / 2 - 4, b.id === 'prev-map' ? -1 : 1);
-      this.buttons.push(b);
-    }
+    // one circuit for now: name only, no chooser arrows
     this.text(name, cx, nameY, { size: 16, weight: 700, color: CREAM, align: 'center' });
 
     /* SOLO + ONLINE buttons: chunky arcade keys with offset blocks */
