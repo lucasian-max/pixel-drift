@@ -163,7 +163,9 @@ async function boot() {
   const mapIndex = Math.max(0, MAPS.findIndex((m) => m.id === mapId));
   const overview = params.has('overview');
   const car = await new Car().init(world);
-  const savedCar = Number(params.get('car') ?? localStorage.getItem('sprite-drift:car') ?? 0);
+  const savedCar = Number(params.get('car')
+    ?? localStorage.getItem('pixel-drift:car')
+    ?? localStorage.getItem('sprite-drift:car') ?? 0);
   car.setVariant(Number.isFinite(savedCar) ? savedCar : 0);
   scene.add(car.group);
 
@@ -251,7 +253,7 @@ async function boot() {
 
   const cycleCar = (delta: number) => {
     car.setVariant(car.variant + delta);
-    localStorage.setItem('sprite-drift:car', String(car.variant));
+    localStorage.setItem('pixel-drift:car', String(car.variant));
   };
 
   let garage = false;
@@ -457,8 +459,10 @@ async function boot() {
   let nearest = 0, progress = 0, lapTime = 0, started = false;
   let prevU = 0;
   const lapHistory: number[] = [];
-  const bestKey = `sprite-drift:best:${mapId}`;
-  let bestTime = Number(localStorage.getItem(bestKey) || 0) || 0;
+  const bestKey = `pixel-drift:best:${mapId}`;
+  let bestTime = Number(
+    localStorage.getItem(bestKey) ?? localStorage.getItem(`sprite-drift:best:${mapId}`) ?? 0,
+  ) || 0;
 
   /* ---- lap trace -----------------------------------------------------------
      Samples are kept for the on-screen replay and the local trace API. The

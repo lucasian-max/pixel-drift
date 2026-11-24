@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Baseline behaviour cloning on a sprite-drift dataset.
+"""Baseline behaviour cloning on a Pixel Drift dataset.
 
 Two models are provided:
   ridge  closed-form linear policy, numpy only, good sanity check

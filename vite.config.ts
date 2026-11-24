@@ -1,7 +1,7 @@
 import { defineConfig } from 'vite';
 
 // `SPRITE_API` can point a dev server at another API instance; by default the
-// API runs on this machine as the sprite-drift-api user service.
+// API runs on this machine as the sprite-drift-api user service (Pixel Drift).
 const apiTarget = process.env.SPRITE_API || 'http://127.0.0.1:8790';
 
 export default defineConfig({

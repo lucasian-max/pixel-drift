@@ -34,10 +34,11 @@ export const OBS_FIELDS = [
 /** Raw action vector: what the player asked for on this tick. */
 export const ACT_FIELDS = ['throttle', 'steer', 'handbrake', 'power'] as const;
 
-export const RUN_SCHEMA = 'sprite-drift/runs@1';
+export const RUN_SCHEMA = 'pixel-drift/runs@1';
 export const RUN_FPS = 60;
 
-const DB_NAME = 'sprite-drift-runs';
+const DB_NAME = 'pixel-drift-runs';
+const LEGACY_DB_NAME = 'sprite-drift-runs';
 const DB_VERSION = 1;
 const STORE_RUNS = 'episodes';
 const STORE_TRACKS = 'tracks';
@@ -76,11 +77,11 @@ function uid(): string {
 const q3 = (v: number) => Math.round(v * 1000) / 1000;
 const q2 = (v: number) => Math.round(v * 100) / 100;
 
-function openDb(): Promise<IDBDatabase | null> {
+function openDb(name: string = DB_NAME): Promise<IDBDatabase | null> {
   return new Promise((resolve) => {
     try {
       if (typeof indexedDB === 'undefined') return resolve(null);
-      const req = indexedDB.open(DB_NAME, DB_VERSION);
+      const req = indexedDB.open(name, DB_VERSION);
       req.onupgradeneeded = () => {
         const db = req.result;
         if (!db.objectStoreNames.contains(STORE_RUNS)) db.createObjectStore(STORE_RUNS, { keyPath: 'id' });
@@ -161,7 +162,31 @@ export class Recorder {
 
   private async initStore(): Promise<void> {
     this.db = await openDb();
+    await this.migrateLegacy();
     await this.saveTrack();
+  }
+
+  /** Move runs recorded under the old Sprite Drift database name once. */
+  private async migrateLegacy(): Promise<void> {
+    if (!this.db) return;
+    try {
+      const names = await indexedDB.databases?.();
+      if (names && !names.some((d) => d.name === LEGACY_DB_NAME)) return;
+    } catch {
+      /* databases() unsupported; fall through */
+    }
+    const old = await openDb(LEGACY_DB_NAME);
+    if (!old) return;
+    const episodes = await readAll<Episode>(old, STORE_RUNS);
+    const tracks = await readAll<Record<string, unknown>>(old, STORE_TRACKS);
+    old.close();
+    if (episodes.length === 0 && tracks.length === 0) {
+      try { indexedDB.deleteDatabase(LEGACY_DB_NAME); } catch { /* ignore */ }
+      return;
+    }
+    for (const ep of episodes) await put(this.db, STORE_RUNS, ep);
+    for (const track of tracks) await put(this.db, STORE_TRACKS, track);
+    try { indexedDB.deleteDatabase(LEGACY_DB_NAME); } catch { /* ignore */ }
   }
 
   private async saveTrack(): Promise<void> {
@@ -352,7 +377,7 @@ export class Recorder {
     const a = document.createElement('a');
     const stamp = new Date().toISOString().slice(0, 19).replace(/[:T]/g, '-');
     a.href = url;
-    a.download = `sprite-drift-runs-${stamp}.jsonl`;
+    a.download = `pixel-drift-runs-${stamp}.jsonl`;
     document.body.appendChild(a);
     a.click();
     a.remove();

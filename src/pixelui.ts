@@ -337,7 +337,7 @@ export class PixelUI {
     pxRect(c, mx, my, ms, ms, SLAB);
     pxBorder(c, mx, my, ms, ms, LINE);
     this.drawMap(car, mx + 5, my + 5, ms - 10);
-    const stage = (state.mapName ?? state.maps?.[state.mapIndex ?? 0]?.name ?? 'SPRITE DRIFT').toUpperCase();
+    const stage = (state.mapName ?? state.maps?.[state.mapIndex ?? 0]?.name ?? 'PIXEL DRIFT').toUpperCase();
     this.font(8, 700);
     const nw = Math.max(ms, Math.ceil(c.measureText(stage).width) + 12);
     pxRect(c, mx, my + ms + 6, nw, 14, CREAM);
@@ -655,10 +655,6 @@ export class PixelUI {
 
     const cx = Math.round(w / 2);
 
-    this.text('SPRITE STACK RACER', cx, 56, {
-      size: 8, weight: 700, color: ACCENT, align: 'center', spacing: 2,
-    });
-
     /* lockup with hard offset shadow blocks */
     this.text('PIXEL', cx + 3, 77, { size: 48, weight: 700, color: SHADOW, align: 'center' });
     this.text('PIXEL', cx, 74, { size: 48, weight: 700, color: CREAM, align: 'center' });
@@ -669,11 +665,9 @@ export class PixelUI {
     const carNames = state.carNames ?? ['CAR'];
     const ci = ((state.car.variant % carNames.length) + carNames.length) % carNames.length;
     const carName = (carNames[ci] ?? 'CAR').toUpperCase();
-    const powerName = (state.carPowers?.[ci] ?? '').toUpperCase();
-    this.text(`CAR  ·  ${powerName}`, cx, 212, { size: 8, color: ACCENT, align: 'center', spacing: 1 });
     this.font(16, 700);
     const carW = Math.ceil(c.measureText(carName).width);
-    this.text(carName, cx, 224, { size: 16, weight: 700, color: CREAM, align: 'center' });
+    this.text(carName, cx, 216, { size: 16, weight: 700, color: CREAM, align: 'center' });
     const arrowButton = (b: Button, dir: number) => {
       pxRect(c, b.x, b.y, b.w, b.h, SLAB);
       pxBorder(c, b.x, b.y, b.w, b.h, 'rgba(242,238,225,0.55)');
@@ -681,16 +675,16 @@ export class PixelUI {
       this.buttons.push(b);
     };
     this.bCarPrev.x = Math.round(cx - carW / 2 - 34);
-    this.bCarPrev.y = 218;
+    this.bCarPrev.y = 210;
     this.bCarNext.x = Math.round(cx + carW / 2 + 10);
-    this.bCarNext.y = 218;
+    this.bCarNext.y = 210;
     arrowButton(this.bCarPrev, -1);
     arrowButton(this.bCarNext, 1);
 
     /* track chooser */
-    const maps = state.maps ?? [{ id: 'x', name: state.mapName ?? 'Sprite Drift' }];
+    const maps = state.maps ?? [{ id: 'x', name: state.mapName ?? 'Pixel Drift' }];
     const mi = Math.max(0, Math.min(maps.length - 1, state.mapIndex ?? 0));
-    const name = (maps[mi]?.name ?? 'Sprite Drift').toUpperCase();
+    const name = (maps[mi]?.name ?? 'Pixel Drift').toUpperCase();
     this.text('TRACK', cx, 178, { size: 8, color: 'rgba(242,238,225,0.8)', align: 'center', spacing: 3 });
     this.font(16, 700);
     const nameW = Math.ceil(c.measureText(name).width);
@@ -706,9 +700,9 @@ export class PixelUI {
     /* power info + garage */
     this.bInfo.label = 'POWER INFO';
     this.bInfo.x = Math.round(cx - 74);
-    this.bInfo.y = 242;
+    this.bInfo.y = 240;
     this.bGarage.x = Math.round(cx + 4);
-    this.bGarage.y = 242;
+    this.bGarage.y = 240;
     for (const b of [this.bInfo, this.bGarage]) {
       pxRect(c, b.x, b.y, b.w, b.h, SLAB);
       pxBorder(c, b.x, b.y, b.w, b.h, 'rgba(242,238,225,0.45)');

@@ -1,4 +1,4 @@
-# Sprite Drift — work plan
+# Pixel Drift — work plan
 
 Cadence per block: design note → implement in slices (one commit each) → verify three
 states (parked / mid-corner / at speed) → failure cases → tests → docs.

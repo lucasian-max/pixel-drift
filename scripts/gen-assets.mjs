@@ -1,4 +1,4 @@
-// Procedural pixel-art generator for Sprite Drift.
+// Procedural pixel-art generator for Pixel Drift.
 // Every sprite is a *height stack*: layer N is a horizontal cross-section at height N.
 // The game renders the stack as offset planes, which is the classic sprite-stacking look.
 import fs from 'node:fs';

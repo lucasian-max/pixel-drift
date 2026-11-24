@@ -223,7 +223,7 @@ const server = http.createServer((req, res) => {
 });
 
 server.listen(PORT, HOST, () => {
-  console.log(`sprite-drift api listening on http://${HOST}:${PORT} (db: ${store.dataPath})`);
+  console.log(`Pixel Drift API listening on http://${HOST}:${PORT} (db: ${store.dataPath})`);
 });
 
 // ---- graceful shutdown -------------------------------------------------------------

@@ -1,11 +1,11 @@
 ---
 name: pixel-car-stack
-description: Add a playable pixel-art car to Sprite Drift from a four-view sheet, a reference image, or a procedural car spec, including its superpower. Use for new cars, liveries, rally/race variants, 3D car models, power/FX work, sprite-stack atlases, previews, and screenshots.
+description: Add a playable pixel-art car to Pixel Drift from a four-view sheet, a reference image, or a procedural car spec, including its superpower. Use for new cars, liveries, rally/race variants, 3D car models, power/FX work, sprite-stack atlases, previews, and screenshots.
 ---
 
 # Pixel-car stack / new car
 
-Sprite Drift has three car paths. Pick deliberately:
+Pixel Drift has three car paths. Pick deliberately:
 
 1. **3D player car** — what actually ships. `src/carModel.ts::buildCarModel(variant)` returns the low-poly car; the rally car lives in `src/rallyCar.ts`. A new playable car normally means a new `buildXCar()` module plus a variant slot.
 2. **Sprite-stack atlas** — the game's namesake, used for props and (historically) the first hero car. A four-view sheet is carved into slices for `src/stack.ts::SpriteStack`. Good for static cars, billboards and experiments; bad for the live player car because the sheet's wheels cannot steer or spin.

@@ -1,4 +1,4 @@
-# sprite-drift API
+# Pixel Drift API
 
 Accounts and the solo leaderboard for the game. Dependency-free Node HTTP
 (`node:http`, `node:crypto`, `node:fs`).

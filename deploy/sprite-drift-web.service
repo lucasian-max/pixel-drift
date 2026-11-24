@@ -1,5 +1,5 @@
 [Unit]
-Description=Sprite Drift web (Vite dev server on 5180)
+Description=Pixel Drift web (Vite dev server on 5180)
 After=network.target sprite-drift-api.service
 
 [Service]

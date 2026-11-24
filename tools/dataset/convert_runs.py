@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Convert sprite-drift JSONL runs into a training-ready dataset.
+"""Convert Pixel Drift JSONL runs into a training-ready dataset.
 
 The raw export is one JSON object per line (see src/recorder.ts):
   - a header with the schema, fps and field names
@@ -129,7 +129,7 @@ def load_runs(path: Path):
             # unknown kinds are ignored on purpose for forward compatibility
 
     if header is None:
-        die("no header line; is this a sprite-drift export?")
+        die("no header line; is this a Pixel Drift export?")
     if int(header.get("fps", 0)) <= 0:
         die("header has no valid fps")
     if not order:
@@ -365,7 +365,7 @@ def main() -> None:
     }
 
     info = {
-        "format": "sprite-drift/dataset@1",
+        "format": "pixel-drift/dataset@1",
         "source_schema": header.get("schema"),
         "fps": fps,
         "physics_hz": header.get("physicsHz", 120),

@@ -4,7 +4,7 @@ The game records every timed lap and can export it as a dataset. This folder
 turns raw runs into a columnar dataset and a baseline policy.
 
 ```
-record in game  →  sprite-drift-runs-*.jsonl  →  convert_runs.py  →  dataset/
+record in game  →  pixel-drift-runs-*.jsonl  →  convert_runs.py  →  dataset/
                                                                     data.parquet
                                                                     episodes.parquet
                                                                     episodes/*.npz
@@ -22,7 +22,7 @@ record in game  →  sprite-drift-runs-*.jsonl  →  convert_runs.py  →  datas
 
    ```bash
    pip install numpy pyarrow          # only for the converter
-   python3 tools/dataset/convert_runs.py ~/Downloads/sprite-drift-runs-*.jsonl -o dataset/
+   python3 tools/dataset/convert_runs.py ~/Downloads/pixel-drift-runs-*.jsonl -o dataset/
    ```
 
 3. Sanity-check with the numpy-only ridge baseline:
@@ -38,7 +38,7 @@ record in game  →  sprite-drift-runs-*.jsonl  →  convert_runs.py  →  datas
    python3 tools/dataset/train_bc.py dataset/ --model mlp --epochs 20
    ```
 
-Runs live in IndexedDB (`sprite-drift-runs`), survive reloads and are never
+Runs live in IndexedDB (`pixel-drift-runs`), survive reloads and are never
 sent anywhere. `X` exports **all** stored laps across maps and cars in one
 file. `game.recorder.clear()` in the console wipes them.
 
@@ -72,7 +72,7 @@ own data.
 `action.*`), so adapting it to `LeRobotDataset` later is a metadata job, not
 a rewrite.
 
-## Raw JSONL schema (`sprite-drift/runs@1`)
+## Raw JSONL schema (`pixel-drift/runs@1`)
 
 One JSON object per line:
 

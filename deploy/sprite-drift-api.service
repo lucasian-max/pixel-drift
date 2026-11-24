@@ -1,5 +1,5 @@
 [Unit]
-Description=Sprite Drift API (accounts + solo leaderboard)
+Description=Pixel Drift API (accounts + solo leaderboard)
 After=network.target
 
 [Service]

@@ -1336,7 +1336,7 @@ export async function buildWorld(scene: THREE.Scene, mapId?: string): Promise<Wo
       c2.fillText('桜サーキット', 128, 34);
     } else {
       c2.font = 'bold 16px monospace';
-      c2.fillText('SPRITE DRIFT', 128, 34);
+      c2.fillText('PIXEL DRIFT', 128, 34);
     }
     const tex = new THREE.CanvasTexture(cv);
     tex.magFilter = THREE.NearestFilter;
@@ -1398,7 +1398,7 @@ export async function buildWorld(scene: THREE.Scene, mapId?: string): Promise<Wo
 
     const straightLabels = map.id === 'sakura'
       ? ['桜', '鈴鹿', '日本', '富士', '速度', '東京']
-      : ['SPRITE', 'TURBO', 'DRIFT', '8-BIT', 'PIXEL', 'OIL'];
+      : ['PIXEL', 'TURBO', 'DRIFT', '8-BIT', 'NITRO', 'OIL'];
     const accents = ['#e0513f', '#2b6d7a', '#b5432f'];
 
     // sponsor boards flank the start straight, clear of the gantry
