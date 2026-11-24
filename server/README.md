@@ -84,7 +84,7 @@ when the first valid lap count reaches three, then broadcasts the standings.
 ## Anti-cheat
 
 - **Corridor:** every 20 Hz pose is checked against the coast centreline. More
-  than 0.9 s outside the road + kerb corridor voids the lap.
+  than 0.6 s outside the road + kerb corridor voids the lap.
 - **Teleports:** a pose that jumps more than 12 units at an impossible speed
   voids the lap.
 - **Authoritative laps:** the client's `lap` field is ignored; only validated

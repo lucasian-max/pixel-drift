@@ -503,7 +503,7 @@ async function boot() {
     if (crossed) {
       const ms = Math.round(lapTime * 1000);
       lapTrace.push({ x: car.x, z: car.z, t: ms });
-      const clean = offTime < 0.75
+      const clean = offTime < 0.6
         && maxOff < world.roadHalf + 2.0
         && ms >= 12000
         && lapTrace.length >= 10;

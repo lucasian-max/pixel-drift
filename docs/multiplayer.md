@@ -69,7 +69,7 @@ Lap validation has two layers:
 
 **Route (server):**
 
-1. Every 20 Hz pose is checked against the coast centreline. More than 0.9 s
+1. Every 20 Hz pose is checked against the coast centreline. More than 0.6 s
    outside road + kerb marks the lap `off_track`.
 2. A pose that jumps more than 12 units at an impossible speed marks the lap
    `dirty` (teleport / cut).
