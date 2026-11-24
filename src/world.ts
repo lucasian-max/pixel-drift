@@ -1456,12 +1456,15 @@ export async function buildWorld(scene: THREE.Scene, mapId?: string): Promise<Wo
       const tx = q.x - r.x, tz = q.z - r.z;
       const len = Math.hypot(tx, tz) || 1;
       const nx = tz / len, nz = -tx / len;
-      const side = sideAt(p, nx, nz);
+      // outside of the bend: away from the turn, not away from the centroid
+      const side = curvAt(i) > 0 ? 1 : -1;
       const x = p.x + nx * side * (ROAD_HALF + 3.0);
       const z = p.z + nz * side * (ROAD_HALF + 3.0);
+      lastBoard = i;
+      // skip it if another branch of the circuit would put the board on tarmac
+      if (nearbyRoad(x, z, ROAD_HALF + 1.2)) continue;
       const rot = Math.atan2(-tx, -tz) - side * 0.35;
       placeBoard(x, z, rot, arrowTexture(curvAt(i) > 0 ? 1 : -1), 2.1, 2.1, 1.0);
-      lastBoard = i;
     }
     group.add(furniture);
   }

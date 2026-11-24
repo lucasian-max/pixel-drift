@@ -1,9 +1,9 @@
-# Sprite Drift
+# Pixel Drift
 
 A pixel-art racer built on **sprite stacking**: every car and prop is a stack of
 flat pixel slices drawn one pixel apart, so a 2D sprite turns like a 3D model.
 
-![Sprite Drift](docs/title.png)
+![Pixel Drift](docs/title.png)
 
 ## Play
 
@@ -19,7 +19,6 @@ npm run dev      # http://127.0.0.1:5180
 | Superpower | F |
 | Look around | Q / E or drag |
 | Zoom | mouse wheel |
-| Change car in a race | C |
 | Pick car / circuit on the title | Up/Down, Left/Right |
 | View the car turntable | VIEW CAR on the title |
 | Read the selected power | POWER INFO on the title |
@@ -91,8 +90,8 @@ one power on the `F` key; the HUD card shows READY, ACTIVE and the cooldown.
 
 | Car | Power | What it does |
 | --- | --- | --- |
-| **Pearl GT** | Pearl Drift | 4s of high-angle, high-score sliding with a pearl aura; exits with a boost from the drift |
-| **Group B** | Thunderclap | Yellow lightning, a glowing shell and a hard launch |
+| **Pearl GT** | Pearl Drift | 4.5s of loose rear grip, a ×3.5 drift score and a boost on exit; 8s cooldown |
+| **Group B** | Thunderclap | 3.5s of ×1.5 top speed, ×2.6 acceleration and a launch burst; 7s cooldown |
 
 The hero is a pearl-white GT with a twin racing stripe, a roof roundel, framed
 glass, mirrors, vented bonnet, a ducktail spoiler and chrome exhausts.

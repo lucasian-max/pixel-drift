@@ -24,19 +24,25 @@ export interface CarPower {
   driftScore?: number;
   /** conversion from stored drift charge to an exit boost */
   exitBoost?: number;
+  /** one-line stat summary shown on the power card */
+  effect?: string;
 }
 
 export const CAR_POWERS: CarPower[] = [
   {
-    name: 'PEARL DRIFT', blurb: 'High-angle, high-score sliding with a pearl aura',
-    duration: 4.0, cooldown: 9, color: 0x9ff5e8,
-    speed: 1.0, accel: 1.08, grip: 1.0, steer: 1.38,
-    driftGrip: 0.62, driftScore: 3, exitBoost: 0.85, orbs: true,
+    name: 'PEARL DRIFT',
+    blurb: 'Loose the rear, hold a huge slide, then fire out of the corner.',
+    effect: 'DRIFT SCORE ×3.5 · EXIT BOOST',
+    duration: 4.5, cooldown: 8, color: 0x9ff5e8,
+    speed: 1.02, accel: 1.12, grip: 1.0, steer: 1.42,
+    driftGrip: 0.58, driftScore: 3.5, exitBoost: 1.0, orbs: true,
   },
   {
-    name: 'THUNDERCLAP', blurb: 'Yellow lightning and a hard launch',
-    duration: 3.0, cooldown: 8, color: 0xffe14a,
-    speed: 1.45, accel: 2.20, grip: 1.15, steer: 1.05,
+    name: 'THUNDERCLAP',
+    blurb: 'A hard launch, double acceleration and a much higher top end.',
+    effect: 'TOP SPEED ×1.5 · ACCEL ×2.6',
+    duration: 3.5, cooldown: 7, color: 0xffe14a,
+    speed: 1.5, accel: 2.6, grip: 1.18, steer: 1.05, burst: 2.4,
     zap: true,
   },
 ];

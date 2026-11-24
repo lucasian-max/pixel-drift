@@ -45,6 +45,7 @@ export interface UiState {
   garage?: boolean;
   powerInfo?: boolean;
   powerBlurb?: string;
+  powerEffect?: string;
   powerDuration?: number;
   powerCooldown?: number;
   lapHistory?: number[];
@@ -475,7 +476,7 @@ export class PixelUI {
     this.buttons.length = 0;
     c.fillStyle = 'rgba(10,12,16,0.62)';
     c.fillRect(0, 0, this.w, this.h);
-    const w = Math.min(330, this.w - 24), h = 162;
+    const w = Math.min(330, this.w - 24), h = 146;
     const x = Math.round((this.w - w) / 2), y = Math.round((this.h - h) / 2);
     pxRect(c, x, y, w, h, SLAB);
     pxBorder(c, x, y, w, h, 'rgba(242,238,225,0.75)');
@@ -498,9 +499,16 @@ export class PixelUI {
     lines.forEach((l, i) => {
       this.text(l, x + w / 2, y + 48 + i * 11, { size: 8, color: CREAM, align: 'center' });
     });
-    this.text('F ACTIVATES', x + w / 2, y + 88, { size: 8, weight: 700, color: ACCENT, align: 'center' });
+    if (state.powerEffect) {
+      this.text(state.powerEffect, x + w / 2, y + 78, {
+        size: 8, weight: 700, color: ACCENT, align: 'center', spacing: 1,
+      });
+    }
+    this.text('PRESS F TO ACTIVATE', x + w / 2, y + 92, {
+      size: 8, weight: 700, color: CREAM, align: 'center', spacing: 1,
+    });
     this.text(`${(state.powerDuration ?? 0).toFixed(1)}s ACTIVE   ${state.powerCooldown ?? 0}s COOLDOWN`,
-      x + w / 2, y + 102, { size: 8, color: DIM, align: 'center' });
+      x + w / 2, y + 106, { size: 8, color: DIM, align: 'center' });
     this.bInfo.label = 'CLOSE';
     this.bInfo.x = Math.round(x + w / 2 - 35);
     this.bInfo.y = y + h - 22;
@@ -530,7 +538,7 @@ export class PixelUI {
     const nm = (names[ci] ?? 'CAR').toUpperCase();
     this.text(nm, cx, by + 7, { size: 16, weight: 700, color: CREAM, align: 'center' });
     this.text(state.power?.name ?? '', cx, by + 27, { size: 8, color: ACCENT, align: 'center', spacing: 1 });
-    this.text('F ACTIVATES', cx, by + 40, { size: 8, color: DIM, align: 'center', spacing: 1 });
+    this.text('F ACTIVATES IN RACE', cx, by + 40, { size: 8, color: DIM, align: 'center', spacing: 1 });
 
     this.bCarPrev.x = cx - 92; this.bCarPrev.y = by + 6;
     this.bCarNext.x = cx + 68; this.bCarNext.y = by + 6;
@@ -647,13 +655,13 @@ export class PixelUI {
 
     const cx = Math.round(w / 2);
 
-    this.text('PIXEL DRIFT', cx, 56, {
+    this.text('SPRITE STACK RACER', cx, 56, {
       size: 8, weight: 700, color: ACCENT, align: 'center', spacing: 2,
     });
 
     /* lockup with hard offset shadow blocks */
-    this.text('SPRITE', cx + 3, 77, { size: 48, weight: 700, color: SHADOW, align: 'center' });
-    this.text('SPRITE', cx, 74, { size: 48, weight: 700, color: CREAM, align: 'center' });
+    this.text('PIXEL', cx + 3, 77, { size: 48, weight: 700, color: SHADOW, align: 'center' });
+    this.text('PIXEL', cx, 74, { size: 48, weight: 700, color: CREAM, align: 'center' });
     this.text('DRIFT', cx + 3, 129, { size: 48, weight: 700, color: SHADOW, align: 'center' });
     this.text('DRIFT', cx, 126, { size: 48, weight: 700, color: ACCENT, align: 'center' });
 
@@ -662,10 +670,10 @@ export class PixelUI {
     const ci = ((state.car.variant % carNames.length) + carNames.length) % carNames.length;
     const carName = (carNames[ci] ?? 'CAR').toUpperCase();
     const powerName = (state.carPowers?.[ci] ?? '').toUpperCase();
-    this.text(`CAR  ·  ${powerName}`, cx, 178, { size: 8, color: ACCENT, align: 'center', spacing: 1 });
+    this.text(`CAR  ·  ${powerName}`, cx, 212, { size: 8, color: ACCENT, align: 'center', spacing: 1 });
     this.font(16, 700);
     const carW = Math.ceil(c.measureText(carName).width);
-    this.text(carName, cx, 190, { size: 16, weight: 700, color: CREAM, align: 'center' });
+    this.text(carName, cx, 224, { size: 16, weight: 700, color: CREAM, align: 'center' });
     const arrowButton = (b: Button, dir: number) => {
       pxRect(c, b.x, b.y, b.w, b.h, SLAB);
       pxBorder(c, b.x, b.y, b.w, b.h, 'rgba(242,238,225,0.55)');
@@ -673,9 +681,9 @@ export class PixelUI {
       this.buttons.push(b);
     };
     this.bCarPrev.x = Math.round(cx - carW / 2 - 34);
-    this.bCarPrev.y = 184;
+    this.bCarPrev.y = 218;
     this.bCarNext.x = Math.round(cx + carW / 2 + 10);
-    this.bCarNext.y = 184;
+    this.bCarNext.y = 218;
     arrowButton(this.bCarPrev, -1);
     arrowButton(this.bCarNext, 1);
 
@@ -683,15 +691,15 @@ export class PixelUI {
     const maps = state.maps ?? [{ id: 'x', name: state.mapName ?? 'Sprite Drift' }];
     const mi = Math.max(0, Math.min(maps.length - 1, state.mapIndex ?? 0));
     const name = (maps[mi]?.name ?? 'Sprite Drift').toUpperCase();
-    this.text('TRACK', cx, 212, { size: 8, color: 'rgba(242,238,225,0.8)', align: 'center', spacing: 3 });
+    this.text('TRACK', cx, 178, { size: 8, color: 'rgba(242,238,225,0.8)', align: 'center', spacing: 3 });
     this.font(16, 700);
     const nameW = Math.ceil(c.measureText(name).width);
-    const nameY = 224;
+    const nameY = 190;
     this.text(name, cx, nameY, { size: 16, weight: 700, color: CREAM, align: 'center' });
     this.bPrev.x = Math.round(cx - nameW / 2 - 34);
-    this.bPrev.y = 218;
+    this.bPrev.y = 184;
     this.bNext.x = Math.round(cx + nameW / 2 + 10);
-    this.bNext.y = 218;
+    this.bNext.y = 184;
     arrowButton(this.bPrev, -1);
     arrowButton(this.bNext, 1);
 
@@ -708,8 +716,8 @@ export class PixelUI {
       this.buttons.push(b);
     }
 
-    /* SOLO button: chunky arcade key with an offset block */
-    this.bSolo.label = 'SOLO';
+    /* PLAY button: chunky arcade key with an offset block */
+    this.bSolo.label = 'PLAY';
     this.bSolo.w = 104;
     this.bSolo.x = Math.round(cx - 52);
     this.bSolo.y = 260;
@@ -728,7 +736,7 @@ export class PixelUI {
     };
     key(this.bSolo, ACCENT);
 
-    /* ---- account line under SOLO ---- */
+    /* ---- account line under PLAY ---- */
     const acct = state.account;
     let blinkY = 296;
     if (acct) {

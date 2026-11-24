@@ -194,6 +194,8 @@ async function boot() {
   const PITCH = THREE.MathUtils.degToRad(50);
   const CAM_DIST = 140;
   let viewHeight = params.has('overview') ? 96 : 14;
+  let viewTween: { from: number; to: number; t: number } | null = null;
+  const tweenView = (to: number) => { viewTween = { from: viewHeight, to, t: 0 }; };
   let speedZoom = 1;
   let camYaw = 0;
   const focus = new THREE.Vector3(car.x, 0, car.z);
@@ -226,6 +228,15 @@ async function boot() {
   let laps = 0;
   const begin = () => {
     if (running) return;
+    // never carry a queued F/C/V/X/R press or a stored boost into a new run
+    input.forget('KeyF', 'KeyC', 'KeyV', 'KeyX', 'KeyR');
+    input.consumeReset();
+    car.powerTime = 0;
+    car.powerCd = 0;
+    car.powerCharge = 0;
+    car.vx = car.vz = 0;
+    car.speed = 0;
+    car.steerAngle = 0;
     running = true;
     adminPanel = false;
     sound.start();
@@ -262,9 +273,16 @@ async function boot() {
       car.z = world.start.z;
       car.heading = world.start.heading;
       car.vx = car.vz = 0;
+      car.speed = 0;
+      car.steerAngle = 0;
+      car.powerTime = 0;
+      car.powerCd = 0;
+      car.powerCharge = 0;
       car.pitch = 0;
       car.tilt.rotation.x = 0;
       car.trackIndex = 0;
+      input.forget('KeyF', 'KeyC', 'KeyV', 'KeyX', 'KeyR');
+      input.consumeReset();
       car.group.position.set(car.x, 0.24, car.z);
       car.group.rotation.y = car.heading;
       garagePad = new THREE.Mesh(
@@ -280,7 +298,7 @@ async function boot() {
       ring.position.y = 0.25;
       garagePad.add(ring);
       scene.add(garagePad);
-      viewHeight = 7.4;
+      tweenView(7.4);
       camYaw = 0.6;
       layout();
     } else {
@@ -299,12 +317,19 @@ async function boot() {
       car.z = garageHome.z;
       car.heading = garageHome.heading;
       car.vx = car.vz = 0;
+      car.speed = 0;
+      car.steerAngle = 0;
+      car.powerTime = 0;
+      car.powerCd = 0;
+      car.powerCharge = 0;
       car.pitch = 0;
       car.tilt.rotation.x = 0;
       car.trackIndex = 0;
+      input.forget('KeyF', 'KeyC', 'KeyV', 'KeyX', 'KeyR');
+      input.consumeReset();
       car.group.position.set(car.x, 0, car.z);
       car.group.rotation.y = car.heading;
-      viewHeight = 14;
+      tweenView(14);
       layout();
     }
   };
@@ -546,9 +571,17 @@ async function boot() {
       : params.has('demo') ? autopilot() : input.read();
     camYaw += input.look * dt * 1.8;
     if (input.zoom !== 0) {
+      viewTween = null;   // the wheel wins over the garage transition
       viewHeight = THREE.MathUtils.clamp(viewHeight * (1 + input.zoom), 13, 40);
       input.zoom = 0;
       layout();
+    }
+    if (viewTween) {
+      viewTween.t = Math.min(1, viewTween.t + dt / 0.45);
+      const k = 1 - Math.pow(1 - viewTween.t, 3);
+      viewHeight = viewTween.from + (viewTween.to - viewTween.from) * k;
+      layout();
+      if (viewTween.t >= 1) viewTween = null;
     }
 
     if (!input.paused) {
@@ -568,7 +601,6 @@ async function boot() {
             trackDist: Math.hypot(car.x - tp.x, car.z - tp.z),
           });
         }
-        if (input.consumeKey('KeyC')) car.nextVariant();
         if (input.consumeKey('KeyF') && running) {
           if (car.activatePower()) recorder.markPower();
         }
@@ -717,6 +749,7 @@ async function boot() {
       garage,
       powerInfo,
       powerBlurb: car.power.blurb,
+      powerEffect: car.power.effect,
       powerDuration: car.power.duration,
       powerCooldown: car.power.cooldown,
     }, now);

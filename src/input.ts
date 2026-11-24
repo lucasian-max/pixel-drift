@@ -60,6 +60,11 @@ export class Input {
     return { throttle: this.throttle, steer: this.steer, handbrake: this.handbrake };
   }
 
+  /** drop queued presses, e.g. F pressed on the title before the race starts */
+  forget(...codes: string[]) {
+    for (const code of codes) this.keys.delete(code);
+  }
+
   /** true once per physical press */
   consumeKey(code: string) {
     if (!this.keys.has(code)) return false;
