@@ -36,6 +36,12 @@ export interface UiState {
   maps?: { id: string; name: string }[];
   mapIndex?: number;
   mapName?: string;
+  carNames?: string[];
+  carPowers?: string[];
+  power?: {
+    name: string; active: boolean; ready: boolean;
+    cd: number; time: number; duration: number; cooldown: number; color: string;
+  };
   lapHistory?: number[];
   /** transient red notice, e.g. "LAP NOT COUNTED — OFF TRACK" */
   warning?: string;
@@ -79,7 +85,7 @@ function pxBorder(c: CanvasRenderingContext2D, x: number, y: number, w: number, 
 }
 
 /** every clickable thing on the canvas */
-export type HitId = 'prev-map' | 'next-map' | 'solo' | 'login' | 'logout';
+export type HitId = 'prev-map' | 'next-map' | 'prev-car' | 'next-car' | 'solo' | 'login' | 'logout';
 
 interface Button { id: HitId; x: number; y: number; w: number; h: number; label: string }
 
@@ -96,6 +102,8 @@ export class PixelUI {
   /* persistent buttons (no per-frame allocation) */
   private bPrev: Button = { id: 'prev-map', x: 0, y: 0, w: 24, h: 24, label: '<' };
   private bNext: Button = { id: 'next-map', x: 0, y: 0, w: 24, h: 24, label: '>' };
+  private bCarPrev: Button = { id: 'prev-car', x: 0, y: 0, w: 24, h: 24, label: '<' };
+  private bCarNext: Button = { id: 'next-car', x: 0, y: 0, w: 24, h: 24, label: '>' };
   private bSolo: Button = { id: 'solo', x: 0, y: 0, w: 148, h: 28, label: 'SOLO' };
   private bLogin: Button = { id: 'login', x: 0, y: 0, w: 72, h: 14, label: 'SIGN IN' };
   private bLogout: Button = { id: 'logout', x: 0, y: 0, w: 72, h: 14, label: 'SIGN OUT' };
@@ -107,7 +115,7 @@ export class PixelUI {
 
   onAction?: (a: HitId) => void;
 
-  constructor(private canvas: HTMLCanvasElement, track: { x: number; z: number }[]) {
+  constructor(private canvas: HTMLCanvasElement, track: { x: number; z: number }[], start?: { x: number; z: number }) {
     this.ctx = canvas.getContext('2d')!;
 
     let minX = Infinity, maxX = -Infinity, minZ = Infinity, maxZ = -Infinity;
@@ -125,9 +133,14 @@ export class PixelUI {
       this.mapPts[i * 2 + 1] = (track[i].z - this.mapCZ) / this.mapExt;
     }
 
-    /* start-line tick: perpendicular to the first track segment */
-    const a = track[0];
-    const b = track[1] ?? track[0];
+    /* start-line tick: nearest point to the actual start, perpendicular to the track */
+    const sp = start ?? track[0];
+    let si = 0, sbd = Infinity;
+    for (let i = 0; i < track.length; i++) {
+      const d = (track[i].x - sp.x) ** 2 + (track[i].z - sp.z) ** 2;
+      if (d < sbd) { sbd = d; si = i; }
+    }
+    const a = track[si], b = track[(si + 1) % track.length] ?? a;
     let dx = b.x - a.x, dz = b.z - a.z;
     const L = Math.hypot(dx, dz) || 1; dx /= L; dz /= L;
     this.tickX = (a.x - this.mapCX) / this.mapExt;
@@ -238,6 +251,32 @@ export class PixelUI {
       c.fillRect(dx + 6, dy + 30, Math.max(1, Math.round(bw * slipFrac)), 3);
     }
 
+    /* ---- superpower card (under the drift card) ---- */
+    const pw = state.power;
+    if (pw) {
+      const pwW = 148, pwH = 32, pwX = this.w - pwW - 8, pwY = 52;
+      const active = pw.active;
+      const darkText = active && pw.color === '#ffe14a';
+      pxRect(c, pwX, pwY, pwW, pwH, active ? pw.color : SLAB);
+      pxBorder(c, pwX, pwY, pwW, pwH, active ? 'rgba(242,238,225,0.9)' : LINE);
+      this.text(pw.name, pwX + 6, pwY + 4, {
+        size: 8, weight: 700, color: active ? (darkText ? INK : CREAM) : CREAM,
+      });
+      const status = active ? 'ACTIVE' : pw.ready ? 'READY' : `${Math.ceil(pw.cd)}s`;
+      this.text(status, pwX + pwW - 6, pwY + 4, {
+        size: 8, weight: 700, align: 'right',
+        color: active ? (darkText ? INK : CREAM) : pw.ready ? ACCENT : DIM,
+      });
+      const frac = active
+        ? Math.min(1, pw.time / pw.duration)
+        : 1 - Math.min(1, pw.cd / pw.cooldown);
+      c.fillStyle = active ? 'rgba(20,22,26,0.28)' : SEG_OFF;
+      c.fillRect(pwX + 6, pwY + pwH - 8, pwW - 12, 3);
+      c.fillStyle = active ? (darkText ? INK : CREAM) : pw.color;
+      c.fillRect(pwX + 6, pwY + pwH - 8, Math.max(1, Math.round((pwW - 12) * frac)), 3);
+      this.text('F', pwX + 6, pwY + 16, { size: 8, color: active ? (darkText ? INK : CREAM) : DIM });
+    }
+
     /* ---- track-limit warning ---- */
     if (state.warning) this.drawToast(state.warning, 58);
     else if (state.offTrack && (time * 2) % 1 < 0.7) {
@@ -301,7 +340,7 @@ export class PixelUI {
 
     /* ---- first-lap hints ---- */
     if (state.laps === 0) {
-      const msg = 'WASD DRIVE   SPACE DRIFT   R RESET';
+      const msg = 'WASD DRIVE   SPACE DRIFT   F POWER   R RESET';
       this.font(8);
       const hw = Math.ceil(c.measureText(msg).width) + 16;
       const hx = Math.round(this.w / 2 - hw / 2), hy = this.h - 18;
@@ -426,23 +465,49 @@ export class PixelUI {
     this.text('DRIFT', cx + 3, 129, { size: 48, weight: 700, color: SHADOW, align: 'center' });
     this.text('DRIFT', cx, 126, { size: 48, weight: 700, color: ACCENT, align: 'center' });
 
+    /* car chooser */
+    const carNames = state.carNames ?? ['CAR'];
+    const ci = ((state.car.variant % carNames.length) + carNames.length) % carNames.length;
+    const carName = (carNames[ci] ?? 'CAR').toUpperCase();
+    const powerName = (state.carPowers?.[ci] ?? '').toUpperCase();
+    this.text(`CAR  ·  ${powerName}`, cx, 178, { size: 8, color: ACCENT, align: 'center', spacing: 1 });
+    this.font(16, 700);
+    const carW = Math.ceil(c.measureText(carName).width);
+    this.text(carName, cx, 190, { size: 16, weight: 700, color: CREAM, align: 'center' });
+    const arrowButton = (b: Button, dir: number) => {
+      pxRect(c, b.x, b.y, b.w, b.h, SLAB);
+      pxBorder(c, b.x, b.y, b.w, b.h, 'rgba(242,238,225,0.55)');
+      this.pixelArrow(b.x + 6, b.y + 7, dir);
+      this.buttons.push(b);
+    };
+    this.bCarPrev.x = Math.round(cx - carW / 2 - 34);
+    this.bCarPrev.y = 184;
+    this.bCarNext.x = Math.round(cx + carW / 2 + 10);
+    this.bCarNext.y = 184;
+    arrowButton(this.bCarPrev, -1);
+    arrowButton(this.bCarNext, 1);
+
     /* track chooser */
     const maps = state.maps ?? [{ id: 'x', name: state.mapName ?? 'Sprite Drift' }];
     const mi = Math.max(0, Math.min(maps.length - 1, state.mapIndex ?? 0));
     const name = (maps[mi]?.name ?? 'Sprite Drift').toUpperCase();
-    this.text('TRACK', cx, 206, { size: 8, color: 'rgba(242,238,225,0.8)', align: 'center', spacing: 3 });
+    this.text('TRACK', cx, 212, { size: 8, color: 'rgba(242,238,225,0.8)', align: 'center', spacing: 3 });
     this.font(16, 700);
     const nameW = Math.ceil(c.measureText(name).width);
-    const nameY = 218;
-    const bY = nameY - 5;
-    // one circuit for now: name only, no chooser arrows
+    const nameY = 224;
     this.text(name, cx, nameY, { size: 16, weight: 700, color: CREAM, align: 'center' });
+    this.bPrev.x = Math.round(cx - nameW / 2 - 34);
+    this.bPrev.y = 218;
+    this.bNext.x = Math.round(cx + nameW / 2 + 10);
+    this.bNext.y = 218;
+    arrowButton(this.bPrev, -1);
+    arrowButton(this.bNext, 1);
 
     /* SOLO button: chunky arcade key with an offset block */
     this.bSolo.label = 'SOLO';
     this.bSolo.w = 104;
     this.bSolo.x = Math.round(cx - 52);
-    this.bSolo.y = 256;
+    this.bSolo.y = 260;
     const key = (b: Button, fill: string) => {
       pxRect(c, b.x + 2, b.y + 2, b.w, b.h, SHADOW);
       pxRect(c, b.x, b.y, b.w, b.h, fill);
@@ -516,7 +581,7 @@ export class PixelUI {
     const on = (time % 1.2) < 0.85;
     this.text('OR PRESS SPACE', cx, blinkY, { size: 8, color: on ? CREAM : 'rgba(242,238,225,0.15)', align: 'center', spacing: 1 });
 
-    this.text('WASD / ARROWS DRIVE   SPACE HANDBRAKE   Q E LOOK   R RESET   M MUTE', cx, h - 26, {
+    this.text('WASD DRIVE   SPACE DRIFT   F POWER   Q E LOOK   R RESET   M MUTE', cx, h - 26, {
       size: 8, color: HINT, align: 'center',
     });
   }

@@ -115,6 +115,7 @@ const PALETTES = [
 // one extra slot for the sheet-built rally car
 const RALLY_VARIANT = PALETTES.length;
 export const CAR_VARIANTS = PALETTES.length + 1;
+export const CAR_NAMES = ['PEARL GT', 'CRIMSON GT', 'MIDNIGHT GT', 'VIOLET GT', 'GROUP B'];
 
 export function buildCarModel(variant = 0): THREE.Group {
   if (variant === RALLY_VARIANT) return buildRallyCar();

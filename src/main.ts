@@ -1,6 +1,8 @@
 import * as THREE from 'three';
 import { buildWorld, MAPS } from './world';
 import { Car } from './car';
+import { CAR_NAMES } from './carModel';
+import { CAR_POWERS, powerColour } from './powers';
 import { Input } from './input';
 import { PixelUI } from './pixelui';
 import { loadSheet, shadowPatch } from './stack';
@@ -153,11 +155,15 @@ async function boot() {
   sun.position.set(-0.6, 1.2, -0.35);
   scene.add(sun);
 
-  const mapId = 'coast';   // focusing on the coast circuit for now
+  const wantedMap = params.get('map');
+  const mapId = MAPS.some((m) => m.id === wantedMap) ? wantedMap! : 'coast';
   const world = await buildWorld(scene, mapId);
+  scene.background = new THREE.Color(world.sky);
   const mapIndex = Math.max(0, MAPS.findIndex((m) => m.id === mapId));
   const overview = params.has('overview');
   const car = await new Car().init(world);
+  const savedCar = Number(params.get('car') ?? localStorage.getItem('sprite-drift:car') ?? 0);
+  car.setVariant(Number.isFinite(savedCar) ? savedCar : 0);
   scene.add(car.group);
 
   const shadowTex = await loadSheet('/sprites/shadow.png');
@@ -196,7 +202,7 @@ async function boot() {
   resize();
 
   // ---- ui -----------------------------------------------------------------
-  const ui = new PixelUI(uiCanvas, world.minimapPath);
+  const ui = new PixelUI(uiCanvas, world.minimapPath, world.start);
   const sound = new Sound();
   car.onImpact = (s: number) => sound.impact(s);
   let running = false;
@@ -214,10 +220,17 @@ async function boot() {
     location.href = url.toString();
   };
 
+  const cycleCar = (delta: number) => {
+    car.setVariant(car.variant + delta);
+    localStorage.setItem('sprite-drift:car', String(car.variant));
+  };
+
   ui.onAction = (a) => {
     if (a === 'solo') begin();
     else if (a === 'prev-map') gotoMap(-1);
     else if (a === 'next-map') gotoMap(1);
+    else if (a === 'prev-car') cycleCar(-1);
+    else if (a === 'next-car') cycleCar(1);
     else if (a === 'login') loginForm.open();
     else if (a === 'logout') void account.logout();
   };
@@ -232,7 +245,13 @@ async function boot() {
   });
   addEventListener('keydown', (e) => {
     if (loginForm.isOpen()) return;   // the form handles its own keys
-    if (!running && (e.code === 'Space' || e.code === 'Enter')) begin();
+    if (!running && (e.code === 'Space' || e.code === 'Enter')) { begin(); return; }
+    if (!running) {
+      if (e.code === 'ArrowLeft') { gotoMap(-1); return; }
+      if (e.code === 'ArrowRight') { gotoMap(1); return; }
+      if (e.code === 'ArrowUp') { cycleCar(1); return; }
+      if (e.code === 'ArrowDown') { cycleCar(-1); return; }
+    }
   });
 
   // drag to orbit
@@ -324,7 +343,19 @@ async function boot() {
     }
     return best;
   };
+  /** Local search keeps a figure-eight from flipping to the other lobe. */
+  const nearestIndexNear = (x: number, z: number, guess: number) => {
+    const n = track.length;
+    let best = guess, bd = Infinity;
+    for (let k = -60; k <= 60; k++) {
+      const i = ((guess + k) % n + n) % n;
+      const d = (track[i].x - x) ** 2 + (track[i].z - z) ** 2;
+      if (d < bd) { bd = d; best = i; }
+    }
+    return bd > 30 * 30 ? nearestIndex(x, z) : best;
+  };
   startIdx = nearestIndex(world.start.x, world.start.z);
+  nearest = startIdx;
   prevU = ((nearestIndex(car.x, car.z) - startIdx + track.length) % track.length) / track.length;
 
   const resetRaceLocal = () => {
@@ -393,7 +424,8 @@ async function boot() {
     const dt = Math.min(0.05, now - last);
     last = now;
 
-    const controls = params.has('demo') ? autopilot() : input.read();
+    const controls = !running ? { throttle: 0, steer: 0, handbrake: false }
+      : params.has('demo') ? autopilot() : input.read();
     camYaw += input.look * dt * 1.8;
     if (input.zoom !== 0) {
       viewHeight = THREE.MathUtils.clamp(viewHeight * (1 + input.zoom), 13, 40);
@@ -409,12 +441,13 @@ async function boot() {
         acc -= STEP;
       }
       if (input.consumeKey('KeyC')) car.nextVariant();
+      if (input.consumeKey('KeyF') && running) car.activatePower();
       if (input.consumeReset()) {
         resetRaceLocal();
       }
     }
 
-    const idx = nearestIndex(car.x, car.z);
+    const idx = nearestIndexNear(car.x, car.z, nearest);
     const np = track[idx];
     const trackDist = Math.hypot(car.x - np.x, car.z - np.z);
     car.onKerb = car.onRoad && trackDist > world.roadHalf - 1.0;
@@ -520,7 +553,19 @@ async function boot() {
     ui.draw({
       car, lapTime: started ? lapTime : 0, bestTime, started: running,
       paused: input.paused, throttle: controls.throttle, laps,
-      maps: MAPS.filter((m) => m.id === 'coast').map((m) => ({ id: m.id, name: m.name })),
+      maps: MAPS.map((m) => ({ id: m.id, name: m.name })),
+      carNames: CAR_NAMES,
+      carPowers: CAR_POWERS.map((p) => p.name),
+      power: {
+        name: car.power.name,
+        active: car.powerActive,
+        ready: car.powerReady,
+        cd: car.powerCd,
+        time: car.powerTime,
+        duration: car.power.duration,
+        cooldown: car.power.cooldown,
+        color: powerColour(car.variant),
+      },
       lapHistory: [...lapHistory],
       warning: warning && now < warningUntil ? warning : undefined,
       offTrack: started && trackDist > world.roadHalf + 1.2,
@@ -546,6 +591,6 @@ async function boot() {
 
 boot().catch((e) => {
   console.error(e);
-  bootError.textContent = String(e);
+  bootError.textContent = e instanceof Error ? (e.stack ?? String(e)) : String(e);
   bootError.style.display = 'block';
 });

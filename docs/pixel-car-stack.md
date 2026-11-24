@@ -1,6 +1,6 @@
 ---
 name: pixel-car-stack
-description: Add a playable pixel-art car to Sprite Drift from a four-view sheet, a reference image, or a procedural car spec. Use for new cars, liveries, rally/race variants, 3D car models, sprite-stack atlases, previews, and screenshots.
+description: Add a playable pixel-art car to Sprite Drift from a four-view sheet, a reference image, or a procedural car spec, including its superpower. Use for new cars, liveries, rally/race variants, 3D car models, power/FX work, sprite-stack atlases, previews, and screenshots.
 ---
 
 # Pixel-car stack / new car
@@ -111,7 +111,29 @@ mkdir -p art/build
 3. Add the roof extra in `EXTRA` and `extraColor`.
 4. `npm run assets`; inspect `preview/car-<name>-stack.png`.
 
-## E. Verification (required)
+## E. Superpowers
+
+Every pickable car has one power in `src/powers.ts`, index-aligned with
+`CAR_NAMES` and `CAR_VARIANTS`:
+
+```ts
+export const CAR_POWERS: CarPower[] = [ /* one per car, same order */ ];
+```
+
+- Physics multipliers (`speed`, `accel`, `grip`, `steer`), plus optional
+  `burst` (forward impulse), `ghost` (skip colliders) and `zap` (yellow
+  lightning FX).
+- `Car` owns activation, cooldown, reset and FX; `F` activates in `main.ts`.
+- Add a HUD card (name, READY/ACTIVE/cooldown, bar) and show the power name in
+  the title car picker.
+- FX: point light + additive ground ring + (for `zap`) six chunky lightning
+  beams that sit **outside** the body radius. `setGhost()` fades the model for
+  cloaks; `setGlow()` tints the body material.
+- Test the multipliers with a direct loop: set the car on a straight, run 120
+  `car.update(1/120, {throttle:1,steer:0,handbrake:false}, world)` steps with
+  and without the power.
+
+## F. Verification (required)
 
 ### Clean 3D views
 
@@ -167,6 +189,10 @@ xvfb-run -a -s "-screen 0 1280x720x24" chromium \
 14. **Outlines on thin parts**: the bbox scale of a thin beam can produce a thick black ghost. Outline the body, cabin, wing and flares; leave beams alone.
 15. **Too much detail at low resolution**: at 360 lines, bold colour blocks and chunky lamps read; hairlines, thin grilles and subtle bevels turn to noise.
 16. **Atlas order**: `preview_stack.py` expects a row (ground first); `SpriteStack` expects a vertical atlas (top first).
+17. **Power state belongs to the car, not the model**: reset `powerTime`, `powerCd`, ghost and glow when the variant changes or the race resets, or the old FX carries over.
+18. **Lightning inside the body is invisible**: keep bolt radii outside the ~2.0 m body and thicken each segment to ~0.14 m at the game's 360-line scale.
+19. **F must only fire while running**: consume the key but gate `activatePower()` on `running`, or the title car starts a cooldown behind the overlay.
+20. **Cooldown UI width**: a two-row card or ~148 px width is needed for names such as THUNDERCLAP plus ACTIVE.
 
 ## Done means
 

@@ -16,8 +16,11 @@ npm run dev      # http://127.0.0.1:5180
 | --- | --- |
 | Drive | WASD / arrows |
 | Handbrake drift | Space |
+| Superpower | F |
 | Look around | Q / E or drag |
 | Zoom | mouse wheel |
+| Change car in a race | C |
+| Pick car / circuit on the title | Up/Down, Left/Right |
 | Reset | R |
 | Pause | P or Esc |
 | Mute | M |
@@ -39,7 +42,7 @@ The API runs as a local user service on `127.0.0.1:8790` (Vite proxies `/api`
 to it). Use `SPRITE_API=http://host:port` to point a dev server elsewhere. See
 [`server/README.md`](server/README.md).
 
-## Four circuits
+## Six circuits
 
 | | |
 | --- | --- |
@@ -47,25 +50,37 @@ to it). Use `SPRITE_API=http://host:port` to point a dev server elsewhere. See
 | ![coast](docs/coast.png) | ![canyon](docs/canyon.png) |
 | **Neon Docks** — dark, tight, yellow kerbs | **Frostbite Pass** — snow, blue kerbs, white pines |
 | ![night](docs/night.png) | ![alpine](docs/alpine.png) |
+| **Harbour Grand Prix** — a grey quay, marina, yachts, armco and grandstands | **Sakura Circuit** — a forest figure-eight with a torii and a ferris wheel |
+| ![harbour](docs/harbour.png) | ![sakura](docs/sakura.png) |
 
 Pick a circuit on the title screen with the arrows, or link straight to one:
-`?map=coast|canyon|night|alpine`.
+`?map=coast|canyon|night|alpine|harbour|sakura`.
 
-## The cars
+## The cars and their powers
 
-Eleven machines, carved from four flat views each. The hero is a pearl-white GT
-with a twin racing stripe, a roof roundel, framed glass, mirrors, vented bonnet,
-a ducktail spoiler and chrome exhausts.
+Five pickable machines. Choose with the car arrows on the title, or press `C` in
+a race. Every car has one power on the `F` key; the HUD card shows READY, ACTIVE
+and the cooldown.
+
+| Car | Power | What it does |
+| --- | --- | --- |
+| **Pearl GT** | Pearl Rush | A clean top-end surge |
+| **Crimson GT** | Redline | Extra grip and a sharper nose |
+| **Midnight GT** | Night Cloak | Phase through barriers for 2.5s |
+| **Violet GT** | Warp | A short phase-dash with a hard launch |
+| **Group B** | Thunderclap | Yellow lightning, a glowing shell and a hard launch |
+
+The hero is a pearl-white GT with a twin racing stripe, a roof roundel, framed
+glass, mirrors, vented bonnet, a ducktail spoiler and chrome exhausts.
 
 ![hero car](preview/hero-big.png)
 
-The newest is a yellow-and-white Group B rally coupe built from a four-view
-sheet: boxy flares, a six-lamp pod, roof scoop, mudflaps and a tall rear wing.
-Press `C` to cycle to it.
+The Group B car is a yellow-and-white rally coupe built from a four-view sheet:
+boxy flares, a six-lamp pod, roof scoop, mudflaps and a tall rear wing.
 
 ![rally car](docs/rally.png)
 
-Others include a taxi, a police car, a pizza van, a pickup, a sofa and a hot dog.
+![Thunderclap](docs/power-rally.png)
 
 Adding a car? The project copy of the agent skill is
 [`docs/pixel-car-stack.md`](docs/pixel-car-stack.md): the four-view sheet → 3D model

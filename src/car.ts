@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import { buildCarModel, CAR_VARIANTS } from './carModel';
+import { CAR_POWERS, type CarPower } from './powers';
 import type { World } from './world';
 
 const WHEELBASE = 1.75;
@@ -29,9 +30,33 @@ export class Car {
   driftScore = 0;
   onImpact?: (strength: number) => void;
   private skidTimer = 0;
+  powerTime = 0;
+  powerCd = 0;
+  private fxLight!: THREE.PointLight;
+  private fxRing!: THREE.Mesh;
+  private fxRingMat!: THREE.MeshBasicMaterial;
+  private fxBolts!: THREE.Group;
+  private fxBoltMat!: THREE.MeshBasicMaterial;
+  private fxBoltSegs: THREE.Mesh[] = [];
+  private fxTimer = 0;
+  private ghostOn = false;
+  private glowOn = false;
+
+  get power(): CarPower {
+    return CAR_POWERS[this.variant] ?? CAR_POWERS[0];
+  }
+
+  get powerActive(): boolean {
+    return this.powerTime > 0;
+  }
+
+  get powerReady(): boolean {
+    return this.powerCd <= 0;
+  }
 
   async init(world: World) {
     await this.setSkin('car-dirs');
+    this.initFx();
     this.x = world.start.x;
     this.z = world.start.z;
     this.heading = world.start.heading;
@@ -43,11 +68,35 @@ export class Car {
     this.model = buildCarModel(this.variant);
     this.model.rotation.y = Math.PI;   // the model is built nose toward +Z
     this.group.add(this.model);
+    this.ghostOn = false;
+    this.glowOn = false;
+  }
+
+  setVariant(v: number) {
+    this.variant = ((v % CAR_VARIANTS) + CAR_VARIANTS) % CAR_VARIANTS;
+    this.powerTime = 0;
+    this.powerCd = 0;
+    void this.setSkin('car');
+  }
+
+  activatePower(): boolean {
+    if (this.powerCd > 0) return false;
+    const p = this.power;
+    this.powerTime = p.duration;
+    this.powerCd = p.cooldown;
+    if (p.burst) {
+      this.vx += -Math.sin(this.heading) * p.burst;
+      this.vz += -Math.cos(this.heading) * p.burst;
+    }
+    return true;
+  }
+
+  prevVariant() {
+    this.setVariant(this.variant - 1);
   }
 
   nextVariant() {
-    this.variant = (this.variant + 1) % CAR_VARIANTS;
-    this.setSkin('car');
+    this.setVariant(this.variant + 1);
   }
 
   reset(world: World) {
@@ -57,6 +106,9 @@ export class Car {
     this.vx = this.vz = 0;
     this.steerAngle = 0;
     this.driftScore = 0;
+    this.powerTime = 0;
+    this.powerCd = 0;
+    this.setGhost(false);
     this.sync();
   }
 
@@ -75,11 +127,16 @@ export class Car {
     this.onKerb = world.kerbAt(this.x, this.z);
     const surface = this.onRoad ? 1 : 0.62;
 
+    const power = this.power;
+    const powered = this.powerTime > 0;
+    const speedK = powered ? power.speed : 1;
+    const accelK = powered ? power.accel : 1;
+
     // engine / brakes
     const throttle = c.throttle;
     if (throttle > 0) {
-      const top = 30 * surface;
-      if (vLong < top) vLong += 21 * throttle * surface * dt;
+      const top = 30 * surface * speedK;
+      if (vLong < top) vLong += 21 * throttle * surface * accelK * dt;
     } else if (throttle < 0) {
       if (vLong > 0.6) vLong -= 34 * dt;
       else if (vLong > -10) vLong += 13 * throttle * surface * dt;
@@ -87,11 +144,11 @@ export class Car {
     // rolling drag
     const drag = this.onRoad ? 0.55 : 2.1;
     vLong -= vLong * drag * dt;
-    vLong = THREE.MathUtils.clamp(vLong, -10, 32);
+    vLong = THREE.MathUtils.clamp(vLong, -10, 32 * speedK);
 
     // steering: less lock at speed, smooth into it
     // less lock the faster you go: full lock at a crawl, ~18deg at top speed
-    const lock = MAX_STEER * (1 - 0.68 * Math.min(1, Math.abs(vLong) / 24));
+    const lock = MAX_STEER * (1 - 0.68 * Math.min(1, Math.abs(vLong) / 24)) * (powered ? power.steer : 1);
     const target = c.steer * lock;
     this.steerAngle += (target - this.steerAngle) * Math.min(1, dt * 9);
 
@@ -99,7 +156,7 @@ export class Car {
     this.heading += yawRate * dt;
 
     // lateral grip: low grip = the car keeps its old velocity while the nose turns
-    const grip = c.handbrake ? 2.1 : this.onRoad ? 9.5 : 5.0;
+    const grip = (c.handbrake ? 2.1 : this.onRoad ? 9.5 : 5.0) * (powered ? power.grip : 1);
     vLat *= Math.exp(-grip * dt);
     if (c.handbrake && Math.abs(vLong) > 4) vLat += -yawRate * 0.55 * dt * Math.abs(vLong);
 
@@ -110,7 +167,7 @@ export class Car {
     this.x += this.vx * dt;
     this.z += this.vz * dt;
 
-    this.collide(world);
+    this.collide(world, powered && !!power.ghost);
 
     const sp = Math.hypot(this.vx, this.vz);
     this.speed = vLong;
@@ -128,6 +185,10 @@ export class Car {
       world.addSkid(bx + rx * 0.55, bz + rz * 0.55, this.heading, this.slip / 8);
       world.addSkid(bx - rx * 0.55, bz - rz * 0.55, this.heading, this.slip / 8);
     }
+
+    this.powerTime = Math.max(0, this.powerTime - dt);
+    this.powerCd = Math.max(0, this.powerCd - dt);
+    this.updateFx(dt);
 
     this.sync();
     const wheels = (this.model.userData.wheels as THREE.Object3D[] | undefined) ?? [];
@@ -149,9 +210,144 @@ export class Car {
     this.model.position.y = Math.sin(t * 46) * 0.0016 * Math.min(1, Math.abs(vLong) / 8);
   }
 
-  private collide(world: World) {
+  /** Yellow/coloured glow, ground ring and pixel lightning bolts. */
+  private initFx() {
+    if (this.fxLight) return;
+    const p = this.power;
+    const cv = document.createElement('canvas');
+    cv.width = cv.height = 64;
+    const g = cv.getContext('2d')!;
+    const grd = g.createRadialGradient(32, 32, 3, 32, 32, 31);
+    grd.addColorStop(0, 'rgba(255,255,255,0.95)');
+    grd.addColorStop(0.45, 'rgba(255,255,255,0.35)');
+    grd.addColorStop(1, 'rgba(255,255,255,0)');
+    g.fillStyle = grd;
+    g.fillRect(0, 0, 64, 64);
+    const tex = new THREE.CanvasTexture(cv);
+    tex.magFilter = THREE.NearestFilter;
+    tex.minFilter = THREE.NearestFilter;
+    tex.colorSpace = THREE.SRGBColorSpace;
+
+    this.fxRingMat = new THREE.MeshBasicMaterial({
+      map: tex, color: p.color, transparent: true, opacity: 0,
+      blending: THREE.AdditiveBlending, depthWrite: false, toneMapped: false,
+    });
+    this.fxRing = new THREE.Mesh(new THREE.PlaneGeometry(4.4, 4.4), this.fxRingMat);
+    this.fxRing.rotation.x = -Math.PI / 2;
+    this.fxRing.position.y = 0.03;
+    this.fxRing.renderOrder = 2;
+    this.group.add(this.fxRing);
+
+    this.fxLight = new THREE.PointLight(p.color, 0, 15, 2);
+    this.fxLight.position.set(0, 0.9, 0);
+    this.group.add(this.fxLight);
+
+    this.fxBoltMat = new THREE.MeshBasicMaterial({
+      color: 0xfff08a, transparent: true, opacity: 0.95,
+      blending: THREE.AdditiveBlending, depthWrite: false, toneMapped: false,
+    });
+    const boltGeo = new THREE.BoxGeometry(1, 0.14, 0.14);
+    this.fxBolts = new THREE.Group();
+    this.fxBoltSegs = [];
+    for (let i = 0; i < 6 * 5; i++) {
+      const seg = new THREE.Mesh(boltGeo, this.fxBoltMat);
+      seg.visible = false;
+      seg.frustumCulled = false;
+      this.fxBoltSegs.push(seg);
+      this.fxBolts.add(seg);
+    }
+    this.fxBolts.visible = false;
+    this.group.add(this.fxBolts);
+  }
+
+  private updateFx(dt: number) {
+    if (!this.fxLight) return;
+    const p = this.power;
+    const on = this.powerTime > 0;
+    const t = performance.now() * 0.001;
+    this.fxLight.color.setHex(p.color);
+    this.fxLight.intensity = on ? 3.0 + Math.sin(t * 34) * 1.3 : 0;
+    this.fxRingMat.color.setHex(p.color);
+    this.fxRingMat.opacity = on ? 0.34 + Math.sin(t * 16) * 0.10 : 0;
+    this.fxRing.scale.setScalar(on ? 1 + Math.sin(t * 9) * 0.10 : 1);
+    this.fxBolts.visible = on && !!p.zap;
+    this.setGlow(on);
+    this.setGhost(on && !!p.ghost);
+
+    this.fxTimer -= dt;
+    if (this.fxBolts.visible && this.fxTimer <= 0) {
+      this.fxTimer = 0.045;
+      this.writeBolts(t);
+      this.fxBoltMat.opacity = 0.65 + Math.random() * 0.35;
+      this.fxBoltMat.color.setHex(Math.random() > 0.35 ? 0xfff08a : 0xffe14a);
+    }
+  }
+
+  /** Local-space pixel lightning: six jagged arcs from roof to ground. */
+  private writeBolts(t: number) {
+    const up = new THREE.Vector3(1, 0, 0);
+    const a = new THREE.Vector3(), b = new THREE.Vector3();
+    let n = 0;
+    for (let bolt = 0; bolt < 6; bolt++) {
+      const a0 = (bolt / 6) * Math.PI * 2 + t * 0.7;
+      let px = Math.cos(a0) * 2.2;
+      let pz = Math.sin(a0) * 2.2;
+      let py = 1.42;
+      for (let s = 0; s < 5; s++) {
+        const f = (s + 1) / 5;
+        const ang = a0 + f * 0.40;
+        const nx = Math.cos(ang) * (2.2 + f * 0.65) + (Math.random() - 0.5) * 0.55;
+        const nz = Math.sin(ang) * (2.2 + f * 0.65) + (Math.random() - 0.5) * 0.55;
+        const ny = 1.42 * (1 - f) + 0.05 * f;
+        a.set(px, py, pz); b.set(nx, ny, nz);
+        const dir = b.clone().sub(a);
+        const len = dir.length() || 0.001;
+        const seg = this.fxBoltSegs[n++];
+        seg.position.copy(a).addScaledVector(dir, 0.5);
+        seg.scale.set(len, 0.14, 0.14);
+        seg.quaternion.setFromUnitVectors(up, dir.normalize());
+        seg.visible = true;
+        px = nx; py = ny; pz = nz;
+      }
+    }
+  }
+
+  /** Tint the body material so the paint itself glows. */
+  private setGlow(on: boolean) {
+    if (on === this.glowOn) return;
+    this.glowOn = on;
+    const body = this.model?.getObjectByName('body') as THREE.Mesh | undefined;
+    if (!body) return;
+    const mats = Array.isArray(body.material) ? body.material : [body.material];
+    for (const m of mats) {
+      const lm = m as THREE.MeshLambertMaterial;
+      if (!lm.emissive) continue;
+      lm.emissive.setHex(on ? this.power.color : 0x000000);
+      lm.emissiveIntensity = on ? (this.power.zap ? 0.45 : 0.30) : 0;
+    }
+  }
+
+  /** Night Cloak: fade the body while the power is active. */
+  private setGhost(on: boolean) {
+    if (on === this.ghostOn) return;
+    this.ghostOn = on;
+    if (!this.model) return;
+    this.model.traverse(o => {
+      const m = o as THREE.Mesh;
+      if (!m.isMesh || m.userData.isOutline) return;
+      const mats = Array.isArray(m.material) ? m.material : [m.material];
+      for (const mat of mats) {
+        mat.transparent = on;
+        mat.opacity = on ? 0.45 : 1;
+        mat.depthWrite = !on;
+        mat.needsUpdate = true;
+      }
+    });
+  }
+
+  private collide(world: World, ghost = false) {
     const R = 1.9;   // the car is 4.6 long, a 1.15 circle let the nose clip through barriers
-    for (const c of world.colliders) {
+    if (!ghost) for (const c of world.colliders) {
       const dx = this.x - c.x, dz = this.z - c.z;
       const d = Math.hypot(dx, dz);
       const min = c.r + R;
