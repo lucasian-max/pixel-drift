@@ -56,6 +56,8 @@ export interface MapDef {
   buildingScale?: number;
   sky?: string;
   petals?: boolean;
+  snow?: boolean;
+  snowGear?: boolean;
   /** place tiered grandstands on the outside of the longest straights */
   grandstands?: boolean;
   /** continuous metal armco instead of loose tyre stacks */
@@ -112,21 +114,26 @@ export const MAPS: MapDef[] = [
     props: { trees: 280, rocks: 58, buildings: 15, lampStride: 58, rockScale: 1 },
   },
   {
-    // dumbbell: two round ends joined by a tight waist
-    id: 'alpine', name: 'Frostbite Pass', roadHalf: 4.0,
-    ctrl: [[-30, -12], [-16, -20], [-4, -8], [4, -8], [16, -20], [30, -12],
-      [30, 10], [16, 18], [4, 6], [-4, 6], [-16, 18], [-30, 10]],
+    // Big alpine dumbbell with an infield V and a frozen lake; a ski lift,
+    // snow cannons, a snowcat and ice-fishing huts fill the service areas.
+    id: 'alpine', name: 'Frostbite Pass', roadHalf: 4.2, smooth: true,
+    ctrl: [
+      [-54, -22], [-38, -34], [-18, -38], [-4, -24], [4, -24], [18, -38],
+      [38, -34], [54, -22], [58, -4], [52, 12], [40, 24], [24, 30],
+      [8, 22], [0, 10], [-8, 22], [-24, 30], [-40, 24], [-52, 12], [-58, -4],
+    ],
     palette: {
       grass: '#dfe6ea', tones: ['#eef3f6', '#c9d5dc', '#f7fafc', '#b6c6d0', '#ffffff'],
       bladeA: '#ffffff', bladeB: '#a9bcc8',
-      sand: '#b9c6cd', water: '#7fb0c4', waterLt: 'rgba(190,225,235,0.55)',
+      sand: '#b9c6cd', water: '#8fc9dc', waterLt: 'rgba(205,240,248,0.65)',
       shoulder: '#93a2ab', asphalt: '#4a4f57', grainA: '#737a84', grainB: '#2f333a',
       line: 'rgba(250,252,255,0.85)', kerbA: '#f2f6f8', kerbB: '#3f6fb0',
     },
-    lake: { x: -34, z: -34, rx: 9, rz: 7 },
-    trees: 'pine', density: 1.0, tint: '#eef4f8',
-    props: { trees: 130, rocks: 55, buildings: 6, lampStride: 52, rockScale: 1.3 },
-    town: [[-9, -5], [9, -3], [0, 9]],
+    lake: { x: -8, z: -12, rx: 11, rz: 7 },
+    trees: 'pine', density: 1.0, tint: '#f3fbff', snow: true, snowGear: true,
+    props: { trees: 230, rocks: 44, buildings: 0, lampStride: 46, rockScale: 1.2 },
+    town: [],
+    sky: '#cfe4f2',
   },
   {
     // Suzuka-inspired figure-eight: the track crosses itself at the infield,
@@ -348,6 +355,30 @@ function paintGround(track: P2[], map: MapDef): HTMLCanvasElement {
       g.fillStyle = 'rgba(220,245,250,0.45)';
       g.fillRect(lx + Math.cos(a) * map.lake.rx * 0.8 * PPU * r, ly + Math.sin(a) * map.lake.rz * 0.7 * PPU * r, 6, 2);
     }
+  }
+
+  // cracked ice on the frozen lake
+  if (map.snow && map.lake) {
+    const lx = (map.lake.x + HALF_G) * PPU, ly = (map.lake.z + HALF_G) * PPU;
+    g.save();
+    g.beginPath();
+    g.ellipse(lx, ly, (map.lake.rx - 2) * PPU, (map.lake.rz - 1.8) * PPU, 0.35, 0, Math.PI * 2);
+    g.clip();
+    g.strokeStyle = 'rgba(230,250,255,0.55)';
+    g.lineWidth = 2;
+    for (let i = 0; i < 18; i++) {
+      const sx = lx + (rnd() - 0.5) * map.lake.rx * 2 * PPU;
+      const sy = ly + (rnd() - 0.5) * map.lake.rz * 2 * PPU;
+      g.beginPath();
+      g.moveTo(sx, sy);
+      let px = sx, py = sy;
+      for (let k = 0; k < 3; k++) {
+        px += (rnd() - 0.5) * 28; py += (rnd() - 0.5) * 28;
+        g.lineTo(px, py);
+      }
+      g.stroke();
+    }
+    g.restore();
   }
 
   // dirt shoulder + asphalt
@@ -1132,8 +1163,113 @@ export async function buildWorld(scene: THREE.Scene, mapId?: string): Promise<Wo
     colliders.push({ x: t.x - 2.2, z: t.z, r: 0.7 }, { x: t.x + 2.2, z: t.z, r: 0.7 });
   }
 
+  // ---- winter equipment -----------------------------------------------------
+  if (map.snowGear) {
+    const white = 0xf4f8fb, blue = 0x4f8fb5, red = 0xc8463c, ink = 0x22262c, steel = 0x9aa7b0;
+
+    // ski lift along the outside of the east side
+    const lift = new THREE.Group();
+    for (const z of [-22, 0, 22]) {
+      addBox(lift, 0.55, 8.4, 0.55, steel, 66, 4.2, z);
+      addBox(lift, 3.4, 0.24, 0.3, steel, 66, 8.2, z);
+      addBox(lift, 0.32, 0.34, 0.32, red, 64.4, 8.0, z);
+      addBox(lift, 0.32, 0.34, 0.32, red, 67.6, 8.0, z);
+    }
+    for (const z of [-11, 11]) {
+      addBox(lift, 0.12, 0.12, 44, ink, 64.5, 8.1, 0);
+      addBox(lift, 0.12, 0.12, 44, ink, 67.5, 8.1, 0);
+    }
+    for (const z of [-16, -5, 6, 17]) {
+      addBox(lift, 0.08, 1.0, 0.08, ink, 66, 7.5, z);
+      addBox(lift, 1.0, 1.15, 1.15, red, 66, 6.7, z);
+      addBox(lift, 0.8, 0.7, 0.9, white, 66, 6.75, z);
+    }
+    group.add(lift);
+
+    // snow cannons on the outside of the bends
+    const cannon = (x: number, z: number, rot: number) => {
+      const g = new THREE.Group();
+      g.position.set(x, 0, z);
+      g.rotation.y = rot;
+      addBox(g, 1.0, 0.28, 1.0, ink, 0, 0.14, 0);
+      addBox(g, 0.55, 2.3, 0.55, white, 0, 1.3, 0);
+      const barrel = new THREE.Mesh(new THREE.CylinderGeometry(0.30, 0.38, 2.0, 8), basic(blue));
+      barrel.rotation.x = Math.PI / 2.7;
+      barrel.position.set(0, 2.65, 0.65);
+      g.add(barrel);
+      addBox(g, 0.75, 0.75, 0.10, ink, 0, 2.9, 1.55);
+      const pile = new THREE.Mesh(new THREE.ConeGeometry(1.6, 1.0, 7), basic(white));
+      pile.position.set(0, 0.5, 2.0);
+      g.add(pile);
+      group.add(g);
+      colliders.push({ x, z, r: 1.1 });
+    };
+    cannon(-50, 16, 0.5);
+    cannon(50, 16, -0.5);
+    cannon(24, -42, Math.PI);
+
+    // parked snowcat / plough in the infield service area
+    if (free(34, 6, 3)) {
+      const g = new THREE.Group();
+      g.position.set(34, 0, 6);
+      g.rotation.y = 0.4;
+      addBox(g, 4.2, 1.2, 2.0, red, 0, 1.0, 0);
+      addBox(g, 2.0, 1.2, 1.7, white, -0.7, 2.05, 0);
+      addBox(g, 1.7, 0.7, 1.5, ink, -0.7, 2.15, -0.58);
+      for (const sx of [-1.6, 1.6]) {
+        addBox(g, 0.55, 1.2, 3.0, ink, sx, 0.62, 0);
+        for (const z of [-0.9, 0, 0.9]) addBox(g, 0.62, 0.10, 0.16, steel, sx, 0.74, z);
+      }
+      const blade = addBox(g, 4.2, 1.5, 0.22, white, 0, 0.85, 2.15);
+      blade.rotation.x = -0.18;
+      addBox(g, 0.25, 2.2, 0.25, red, -1.1, 3.1, -0.65);
+      addBox(g, 0.25, 2.2, 0.25, red, 1.1, 3.1, -0.65);
+      group.add(g);
+      colliders.push({ x: 34, z: 6, r: 3.2 });
+    }
+
+    // ice-fishing huts on the frozen lake
+    if (map.lake) {
+      const huts: [number, number, number][] = [[-12, -12, 0.25], [-3, -15, -0.35], [-9, -7, 0.7]];
+      for (const [x, z, rot] of huts) {
+        const g = new THREE.Group();
+        g.position.set(x, 0, z);
+        g.rotation.y = rot;
+        addBox(g, 2.2, 1.7, 2.2, white, 0, 0.85, 0);
+        addBox(g, 2.5, 0.22, 2.5, blue, 0, 1.8, 0);
+        addBox(g, 0.55, 1.0, 0.08, ink, 0, 0.8, 1.12);
+        addBox(g, 0.22, 0.9, 0.22, ink, 0.6, 2.2, -0.4);
+        group.add(g);
+        colliders.push({ x, z, r: 1.7 });
+      }
+    }
+  }
+
+  let snowfall: { points: THREE.Points; pos: Float32Array; speed: Float32Array } | null = null;
+  if (map.snow) {
+    const N = 1400;
+    const pos = new Float32Array(N * 3);
+    const speed = new Float32Array(N);
+    for (let i = 0; i < N; i++) {
+      pos[i * 3] = (Math.random() - 0.5) * WORLD;
+      pos[i * 3 + 1] = Math.random() * 32;
+      pos[i * 3 + 2] = (Math.random() - 0.5) * WORLD;
+      speed[i] = 0.018 + Math.random() * 0.025;
+    }
+    const geo = new THREE.BufferGeometry();
+    geo.setAttribute('position', new THREE.BufferAttribute(pos, 3));
+    const mat = new THREE.PointsMaterial({
+      color: 0xffffff, size: 1.7, sizeAttenuation: false,
+      transparent: true, opacity: 0.8, depthWrite: false, toneMapped: false,
+    });
+    const points = new THREE.Points(geo, mat);
+    points.frustumCulled = false;
+    group.add(points);
+    snowfall = { points, pos, speed };
+  }
+
   const tint = map.tint ? new THREE.Color(map.tint) : undefined;
-  group.add(instancedStack(pineTex, defs.pine, pines, tint));
+  group.add(instancedStack(map.snow ? snowTex : pineTex, map.snow ? defs.snowpine : defs.pine, pines, tint));
   group.add(instancedStack(sakuraTex, defs.sakura, sakuras, tint));
   group.add(instancedStack(palmTex, defs.palm, palms, tint));
   group.add(instancedStack(rockTex, defs.rock, rocks, tint));
@@ -1327,6 +1463,19 @@ export async function buildWorld(scene: THREE.Scene, mapId?: string): Promise<Wo
       if (skidDirty) {
         skidTex.needsUpdate = true;
         skidDirty = false;
+      }
+      if (snowfall) {
+        const p = snowfall.pos;
+        for (let i = 0; i < snowfall.speed.length; i++) {
+          p[i * 3 + 1] -= snowfall.speed[i];
+          p[i * 3] += 0.004;
+          if (p[i * 3 + 1] < 0) {
+            p[i * 3 + 1] = 30 + Math.random() * 4;
+            p[i * 3] = (Math.random() - 0.5) * WORLD;
+            p[i * 3 + 2] = (Math.random() - 0.5) * WORLD;
+          }
+        }
+        (snowfall.points.geometry.getAttribute('position') as THREE.BufferAttribute).needsUpdate = true;
       }
     },
   };

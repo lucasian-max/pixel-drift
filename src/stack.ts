@@ -14,7 +14,7 @@ export interface StackDef {
 const loader = new THREE.TextureLoader();
 
 // bump when sprites change so edge caches never serve a stale 404
-const ASSET_V = 'v11';
+const ASSET_V = 'v12';
 
 /** Load a sheet, retrying transient tunnel/proxy drops with a fresh cache key. */
 export function loadSheet(url: string, attempt = 0): Promise<THREE.Texture> {

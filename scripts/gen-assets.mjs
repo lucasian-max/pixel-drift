@@ -576,9 +576,13 @@ const angNorm = (a) => Math.atan2(Math.sin(a), Math.cos(a));
 // through the south rim. Each platter is flat with a ragged, tip-serrated edge.
 function pineAtlas(snow = false) {
   const W = 40, H = 40, L = 18, C = 20, CZ = 20;
-  const leafLt = hex('#86cf6a'), leafDk = hex('#2a6138'), leafDeep = hex('#1b4227');
-  const crownC = hex('#b9e489');
-  const bark = hex('#7a5638'), barkDk = hex('#4a3324'), line = hex('#132a10');
+  const leafLt = hex(snow ? '#f2fbff' : '#86cf6a');
+  const leafDk = hex(snow ? '#7aa9bb' : '#2a6138');
+  const leafDeep = hex(snow ? '#3e6878' : '#1b4227');
+  const crownC = hex(snow ? '#ffffff' : '#b9e489');
+  const bark = hex(snow ? '#5a4a42' : '#7a5638');
+  const barkDk = hex(snow ? '#352c28' : '#4a3324');
+  const line = hex(snow ? '#284a59' : '#132a10');
 
   // rim radius per layer: bough platters in pairs, then the spire taper
   const RL = [13.9, 13.9, 12.5, 12.5, 11.1, 11.1, 9.5, 9.5, 8.0, 8.0,
@@ -619,6 +623,7 @@ function pineAtlas(snow = false) {
       let col = mix(leafDk, leafLt, v);
       const tierY = clamp(Math.round(h - 0.92), 0, L - 1);
       if (rimR(x, z, tierY) - d < 1.7) col = mix(col, leafLt, 0.4);   // sunlit bough rim
+      if (snow && (y > 10 || rimR(x, z, tierY) - d < 3)) col = mix(col, crownC, 0.38 + dith(x, z) * 0.32);
       if (y >= 15) col = mix(col, crownC, 0.45 + dith(x, z) * 0.3);   // pale crown spire
       if (Hh(x - 1, z) < h - 0.5 || Hh(x + 1, z) < h - 0.5
         || Hh(x, z - 1) < h - 0.5 || Hh(x, z + 1) < h - 0.5)
