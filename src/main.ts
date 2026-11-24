@@ -225,12 +225,73 @@ async function boot() {
     localStorage.setItem('sprite-drift:car', String(car.variant));
   };
 
+  let garage = false;
+  let powerInfo = false;
+  let garagePad: THREE.Mesh | null = null;
+  const garageHome = { x: car.x, z: car.z, heading: car.heading };
+
+  const setGarage = (on: boolean) => {
+    if (on === garage) return;
+    garage = on;
+    powerInfo = false;
+    if (on) {
+      garageHome.x = car.x;
+      garageHome.z = car.z;
+      garageHome.heading = car.heading;
+      car.x = world.start.x;
+      car.z = world.start.z;
+      car.heading = world.start.heading;
+      car.vx = car.vz = 0;
+      car.group.position.set(car.x, 0.24, car.z);
+      car.group.rotation.y = car.heading;
+      garagePad = new THREE.Mesh(
+        new THREE.CylinderGeometry(3.2, 3.4, 0.24, 24),
+        new THREE.MeshBasicMaterial({ color: 0x2b2d33, toneMapped: false }),
+      );
+      garagePad.position.set(car.x, 0.12, car.z);
+      const ring = new THREE.Mesh(
+        new THREE.TorusGeometry(2.9, 0.06, 4, 32),
+        new THREE.MeshBasicMaterial({ color: 0xf2eee1, toneMapped: false }),
+      );
+      ring.rotation.x = Math.PI / 2;
+      ring.position.y = 0.25;
+      garagePad.add(ring);
+      scene.add(garagePad);
+      viewHeight = 7.4;
+      camYaw = 0.6;
+      layout();
+    } else {
+      if (garagePad) {
+        garagePad.traverse((o) => {
+          const m = o as THREE.Mesh;
+          m.geometry?.dispose();
+          const mat = m.material as THREE.Material | THREE.Material[] | undefined;
+          if (Array.isArray(mat)) mat.forEach((x) => x.dispose());
+          else mat?.dispose();
+        });
+        scene.remove(garagePad);
+        garagePad = null;
+      }
+      car.x = garageHome.x;
+      car.z = garageHome.z;
+      car.heading = garageHome.heading;
+      car.vx = car.vz = 0;
+      car.group.position.set(car.x, 0, car.z);
+      car.group.rotation.y = car.heading;
+      viewHeight = 14;
+      layout();
+    }
+  };
+
   ui.onAction = (a) => {
     if (a === 'solo') begin();
     else if (a === 'prev-map') gotoMap(-1);
     else if (a === 'next-map') gotoMap(1);
     else if (a === 'prev-car') cycleCar(-1);
     else if (a === 'next-car') cycleCar(1);
+    else if (a === 'power-info') powerInfo = !powerInfo;
+    else if (a === 'garage') setGarage(true);
+    else if (a === 'garage-back') setGarage(false);
     else if (a === 'login') loginForm.open();
     else if (a === 'logout') void account.logout();
   };
@@ -245,6 +306,12 @@ async function boot() {
   });
   addEventListener('keydown', (e) => {
     if (loginForm.isOpen()) return;   // the form handles its own keys
+    if (!running && garage) {
+      if (e.code === 'Enter') { setGarage(false); return; }
+      if (e.code === 'ArrowUp') { cycleCar(1); return; }
+      if (e.code === 'ArrowDown') { cycleCar(-1); return; }
+      return;
+    }
     if (!running && (e.code === 'Space' || e.code === 'Enter')) { begin(); return; }
     if (!running) {
       if (e.code === 'ArrowLeft') { gotoMap(-1); return; }
@@ -431,15 +498,20 @@ async function boot() {
 
     if (!input.paused) {
       acc += dt;
-      let steps = 0;
-      while (acc >= STEP && steps++ < 6) {
-        car.update(STEP, controls, world);
-        acc -= STEP;
-      }
-      if (input.consumeKey('KeyC')) car.nextVariant();
-      if (input.consumeKey('KeyF') && running) car.activatePower();
-      if (input.consumeReset()) {
-        resetRaceLocal();
+      if (garage) {
+        car.group.rotation.y += dt * 0.65;
+        car.group.position.set(car.x, 0.24, car.z);
+      } else {
+        let steps = 0;
+        while (acc >= STEP && steps++ < 6) {
+          car.update(STEP, controls, world);
+          acc -= STEP;
+        }
+        if (input.consumeKey('KeyC')) car.nextVariant();
+        if (input.consumeKey('KeyF') && running) car.activatePower();
+        if (input.consumeReset()) {
+          resetRaceLocal();
+        }
       }
     }
 
@@ -555,6 +627,11 @@ async function boot() {
       mapIndex,
       mapName: MAPS[mapIndex]?.name,
       account,
+      garage,
+      powerInfo,
+      powerBlurb: car.power.blurb,
+      powerDuration: car.power.duration,
+      powerCooldown: car.power.cooldown,
     }, now);
     sound.update(car, controls.throttle, input.paused);
   };

@@ -42,6 +42,11 @@ export interface UiState {
     name: string; active: boolean; ready: boolean;
     cd: number; time: number; duration: number; cooldown: number; color: string; charge?: number;
   };
+  garage?: boolean;
+  powerInfo?: boolean;
+  powerBlurb?: string;
+  powerDuration?: number;
+  powerCooldown?: number;
   lapHistory?: number[];
   /** transient red notice, e.g. "LAP NOT COUNTED — OFF TRACK" */
   warning?: string;
@@ -85,7 +90,8 @@ function pxBorder(c: CanvasRenderingContext2D, x: number, y: number, w: number, 
 }
 
 /** every clickable thing on the canvas */
-export type HitId = 'prev-map' | 'next-map' | 'prev-car' | 'next-car' | 'solo' | 'login' | 'logout';
+export type HitId = 'prev-map' | 'next-map' | 'prev-car' | 'next-car' | 'solo' | 'login' | 'logout'
+  | 'power-info' | 'garage' | 'garage-back';
 
 interface Button { id: HitId; x: number; y: number; w: number; h: number; label: string }
 
@@ -104,6 +110,9 @@ export class PixelUI {
   private bNext: Button = { id: 'next-map', x: 0, y: 0, w: 24, h: 24, label: '>' };
   private bCarPrev: Button = { id: 'prev-car', x: 0, y: 0, w: 24, h: 24, label: '<' };
   private bCarNext: Button = { id: 'next-car', x: 0, y: 0, w: 24, h: 24, label: '>' };
+  private bInfo: Button = { id: 'power-info', x: 0, y: 0, w: 70, h: 12, label: 'POWER INFO' };
+  private bGarage: Button = { id: 'garage', x: 0, y: 0, w: 64, h: 12, label: 'VIEW CAR' };
+  private bGarageBack: Button = { id: 'garage-back', x: 0, y: 0, w: 48, h: 14, label: 'BACK' };
   private bSolo: Button = { id: 'solo', x: 0, y: 0, w: 148, h: 28, label: 'SOLO' };
   private bLogin: Button = { id: 'login', x: 0, y: 0, w: 72, h: 14, label: 'SIGN IN' };
   private bLogout: Button = { id: 'logout', x: 0, y: 0, w: 72, h: 14, label: 'SIGN OUT' };
@@ -194,7 +203,8 @@ export class PixelUI {
     c.imageSmoothingEnabled = false;
 
     if (!state.started) {
-      this.drawTitle(time, state);
+      if (state.garage) this.drawGarage(time, state);
+      else this.drawTitle(time, state);
       return;
     }
     this.buttons.length = 0;
@@ -277,7 +287,9 @@ export class PixelUI {
       c.fillRect(pwX + 6, pwY + pwH - 8, pwW - 12, 3);
       c.fillStyle = active ? (darkText ? INK : CREAM) : pw.color;
       c.fillRect(pwX + 6, pwY + pwH - 8, Math.max(1, Math.round((pwW - 12) * frac)), 3);
-      const hint = active && pw.charge !== undefined ? 'SLIDE TO CHARGE' : 'F';
+      const hint = active
+        ? (pw.charge !== undefined ? 'SLIDE TO CHARGE' : 'F')
+        : 'PRESS F';
       this.text(hint, pwX + 6, pwY + 16, { size: 8, color: active ? (darkText ? INK : CREAM) : DIM });
     }
 
@@ -365,6 +377,92 @@ export class PixelUI {
       this.text('PAUSED', this.w / 2, this.h / 2 - 12, { size: 24, weight: 700, align: 'center' });
       this.text('P TO RESUME', this.w / 2, this.h / 2 + 18, { size: 8, color: DIM, align: 'center' });
     }
+  }
+
+  /** Power description modal; also used from the garage. */
+  private drawPowerInfo(state: UiState) {
+    const c = this.ctx;
+    this.buttons.length = 0;
+    c.fillStyle = 'rgba(10,12,16,0.62)';
+    c.fillRect(0, 0, this.w, this.h);
+    const w = Math.min(330, this.w - 24), h = 162;
+    const x = Math.round((this.w - w) / 2), y = Math.round((this.h - h) / 2);
+    pxRect(c, x, y, w, h, SLAB);
+    pxBorder(c, x, y, w, h, 'rgba(242,238,225,0.75)');
+    const name = state.power?.name ?? 'POWER';
+    this.text(name, x + w / 2, y + 10, { size: 16, weight: 700, color: ACCENT, align: 'center' });
+    this.text('CAR POWER', x + w / 2, y + 32, { size: 8, color: DIM, align: 'center', spacing: 2 });
+    const blurb = state.powerBlurb ?? '';
+    this.font(8);
+    const words = blurb.split(' ');
+    const lines: string[] = [];
+    let line = '';
+    for (const word of words) {
+      const test = line ? `${line} ${word}` : word;
+      if (c.measureText(test).width > w - 28 && line) {
+        lines.push(line);
+        line = word;
+      } else line = test;
+    }
+    if (line) lines.push(line);
+    lines.forEach((l, i) => {
+      this.text(l, x + w / 2, y + 48 + i * 11, { size: 8, color: CREAM, align: 'center' });
+    });
+    this.text('F ACTIVATES', x + w / 2, y + 88, { size: 8, weight: 700, color: ACCENT, align: 'center' });
+    this.text(`${(state.powerDuration ?? 0).toFixed(1)}s ACTIVE   ${state.powerCooldown ?? 0}s COOLDOWN`,
+      x + w / 2, y + 102, { size: 8, color: DIM, align: 'center' });
+    this.bInfo.label = 'CLOSE';
+    this.bInfo.x = Math.round(x + w / 2 - 35);
+    this.bInfo.y = y + h - 22;
+    pxRect(c, this.bInfo.x, this.bInfo.y, this.bInfo.w, this.bInfo.h, SLAB);
+    pxBorder(c, this.bInfo.x, this.bInfo.y, this.bInfo.w, this.bInfo.h, 'rgba(242,238,225,0.6)');
+    this.text(this.bInfo.label, this.bInfo.x + this.bInfo.w / 2, this.bInfo.y + 2,
+      { size: 8, color: CREAM, align: 'center' });
+    this.buttons.push(this.bInfo);
+  }
+
+  /** Full-screen car turntable; the car itself is rendered in the world behind. */
+  private drawGarage(time: number, state: UiState) {
+    const c = this.ctx;
+    this.buttons.length = 0;
+    pxRect(c, 8, 8, 232, 30, SLAB);
+    pxBorder(c, 8, 8, 232, 30, LINE);
+    this.text('GARAGE', 16, 12, { size: 8, weight: 700, color: ACCENT, spacing: 2 });
+    this.text(state.power?.name ?? '', 16, 23, { size: 8, color: DIM });
+    this.text('CAR TURNTABLE', 232, 12, { size: 8, color: HINT, align: 'right' });
+
+    const by = this.h - 62;
+    pxRect(c, 8, by, this.w - 16, 54, SLAB);
+    pxBorder(c, 8, by, this.w - 16, 54, LINE);
+    const cx = Math.round(this.w / 2);
+    const names = state.carNames ?? ['CAR'];
+    const ci = ((state.car.variant % names.length) + names.length) % names.length;
+    const nm = (names[ci] ?? 'CAR').toUpperCase();
+    this.text(nm, cx, by + 7, { size: 16, weight: 700, color: CREAM, align: 'center' });
+    this.text(state.power?.name ?? '', cx, by + 27, { size: 8, color: ACCENT, align: 'center', spacing: 1 });
+    this.text('F ACTIVATES', cx, by + 40, { size: 8, color: DIM, align: 'center', spacing: 1 });
+
+    this.bCarPrev.x = cx - 92; this.bCarPrev.y = by + 6;
+    this.bCarNext.x = cx + 68; this.bCarNext.y = by + 6;
+    for (const [b, dir] of [[this.bCarPrev, -1], [this.bCarNext, 1]] as [Button, number][]) {
+      pxRect(c, b.x, b.y, b.w, b.h, SLAB);
+      pxBorder(c, b.x, b.y, b.w, b.h, 'rgba(242,238,225,0.55)');
+      this.pixelArrow(b.x + 6, b.y + 7, dir);
+      this.buttons.push(b);
+    }
+
+    this.bInfo.label = 'POWER INFO';
+    this.bInfo.x = this.w - 156;
+    this.bInfo.y = by + 20;
+    this.bGarageBack.x = this.w - 64;
+    this.bGarageBack.y = by + 20;
+    for (const b of [this.bInfo, this.bGarageBack]) {
+      pxRect(c, b.x, b.y, b.w, b.h, SLAB);
+      pxBorder(c, b.x, b.y, b.w, b.h, 'rgba(242,238,225,0.55)');
+      this.text(b.label, b.x + b.w / 2, b.y + 3, { size: 8, color: CREAM, align: 'center' });
+      this.buttons.push(b);
+    }
+    if (state.powerInfo) this.drawPowerInfo(state);
   }
 
   /** transient warning: cream on red, centred */
@@ -459,7 +557,7 @@ export class PixelUI {
 
     const cx = Math.round(w / 2);
 
-    this.text('SPRITE-STACKED PIXEL RACER', cx, 56, {
+    this.text('PIXEL DRIFT', cx, 56, {
       size: 8, weight: 700, color: ACCENT, align: 'center', spacing: 2,
     });
 
@@ -506,6 +604,19 @@ export class PixelUI {
     this.bNext.y = 218;
     arrowButton(this.bPrev, -1);
     arrowButton(this.bNext, 1);
+
+    /* power info + garage */
+    this.bInfo.label = 'POWER INFO';
+    this.bInfo.x = Math.round(cx - 74);
+    this.bInfo.y = 242;
+    this.bGarage.x = Math.round(cx + 4);
+    this.bGarage.y = 242;
+    for (const b of [this.bInfo, this.bGarage]) {
+      pxRect(c, b.x, b.y, b.w, b.h, SLAB);
+      pxBorder(c, b.x, b.y, b.w, b.h, 'rgba(242,238,225,0.45)');
+      this.text(b.label, b.x + b.w / 2, b.y + 2, { size: 8, color: CREAM, align: 'center' });
+      this.buttons.push(b);
+    }
 
     /* SOLO button: chunky arcade key with an offset block */
     this.bSolo.label = 'SOLO';
@@ -588,6 +699,7 @@ export class PixelUI {
     this.text('WASD DRIVE   SPACE DRIFT   F POWER   Q E LOOK   R RESET   M MUTE', cx, h - 26, {
       size: 8, color: HINT, align: 'center',
     });
+    if (state.powerInfo) this.drawPowerInfo(state);
   }
 
   /** chunky 8x9 pixel arrow (font glyphs read thin at this size) */

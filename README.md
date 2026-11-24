@@ -21,6 +21,8 @@ npm run dev      # http://127.0.0.1:5180
 | Zoom | mouse wheel |
 | Change car in a race | C |
 | Pick car / circuit on the title | Up/Down, Left/Right |
+| View the car turntable | VIEW CAR on the title |
+| Read the selected power | POWER INFO on the title |
 | Reset | R |
 | Pause | P or Esc |
 | Mute | M |
@@ -65,6 +67,7 @@ The garage is being cut to three. Right now it holds Pearl GT and the Group B
 rally car; the third slot is waiting for the car chosen from the next sheet.
 Choose with the car arrows on the title, or press `C` in a race. Every car has
 one power on the `F` key; the HUD card shows READY, ACTIVE and the cooldown.
+`VIEW CAR` opens a turntable, and `POWER INFO` explains the selected power.
 
 | Car | Power | What it does |
 | --- | --- | --- |
