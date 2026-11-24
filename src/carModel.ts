@@ -109,10 +109,14 @@ const PALETTES = [
   { body: 0xd93b34, a: 0xf1e4bc, b: 0xd9a02c },
   { body: 0x2b3a67, a: 0x48e0d0, b: 0xf2f2f2 },
   { body: 0x7a56c9, a: 0x2aa197, b: 0xf2c94c },
+  { body: 0xe8b02c, a: 0xf2eee1, b: 0xd93b34 }, // rally: yellow shell, white panels, red accents
 ];
+
+export const CAR_VARIANTS = PALETTES.length;
 
 export function buildCarModel(variant = 0): THREE.Group {
   const pal = PALETTES[((variant % PALETTES.length) + PALETTES.length) % PALETTES.length];
+  const isRally = variant === 4;
   const car = new THREE.Group();
   car.name = 'car';
 
@@ -128,6 +132,7 @@ export function buildCarModel(variant = 0): THREE.Group {
     gold: lam(0xc49a2c),
     red: lam(0xd02a2a, { emissive: 0x550000 }),
     amber: lam(0xf0a030, { emissive: 0x402000 }),
+    lamp: lam(0xf6f1d8, { emissive: 0x1a1204 }),
     teal: lam(pal.a, { side: THREE.DoubleSide, polygonOffset: true, polygonOffsetFactor: -2, polygonOffsetUnits: -2 }),
     magenta: lam(pal.b, { side: THREE.DoubleSide, polygonOffset: true, polygonOffsetFactor: -2, polygonOffsetUnits: -2 }),
     arch: lam(0x0c0d10, { side: THREE.DoubleSide, polygonOffset: true, polygonOffsetFactor: -1, polygonOffsetUnits: -1 }),
@@ -211,7 +216,7 @@ export function buildCarModel(variant = 0): THREE.Group {
     beam(new THREE.Vector3(s * 0.59, 0.935, -0.25), new THREE.Vector3(s * 0.59, 0.935, -0.95), 0.04, M.cream); // roof rail
     beam(new THREE.Vector3(s * 0.59, 0.935, -0.95), new THREE.Vector3(s * 0.66, 0.74, -1.35), 0.05, M.cream); // C-pillar
   }
-  box(1.12, 0.015, 0.68, M.cream, 0, 0.938, -0.6); // cream roof panel
+  box(1.12, 0.015, 0.68, isRally ? M.teal : M.cream, 0, 0.938, -0.6); // roof panel
 
   // ---------- Engine-lid vents ----------
   box(1.04, 0.03, 0.6, M.dark, 0, 0.725, -1.72);
@@ -241,6 +246,14 @@ export function buildCarModel(variant = 0): THREE.Group {
   for (const s of [1, -1] as const) {
     sidePanel(teal, s, 0.98 + 0.006, M.teal);
     sidePanel(mag, s, 0.98 + 0.006, M.magenta);
+    if (isRally) {
+      const door: V2[] = [[1.02, 0.34], [-1.24, 0.34], [-1.36, 0.6], [1.02, 0.6]];
+      sidePanel(door, s, 0.987, M.teal);
+      const band: V2[] = [[1.02, 0.27], [-1.14, 0.27], [-1.26, 0.34], [1.02, 0.34]];
+      sidePanel(band, s, 0.988, M.magenta);
+      const slash: V2[] = [[0.98, 0.46], [0.58, 0.6], [0.72, 0.6], [1.02, 0.5]];
+      sidePanel(slash, s, 0.989, M.magenta);
+    }
     box(0.02, 0.04, 0.12, M.amber, s * (bodyAt(1.75).hw + 0.005), 0.36, 1.75); // side marker
   }
 
@@ -250,6 +263,28 @@ export function buildCarModel(variant = 0): THREE.Group {
   for (const s of [1, -1]) {
     const l = box(0.18, 0.03, 0.08, M.amber, s * 0.4, 0.43, 2.1);
     l.rotation.x = 0.38;
+  }
+
+  // ---------- Rally kit: lamp pod, roof scoop, mudflaps, wing tips ----------
+  if (isRally) {
+    box(1.2, 0.06, 0.12, M.dark, 0, 0.68, 2.02);
+    for (const x of [-0.43, -0.15, 0.15, 0.43]) {
+      const lens = new THREE.Mesh(new THREE.CylinderGeometry(0.105, 0.105, 0.06, 12), M.lamp);
+      lens.rotation.x = Math.PI / 2;
+      lens.position.set(x, 0.715, 2.08);
+      car.add(lens);
+      const ring = new THREE.Mesh(new THREE.TorusGeometry(0.118, 0.014, 4, 12), M.dark);
+      ring.position.set(x, 0.715, 2.11);
+      car.add(ring);
+    }
+    outline(box(0.46, 0.06, 0.52, M.dark, 0, 0.965, -0.42));
+    box(0.34, 0.03, 0.4, M.teal, 0, 0.998, -0.42);
+    for (const s of [1, -1]) {
+      for (const z of [FRONT_Z - 0.42, REAR_Z - 0.42]) {
+        box(0.32, 0.26, 0.03, M.dark, s * WHEEL_X, 0.15, z);
+      }
+      box(0.07, 0.05, 0.42, M.magenta, s * 0.99, 0.96, -2.15);
+    }
   }
 
   // ---------- Tail: black bar, red lights, diffuser ----------

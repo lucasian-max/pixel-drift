@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import { buildCarModel } from './carModel';
+import { buildCarModel, CAR_VARIANTS } from './carModel';
 import type { World } from './world';
 
 const WHEELBASE = 1.75;
@@ -46,7 +46,7 @@ export class Car {
   }
 
   nextVariant() {
-    this.variant = (this.variant + 1) % 4;
+    this.variant = (this.variant + 1) % CAR_VARIANTS;
     this.setSkin('car');
   }
 
