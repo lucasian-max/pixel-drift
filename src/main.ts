@@ -10,6 +10,7 @@ import type { StackDef } from './stack';
 import { Sound } from './sound';
 import { account } from './account';
 import type { LapTracePoint } from './account';
+import { Recorder } from './recorder';
 
 const gameCanvas = document.getElementById('game') as HTMLCanvasElement;
 const uiCanvas = document.getElementById('ui') as HTMLCanvasElement;
@@ -165,6 +166,22 @@ async function boot() {
   const savedCar = Number(params.get('car') ?? localStorage.getItem('sprite-drift:car') ?? 0);
   car.setVariant(Number.isFinite(savedCar) ? savedCar : 0);
   scene.add(car.group);
+
+  // ---- run recorder (imitation-learning dataset) ---------------------------
+  const recorder = new Recorder({
+    id: mapId,
+    name: MAPS[mapIndex]?.name ?? mapId,
+    roadHalf: world.roadHalf,
+    start: world.start,
+    track: world.track,
+  });
+  const driver = params.has('demo') ? 'autopilot' : 'human';
+  const lapInfo = () => ({
+    carName: CAR_NAMES[car.variant] ?? `CAR ${car.variant + 1}`,
+    variant: car.variant,
+    power: car.power.name,
+    driver,
+  }) as const;
 
   const shadowTex = await loadSheet('/sprites/shadow.png');
   const carShadow = shadowPatch(shadowTex, [{ x: 0, z: 0, rot: 0, scale: 1 }], 2.7);
@@ -512,10 +529,28 @@ async function boot() {
         while (acc >= STEP && steps++ < 6) {
           car.update(STEP, controls, world);
           acc -= STEP;
+          const ti = car.trackIndex;
+          const tp = track[ti] ?? track[0];
+          recorder.tick(STEP, car, controls, {
+            progress: ((ti - startIdx + track.length) % track.length) / track.length,
+            trackDist: Math.hypot(car.x - tp.x, car.z - tp.z),
+          });
         }
         if (input.consumeKey('KeyC')) car.nextVariant();
-        if (input.consumeKey('KeyF') && running) car.activatePower();
+        if (input.consumeKey('KeyF') && running) {
+          if (car.activatePower()) recorder.markPower();
+        }
+        if (input.consumeKey('KeyV')) {
+          // silent by design: nothing on screen mentions the recorder
+          recorder.setEnabled(!recorder.on);
+        }
+        if (input.consumeKey('KeyX')) {
+          void recorder.download()
+            .then((n) => console.log(`runs exported: ${n} laps`))
+            .catch(() => console.warn('run export failed'));
+        }
         if (input.consumeReset()) {
+          recorder.endLap(0, false);
           resetRaceLocal();
         }
       }
@@ -535,7 +570,10 @@ async function boot() {
       resetTrace();
       lapTrace.push({ x: car.x, z: car.z, t: 0 });
     }
-    if (started) lapTime += dt;
+    if (started) {
+      lapTime += dt;
+      recorder.beginLap(lapInfo());
+    }
 
     // sample the lap for the replay; no road/speed validation
     if (started && !input.paused) {
@@ -567,6 +605,8 @@ async function boot() {
       lapTime = 0;
       progress -= 1;
       resetTrace();
+      recorder.endLap(ms, true);
+      recorder.beginLap(lapInfo());
     }
     world.update();
 
@@ -649,7 +689,7 @@ async function boot() {
   frame();
 
   (window as unknown as { game: unknown }).game = {
-    car, world, camera, renderer, scene, account, ui,
+    car, world, camera, renderer, scene, account, recorder, ui,
     get laps() { return laps; },
     get lapTime() { return lapTime; },
     get started() { return started; },

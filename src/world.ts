@@ -114,14 +114,16 @@ export const MAPS: MapDef[] = [
     props: { trees: 280, rocks: 58, buildings: 15, lampStride: 58, rockScale: 1 },
   },
   {
-    // Silverstone-inspired outline: long outer sweep with a tight infield
-    // esses section returning to the left edge, plus a frozen lake inside.
+    // Long outer sweep plus the infield loop from the sketch: the lap leaves
+    // the bottom straight, runs east above the lake, sweeps the right side and
+    // returns west to the left esses, then climbs the left edge to the start.
     id: 'alpine', name: 'Frostbite Pass', roadHalf: 4.2, smooth: true,
     ctrl: [
       [-50, 4], [-40, 22], [-20, 36], [4, 42], [28, 38], [46, 28], [58, 10],
-      [58, -10], [50, -30], [34, -44], [12, -50], [-8, -48], [-22, -40],
-      [-27, -29], [-19, -22], [-27, -15], [-36, -19], [-44, -24], [-49, -18],
-      [-52, -8],
+      [58, -10], [50, -30], [34, -44], [12, -50],
+      [-8, -48], [-3, -43], [5, -36], [15, -33], [24, -29], [29, -23],
+      [28, -17], [20, -12], [9, -11], [-3, -11], [-15, -12], [-23, -14],
+      [-27, -15], [-36, -19], [-44, -24], [-49, -18], [-52, -8],
     ],
     palette: {
       grass: '#dfe6ea', tones: ['#eef3f6', '#c9d5dc', '#f7fafc', '#b6c6d0', '#ffffff'],
@@ -130,7 +132,7 @@ export const MAPS: MapDef[] = [
       shoulder: '#93a2ab', asphalt: '#4a4f57', grainA: '#737a84', grainB: '#2f333a',
       line: 'rgba(250,252,255,0.85)', kerbA: '#f2f6f8', kerbB: '#3f6fb0',
     },
-    lake: { x: 2, z: 4, rx: 11, rz: 8 },
+    lake: { x: 2, z: 8, rx: 10, rz: 7 },
     trees: 'pine', density: 1.0, tint: '#f3fbff', snow: true, snowGear: true,
     props: { trees: 230, rocks: 44, buildings: 0, lampStride: 46, rockScale: 1.2 },
     town: [],
@@ -1244,7 +1246,7 @@ export async function buildWorld(scene: THREE.Scene, mapId?: string): Promise<Wo
 
     // ice-fishing huts on the frozen lake
     if (map.lake) {
-      const huts: [number, number, number][] = [[-2, 4, 0.25], [7, 1, -0.35], [1, 9, 0.7]];
+      const huts: [number, number, number][] = [[-2, 8, 0.25], [7, 5, -0.35], [1, 13, 0.7]];
       for (const [x, z, rot] of huts) {
         const g = new THREE.Group();
         g.position.set(x, 0, z);

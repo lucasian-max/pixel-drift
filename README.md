@@ -27,6 +27,18 @@ npm run dev      # http://127.0.0.1:5180
 | Pause | P or Esc |
 | Mute | M |
 
+## Record runs for an AI model
+
+Every timed lap is recorded at 60 Hz (state + the exact controls) and kept in
+the browser. Nothing about it is shown in the HUD. Developer keys: `V` toggles
+recording, `X` downloads all stored laps as JSONL; both only log to the
+console.
+`tools/dataset/convert_runs.py` turns that into Parquet + NPZ with
+track-relative observations, episode metadata, normalisation stats and a
+train/val split; `tools/dataset/train_bc.py` is a ridge and MLP behaviour-
+cloning baseline. See [`tools/dataset/README.md`](tools/dataset/README.md) for
+the schema, why Parquet (LeRobot-style), and training notes.
+
 ## Online rooms — archived
 
 Multiplayer is mothballed for this release. The complete implementation is on
@@ -47,7 +59,7 @@ to it). Use `SPRITE_API=http://host:port` to point a dev server elsewhere. See
 
 | | |
 | --- | --- |
-| **Saltmarsh Coast** — green, a lake, pines and palms | **Frostbite Pass** — a big Silverstone-inspired snow circuit with blue kerbs, an infield esses section, snow pines, a frozen lake with ice huts, a ski lift, snow cannons, a snowcat and falling snow |
+| **Saltmarsh Coast** — green, a lake, pines and palms | **Frostbite Pass** — a big snow circuit with blue kerbs and an infield loop, snow pines, a frozen lake with ice huts, a ski lift, snow cannons, a snowcat and falling snow |
 | ![coast](docs/coast.png) | ![ice](docs/alpine.png) |
 | **Sakura Circuit** — a Japanese forest figure-eight with sakura trees, kanji signage, torii, a pagoda, a red garden bridge and a drivable overpass | |
 | ![sakura](docs/sakura.png) | |
