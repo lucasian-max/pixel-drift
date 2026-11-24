@@ -280,7 +280,7 @@ export class PixelUI {
     /* ---- track-limit warning ---- */
     if (state.warning) this.drawToast(state.warning, 58);
     else if (state.offTrack && (time * 2) % 1 < 0.7) {
-      this.drawToast("OFF TRACK — LAP WON'T COUNT", 58);
+      this.drawToast('OFF TRACK', 58);
     }
 
     /* ---- NEW BEST banner ---- */

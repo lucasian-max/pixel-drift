@@ -49,24 +49,14 @@ With this in place, pages on `https://drift.lucasian.tech` can call
 | POST   | `/api/logout` | —      | —                         | `204`, clears the session cookie |
 | GET    | `/api/me`     | cookie | —                         | `200 {user:{id,username}}` or `401` |
 | GET    | `/api/times`  | —      | —                         | `200 {times:[{rank,username,ms,at}]}` top 10, ascending |
-| POST   | `/api/times`  | cookie | `{ms, trace:[{x,z,t}]}` (`map` optional, default `"coast"`) | `200 {times}` after upsert, `400 invalid_lap`, `401`, `400 invalid_ms` |
+| POST   | `/api/times`  | cookie | `{ms, trace?:[{x,z,t}]}` (`map` optional, default `"coast"`) | `200 {times}` after upsert, `401`, `400 invalid_ms` |
 
-## Anti-cheat
+## Lap submission
 
-The coast board is telemetry-checked. `POST /api/times` requires a 5 Hz
-position trace and rejects (`400 invalid_lap`) when:
-
-- any sample leaves the road + kerb corridor,
-- the implied speed between samples is impossible,
-- the trace is too coarse for the claimed time,
-- the trace does not span the claimed `ms`, or
-- the first/last sample is not near the start line,
-- the samples do not progress around the circuit.
-
-The client also tracks off-road time and maximum distance, refuses to submit
-dirty laps, and shows `OFF TRACK` / `LAP NOT COUNTED` feedback. A determined
-attacker can still fabricate an on-road trace through HTTP; the check stops
-normal shortcut driving, not a bespoke replay forgery.
+`POST /api/times` accepts the submitted `ms` after the normal integer/range
+check and upserts the player's best time. The optional `trace` is accepted for
+replay tooling but is not validated and cannot reject a lap. The client still
+records traces locally and sends them for replays.
 
 Notes:
 

@@ -13,9 +13,8 @@ states (parked / mid-corner / at speed) → failure cases → tests → docs.
   engine.
 - **Accounts + leaderboard** — sign in, one best lap per player, top 10 board on
   the title screen and in the API.
-- **Anti-cheat + resilience** — trace-checked clean-lap leaderboard
-  submissions, road-corridor validation, and local systemd services for the
-  API and web server.
+- **Leaderboard + local services** — one best lap per player, top 10 board,
+  and systemd services for the API and web server.
 
 ## Archived
 

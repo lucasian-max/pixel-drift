@@ -313,11 +313,9 @@ async function boot() {
   const bestKey = `sprite-drift:best:${mapId}`;
   let bestTime = Number(localStorage.getItem(bestKey) || 0) || 0;
 
-  /* ---- lap integrity -------------------------------------------------------
-     A lap is only submitted if it stays on the road. The trace is also sent to
-     the API, which re-checks the corridor, speed and lap coverage server-side. */
-  let offTime = 0;
-  let maxOff = 0;
+  /* ---- lap trace -----------------------------------------------------------
+     Samples are kept for the on-screen replay and the local trace API. The
+     leaderboard accepts the time as-is; there is no road/speed validation. */
   let lapTrace: LapTracePoint[] = [];
   let lastTrace: LapTracePoint[] = [];
   let traceIn = 0;
@@ -328,8 +326,6 @@ async function boot() {
     warningUntil = performance.now() / 1000 + sec;
   };
   const resetTrace = () => {
-    offTime = 0;
-    maxOff = 0;
     lapTrace = [];
     traceIn = 0;
   };
@@ -462,13 +458,8 @@ async function boot() {
     }
     if (started) lapTime += dt;
 
-    // sample the lap for the server-side road check; time spent outside the
-    // kerb corridor is what makes a shortcut lap dirty
+    // sample the lap for the replay; no road/speed validation
     if (started && !input.paused) {
-      if (trackDist > world.roadHalf + 1.2) {
-        offTime += dt;
-        if (trackDist > maxOff) maxOff = trackDist;
-      }
       traceIn -= dt;
       if (traceIn <= 0) {
         traceIn = 0.2;
@@ -480,29 +471,20 @@ async function boot() {
     if (crossed) {
       const ms = Math.round(lapTime * 1000);
       lapTrace.push({ x: car.x, z: car.z, t: ms });
-      const clean = offTime < 0.6
-        && maxOff < world.roadHalf + 2.0
-        && ms >= 12000
-        && lapTrace.length >= 10;
       lastTrace = lapTrace.slice();
-      if (clean) {
-        lapHistory.unshift(lapTime);
-        if (lapHistory.length > 5) lapHistory.length = 5;
-        if (bestTime === 0 || lapTime < bestTime) {
-          bestTime = lapTime;
-          try { localStorage.setItem(bestKey, String(bestTime)); } catch { /* private mode */ }
-        }
-        const trace = lapTrace.slice();
-        void account.submitLap(ms, trace).then((r) => {
-          if (!account.user) warn('SIGN IN TO SAVE LAPS', 2.2);
-          else if (!r.ok) warn(r.error ?? 'LAP NOT SAVED');
-        });
-        laps++;
-        console.log(`lap ${laps} ${(ms / 1000).toFixed(2)}s`);
-      } else {
-        warn('LAP NOT COUNTED — OFF TRACK');
-        console.log(`dirty lap: off=${offTime.toFixed(2)}s max=${maxOff.toFixed(1)}`);
+      lapHistory.unshift(lapTime);
+      if (lapHistory.length > 5) lapHistory.length = 5;
+      if (bestTime === 0 || lapTime < bestTime) {
+        bestTime = lapTime;
+        try { localStorage.setItem(bestKey, String(bestTime)); } catch { /* private mode */ }
       }
+      const trace = lapTrace.slice();
+      void account.submitLap(ms, trace).then((r) => {
+        if (!account.user) warn('SIGN IN TO SAVE LAPS', 2.2);
+        else if (!r.ok) warn(r.error ?? 'LAP NOT SAVED');
+      });
+      laps++;
+      console.log(`lap ${laps} ${(ms / 1000).toFixed(2)}s`);
       lapTime = 0;
       progress -= 1;
       resetTrace();
@@ -584,7 +566,6 @@ async function boot() {
     get started() { return started; },
     get trace() { return lapTrace; },
     get lastTrace() { return lastTrace; },
-    get offTime() { return offTime; },
     get warning() { return warning; },
   };
 }

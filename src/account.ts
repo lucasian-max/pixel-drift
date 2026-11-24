@@ -96,15 +96,12 @@ export const account = {
     return { ok: true };
   },
 
-  /** Post a lap time with its on-road trace. Silent no-op when signed out or
+  /** Post a lap time with its replay trace. Silent no-op when signed out or
       out of range; the board (`times`) refreshes from the POST response. */
   async submitLap(ms: number, trace: LapTracePoint[]): Promise<SubmitResult> {
     if (!this.user) return { ok: false, error: 'sign in to save times' };
     if (!Number.isInteger(ms) || ms < MS_MIN || ms > MS_MAX) {
       return { ok: false, error: 'lap time out of range' };
-    }
-    if (!Array.isArray(trace) || trace.length < 10) {
-      return { ok: false, error: 'lap trace missing' };
     }
     const name = this.user.username;
     const r = await request<{ times?: TimeEntry[]; error?: string }>(
@@ -112,12 +109,7 @@ export const account = {
     );
     if (!r.ok) {
       if (r.status === 401) this.user = null;   // session expired mid-race
-      return {
-        ok: false,
-        error: r.status === 400 && r.body?.error === 'invalid_lap'
-          ? 'lap did not pass the road check'
-          : 'lap not saved',
-      };
+      return { ok: false, error: 'lap not saved' };
     }
     const times = r.body?.times ?? [];
     this.times = times;

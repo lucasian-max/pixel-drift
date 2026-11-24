@@ -33,10 +33,9 @@ the `multiplayer` branch and `multiplayer-archive` tag (see
 
 ## Accounts and leaderboard
 
-Sign in on the title to post lap times. The board is the best clean lap per
-player, top 10. Every submission carries a 5 Hz position trace; the API rejects
-laps that leave the road, cut the infield, teleport, or cover the circuit
-impossibly fast. A dirty lap never reaches the board.
+Sign in on the title to post lap times. The board is the best lap per player,
+top 10. Times are trusted as submitted; a position trace is kept for replays
+but is not used to reject a lap.
 
 The API runs as a local user service on `127.0.0.1:8790` (Vite proxies `/api`
 to it). Use `SPRITE_API=http://host:port` to point a dev server elsewhere. See

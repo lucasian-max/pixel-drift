@@ -17,15 +17,12 @@ import {
   SESSION_TTL_MS,
   DEFAULT_MAP,
 } from './store.mjs';
-import { TRACK_HALF, distanceToTrack, trackU } from './track.mjs';
 
 const HOST = '127.0.0.1';
 const PORT = 8790;
-const BODY_LIMIT_BYTES = 32768; // lap traces need the headroom
+const BODY_LIMIT_BYTES = 32768; // lap traces (kept for replays) need the headroom
 const AUTH_WINDOW_MS = 60_000; // 10 signup/login attempts per IP per 60s
 const AUTH_MAX = 10;
-const TRACK_MARGIN = 2.4;      // kerbs + painted shoulder, but not the grass
-const MAX_SPEED = 60;          // trace segments are sampled, so allow overshoot
 const KNOWN_PATHS = new Set([
   '/api/signup',
   '/api/login',
@@ -130,46 +127,6 @@ function readJsonBody(req) {
   });
 }
 
-/**
- * A lap submission carries 5 Hz positions. Accept it only if every sample is
- * on the road (plus kerbs), the implied speed is possible, the timestamps span
- * the claimed lap, the samples progress around the circuit, and the start/end
- * are near the line.
- */
-function validateLapTrace(trace, ms) {
-  if (!Number.isFinite(ms) || ms <= 0) return false;
-  if (!Array.isArray(trace) || trace.length > 800) return false;
-  if (trace.length < Math.max(10, Math.ceil(ms / 400))) return false;
-  let prevT = null, prevX = 0, prevZ = 0, prevU = null, progress = 0;
-  let firstU = null, lastU = null;
-  for (const p of trace) {
-    if (!p || typeof p !== 'object') return false;
-    const x = Number(p.x), z = Number(p.z), t = Number(p.t);
-    if (![x, z, t].every(Number.isFinite)) return false;
-    if (t < 0 || t > ms + 1500) return false;
-    if (prevT !== null && t <= prevT) return false;
-    if (distanceToTrack(x, z) > TRACK_HALF + TRACK_MARGIN) return false;
-    if (prevT !== null) {
-      const dt = (t - prevT) / 1000;
-      if (dt <= 0) return false;
-      if (Math.hypot(x - prevX, z - prevZ) / dt > MAX_SPEED) return false;
-    }
-    const u = trackU(x, z);
-    if (firstU === null) firstU = u;
-    lastU = u;
-    if (prevU !== null) {
-      let du = u - prevU;
-      if (du < -0.5) du += 1; else if (du > 0.5) du -= 1;
-      if (du > 0 && du < 0.2) progress += du;
-    }
-    prevU = u; prevT = t; prevX = x; prevZ = z;
-  }
-  if (prevT === null || Math.abs(prevT - ms) > 1500) return false;
-  const atLine = (u) => u === null || u < 0.08 || u > 0.92;
-  if (!atLine(firstU) || !atLine(lastU)) return false;
-  return progress >= 0.85 && progress <= 1.35;
-}
-
 // ---- request handling ----------------------------------------------------------
 
 async function handle(req, res, pathname) {
@@ -192,12 +149,8 @@ async function handle(req, res, pathname) {
     if (!user) return send(res, 401, { error: 'unauthorized' });
     const body = await readJsonBody(req);
     const map = typeof body.map === 'string' ? body.map : DEFAULT_MAP;
-    // The coast board is telemetry-checked: a time with no trace, or a trace
-    // that leaves the road, cuts the infield, or covers the lap impossibly
-    // fast, never reaches the store.
-    if (map === DEFAULT_MAP && !validateLapTrace(body.trace, Number(body.ms))) {
-      return send(res, 400, { error: 'invalid_lap' });
-    }
+    // Times are trusted as submitted. The trace is still accepted and stored by
+    // the client for replays, but it is not used to reject a lap.
     return send(res, 200, { times: store.submitTime(user, body.ms, map) });
   }
 
