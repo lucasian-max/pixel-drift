@@ -68,7 +68,7 @@ Checks (all generous; clean racing passes):
 - the last timestamp matches the submitted `ms` (2.5 s slack);
 - the first and last points are within 35 m of the start/finish line;
 - each sample is within `roadHalf + 14 m` of the centreline;
-- route length is 78%–200% of one lap;
+- route length is 85%–200% of one lap;
 - no segment exceeds 65 units/s (top speed with a power is ~45);
 - the route's bounding box covers at least 55% of the circuit's bounds.
 

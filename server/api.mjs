@@ -162,6 +162,7 @@ async function handle(req, res, pathname) {
     // board. Shortcuts, teleports and missing/edited traces are rejected.
     const verdict = validateLap(map, body.ms, body.trace);
     if (!verdict.ok) {
+      console.log(`[anticheat] reject ${user.username} ${map} ${body.ms}ms: ${verdict.reason}`);
       return send(res, 422, { error: 'invalid_trace', reason: verdict.reason });
     }
     return send(res, 200, {

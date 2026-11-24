@@ -30,7 +30,7 @@ const TRACK_FILE = path.join(here, 'track-data.json');
 const MAX_SPEED = 65;          // units/s; top speed with a power is ~45
 const MAX_OFF_TRACK = 14;      // metres beyond the road edge
 const START_SLACK = 35;        // metres from the start/finish line
-const MIN_LENGTH_RATIO = 0.78; // shortest believable lap vs centreline
+const MIN_LENGTH_RATIO = 0.85; // shortest believable lap vs centreline
 const MAX_LENGTH_RATIO = 2.0;  // drifting/spinning leeway
 const MAX_CLOCK_SLACK = 2500;  // ms between last trace t and submitted ms
 

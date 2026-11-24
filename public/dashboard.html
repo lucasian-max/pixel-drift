@@ -280,7 +280,7 @@ function render(stats, boards) {
       <h2>HOW LAPS ARE CHECKED</h2>
       <div class="note" style="margin-top:0">
         Every new lap must include its position trace (~5 Hz). The server owns the circuit centrelines and checks:
-        the trace starts and finishes at the line, covers 78%–200% of the route length, never moves faster than
+        the trace starts and finishes at the line, covers 85%–200% of the route length, never moves faster than
         65 u/s, keeps every sample within 14 m of the road edge, and covers at least 55% of the circuit's bounds.
         Missing traces, cut laps and teleports are rejected before they reach the board.
       </div>
