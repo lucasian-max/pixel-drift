@@ -261,7 +261,9 @@ async function boot() {
   let adminPanel = false;
   let adminConfirmUntil = 0;
   let garagePad: THREE.Mesh | null = null;
+  let studioGroup: THREE.Group | null = null;
   const garageHome = { x: car.x, z: car.z, heading: car.heading };
+  const STUDIO = { x: 0, z: 260 };
 
   const setGarage = (on: boolean) => {
     if (on === garage) return;
@@ -271,8 +273,10 @@ async function boot() {
       garageHome.x = car.x;
       garageHome.z = car.z;
       garageHome.heading = car.heading;
-      car.x = world.start.x;
-      car.z = world.start.z;
+      // a clean studio, far outside the circuit, so the car reads on its own
+      scene.background = new THREE.Color('#f4efe6');
+      car.x = STUDIO.x;
+      car.z = STUDIO.z;
       car.heading = world.start.heading;
       car.vx = car.vz = 0;
       car.speed = 0;
@@ -281,12 +285,32 @@ async function boot() {
       car.powerCd = 0;
       car.powerCharge = 0;
       car.pitch = 0;
+      car.groundY = 0.24;
       car.tilt.rotation.x = 0;
       car.trackIndex = 0;
       input.forget('KeyF', 'KeyC', 'KeyV', 'KeyX', 'KeyR');
       input.consumeReset();
       car.group.position.set(car.x, 0.24, car.z);
       car.group.rotation.y = car.heading;
+      focus.set(car.x, 0, car.z);
+
+      studioGroup = new THREE.Group();
+      const floor = new THREE.Mesh(
+        new THREE.CircleGeometry(22, 64),
+        new THREE.MeshBasicMaterial({ color: 0xf7f2e9, toneMapped: false }),
+      );
+      floor.rotation.x = -Math.PI / 2;
+      floor.position.set(car.x, 0, car.z);
+      studioGroup.add(floor);
+      const rim = new THREE.Mesh(
+        new THREE.TorusGeometry(4.6, 0.05, 4, 96),
+        new THREE.MeshBasicMaterial({ color: 0xdfd6c5, toneMapped: false }),
+      );
+      rim.rotation.x = Math.PI / 2;
+      rim.position.set(car.x, 0.02, car.z);
+      studioGroup.add(rim);
+      scene.add(studioGroup);
+
       garagePad = new THREE.Mesh(
         new THREE.CylinderGeometry(3.2, 3.4, 0.24, 24),
         new THREE.MeshBasicMaterial({ color: 0x2b2d33, toneMapped: false }),
@@ -315,6 +339,18 @@ async function boot() {
         scene.remove(garagePad);
         garagePad = null;
       }
+      scene.background = new THREE.Color(world.sky);
+      if (studioGroup) {
+        studioGroup.traverse((o) => {
+          const m = o as THREE.Mesh;
+          m.geometry?.dispose();
+          const mat = m.material as THREE.Material | THREE.Material[] | undefined;
+          if (Array.isArray(mat)) mat.forEach((x) => x.dispose());
+          else mat?.dispose();
+        });
+        scene.remove(studioGroup);
+        studioGroup = null;
+      }
       car.x = garageHome.x;
       car.z = garageHome.z;
       car.heading = garageHome.heading;
@@ -325,12 +361,14 @@ async function boot() {
       car.powerCd = 0;
       car.powerCharge = 0;
       car.pitch = 0;
+      car.groundY = 0;
       car.tilt.rotation.x = 0;
       car.trackIndex = 0;
       input.forget('KeyF', 'KeyC', 'KeyV', 'KeyX', 'KeyR');
       input.consumeReset();
       car.group.position.set(car.x, 0, car.z);
       car.group.rotation.y = car.heading;
+      focus.set(car.x, 0, car.z);
       tweenView(14);
       layout();
     }

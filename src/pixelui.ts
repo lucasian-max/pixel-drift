@@ -523,12 +523,6 @@ export class PixelUI {
   private drawGarage(time: number, state: UiState) {
     const c = this.ctx;
     this.buttons.length = 0;
-    pxRect(c, 8, 8, 232, 30, SLAB);
-    pxBorder(c, 8, 8, 232, 30, LINE);
-    this.text('GARAGE', 16, 12, { size: 8, weight: 700, color: ACCENT, spacing: 2 });
-    this.text(state.power?.name ?? '', 16, 23, { size: 8, color: DIM });
-    this.text('CAR TURNTABLE', 232, 12, { size: 8, color: HINT, align: 'right' });
-
     const by = this.h - 62;
     pxRect(c, 8, by, this.w - 16, 54, SLAB);
     pxBorder(c, 8, by, this.w - 16, 54, LINE);
@@ -656,18 +650,21 @@ export class PixelUI {
     const cx = Math.round(w / 2);
 
     /* lockup with hard offset shadow blocks */
-    this.text('PIXEL', cx + 3, 77, { size: 48, weight: 700, color: SHADOW, align: 'center' });
-    this.text('PIXEL', cx, 74, { size: 48, weight: 700, color: CREAM, align: 'center' });
-    this.text('DRIFT', cx + 3, 129, { size: 48, weight: 700, color: SHADOW, align: 'center' });
-    this.text('DRIFT', cx, 126, { size: 48, weight: 700, color: ACCENT, align: 'center' });
+    this.text('PIXEL', cx + 3, 61, { size: 48, weight: 700, color: SHADOW, align: 'center' });
+    this.text('PIXEL', cx, 58, { size: 48, weight: 700, color: CREAM, align: 'center' });
+    this.text('DRIFT', cx + 3, 113, { size: 48, weight: 700, color: SHADOW, align: 'center' });
+    this.text('DRIFT', cx, 110, { size: 48, weight: 700, color: ACCENT, align: 'center' });
 
     /* car chooser */
     const carNames = state.carNames ?? ['CAR'];
     const ci = ((state.car.variant % carNames.length) + carNames.length) % carNames.length;
     const carName = (carNames[ci] ?? 'CAR').toUpperCase();
+    this.text('CAR', cx + 1, 203, { size: 8, color: SHADOW, align: 'center', spacing: 3 });
+    this.text('CAR', cx, 202, { size: 8, color: 'rgba(242,238,225,0.85)', align: 'center', spacing: 3 });
     this.font(16, 700);
     const carW = Math.ceil(c.measureText(carName).width);
-    this.text(carName, cx, 216, { size: 16, weight: 700, color: CREAM, align: 'center' });
+    this.text(carName, cx + 2, 216, { size: 16, weight: 700, color: SHADOW, align: 'center' });
+    this.text(carName, cx, 214, { size: 16, weight: 700, color: CREAM, align: 'center' });
     const arrowButton = (b: Button, dir: number) => {
       pxRect(c, b.x, b.y, b.w, b.h, SLAB);
       pxBorder(c, b.x, b.y, b.w, b.h, 'rgba(242,238,225,0.55)');
@@ -675,9 +672,9 @@ export class PixelUI {
       this.buttons.push(b);
     };
     this.bCarPrev.x = Math.round(cx - carW / 2 - 34);
-    this.bCarPrev.y = 210;
+    this.bCarPrev.y = 208;
     this.bCarNext.x = Math.round(cx + carW / 2 + 10);
-    this.bCarNext.y = 210;
+    this.bCarNext.y = 208;
     arrowButton(this.bCarPrev, -1);
     arrowButton(this.bCarNext, 1);
 
@@ -685,24 +682,26 @@ export class PixelUI {
     const maps = state.maps ?? [{ id: 'x', name: state.mapName ?? 'Pixel Drift' }];
     const mi = Math.max(0, Math.min(maps.length - 1, state.mapIndex ?? 0));
     const name = (maps[mi]?.name ?? 'Pixel Drift').toUpperCase();
-    this.text('TRACK', cx, 178, { size: 8, color: 'rgba(242,238,225,0.8)', align: 'center', spacing: 3 });
+    this.text('TRACK', cx + 1, 167, { size: 8, color: SHADOW, align: 'center', spacing: 3 });
+    this.text('TRACK', cx, 166, { size: 8, color: 'rgba(242,238,225,0.85)', align: 'center', spacing: 3 });
     this.font(16, 700);
     const nameW = Math.ceil(c.measureText(name).width);
-    const nameY = 190;
+    const nameY = 178;
+    this.text(name, cx + 2, nameY + 2, { size: 16, weight: 700, color: SHADOW, align: 'center' });
     this.text(name, cx, nameY, { size: 16, weight: 700, color: CREAM, align: 'center' });
     this.bPrev.x = Math.round(cx - nameW / 2 - 34);
-    this.bPrev.y = 184;
+    this.bPrev.y = 172;
     this.bNext.x = Math.round(cx + nameW / 2 + 10);
-    this.bNext.y = 184;
+    this.bNext.y = 172;
     arrowButton(this.bPrev, -1);
     arrowButton(this.bNext, 1);
 
     /* power info + garage */
     this.bInfo.label = 'POWER INFO';
     this.bInfo.x = Math.round(cx - 74);
-    this.bInfo.y = 240;
+    this.bInfo.y = 238;
     this.bGarage.x = Math.round(cx + 4);
-    this.bGarage.y = 240;
+    this.bGarage.y = 238;
     for (const b of [this.bInfo, this.bGarage]) {
       pxRect(c, b.x, b.y, b.w, b.h, SLAB);
       pxBorder(c, b.x, b.y, b.w, b.h, 'rgba(242,238,225,0.45)');
@@ -714,7 +713,7 @@ export class PixelUI {
     this.bSolo.label = 'PLAY';
     this.bSolo.w = 104;
     this.bSolo.x = Math.round(cx - 52);
-    this.bSolo.y = 260;
+    this.bSolo.y = 258;
     const key = (b: Button, fill: string) => {
       pxRect(c, b.x + 2, b.y + 2, b.w, b.h, SHADOW);
       pxRect(c, b.x, b.y, b.w, b.h, fill);

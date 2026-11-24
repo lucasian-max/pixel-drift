@@ -84,9 +84,12 @@ Sakura detail: sakura trees, kanji boards and the drivable overpass.
 
 The garage is being cut to three. Right now it holds Pearl GT and the Group B
 rally car; the third slot is waiting for the car chosen from the next sheet.
-Choose with the car arrows on the title, or press `C` in a race. Every car has
-one power on the `F` key; the HUD card shows READY, ACTIVE and the cooldown.
+Choose with the car arrows on the title. Every car has one power on the `F`
+key; the HUD card shows READY, ACTIVE and the cooldown. VIEW CAR opens a white
+studio turntable.
 `VIEW CAR` opens a turntable, and `POWER INFO` explains the selected power.
+
+![Garage](docs/garage.png)
 
 | Car | Power | What it does |
 | --- | --- | --- |
