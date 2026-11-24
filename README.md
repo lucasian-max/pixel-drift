@@ -67,7 +67,7 @@ to it). Use `SPRITE_API=http://host:port` to point a dev server elsewhere. See
 
 | | |
 | --- | --- |
-| **Saltmarsh Coast** — green, a lake, pines and palms | **Frostbite Pass** — a big snow circuit with blue kerbs and an infield loop, snow pines, a frozen lake with ice huts, a ski lift, snow cannons, a snowcat and falling snow |
+| **Saltmarsh Coast** — green, a lake, pines and palms | **Frostbite Pass** — a big snow circuit with blue kerbs and a wide infield hairpin, snow pines, a frozen lake with ice huts, a ski lift, snow cannons, a snowcat and falling snow |
 | ![coast](docs/coast.png) | ![ice](docs/alpine.png) |
 | **Sakura Circuit** — a Japanese forest figure-eight with sakura trees, kanji signage, torii, a pagoda, a red garden bridge and a drivable overpass | |
 | ![sakura](docs/sakura.png) | |
