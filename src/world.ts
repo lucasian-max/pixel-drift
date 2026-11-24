@@ -28,7 +28,8 @@ export interface World {
   clearSkid(): void;
   minimapPath: { x: number; z: number }[];
   track: { x: number; z: number }[];
-  groundAt?: (x: number, z: number, heading: number) => number;
+  groundAt?: (x: number, z: number, heading: number, trackIdx?: number) => number;
+  bridgeColliders?: Collider[];
 }
 
 type P2 = { x: number; z: number };
@@ -525,7 +526,8 @@ export async function buildWorld(scene: THREE.Scene, mapId?: string): Promise<Wo
   // bridge; the other passes underneath. Height is selected from the car's
   // heading so the two branches do not both rise.
   let bridge: { cx: number; cz: number; dirx: number; dirz: number;
-    halfW: number; deckHalf: number; ramp: number; height: number } | null = null;
+    halfW: number; deckHalf: number; ramp: number; height: number; upperIdx: number } | null = null;
+  const bridgeColliders: Collider[] = [];
   if (map.overpass) {
     const near: number[] = [];
     for (let i = 0; i < track.length; i += 2) {
@@ -546,7 +548,8 @@ export async function buildWorld(scene: THREE.Scene, mapId?: string): Promise<Wo
     const dir = t0.x >= t1.x ? t0 : t1;
     bridge = {
       cx: 0, cz: 0, dirx: dir.x, dirz: dir.z,
-      halfW: ROAD_HALF + 0.7, deckHalf: 0, ramp: 14.0, height: 3.4,
+      halfW: ROAD_HALF + 1.2, deckHalf: 0, ramp: 14.0, height: 3.4,
+      upperIdx: dir === t0 ? i0 : i1,
     };
   }
   const bridgeHeight = (along: number) => {
@@ -556,14 +559,22 @@ export async function buildWorld(scene: THREE.Scene, mapId?: string): Promise<Wo
     const t = a / bridge.ramp;
     return bridge.height * (1 - t * t);
   };
-  const groundAt = (x: number, z: number, heading: number) => {
+  const groundAt = (x: number, z: number, heading: number, trackIdx?: number) => {
     if (!bridge) return 0;
+    if (trackIdx !== undefined) {
+      const n = track.length;
+      let d = trackIdx - bridge.upperIdx;
+      d = ((d + n / 2) % n + n) % n - n / 2;
+      if (Math.abs(d) > 70) return 0;
+    }
     const dx = x - bridge.cx, dz = z - bridge.cz;
     const along = dx * bridge.dirx + dz * bridge.dirz;
     const across = dx * -bridge.dirz + dz * bridge.dirx;
     if (Math.abs(across) > bridge.halfW || Math.abs(along) >= bridge.ramp) return 0;
-    const fwdX = -Math.sin(heading), fwdZ = -Math.cos(heading);
-    if (fwdX * bridge.dirx + fwdZ * bridge.dirz < 0.6) return 0;
+    if (trackIdx === undefined) {
+      const fwdX = -Math.sin(heading), fwdZ = -Math.cos(heading);
+      if (fwdX * bridge.dirx + fwdZ * bridge.dirz < 0.6) return 0;
+    }
     return bridgeHeight(along);
   };
 
@@ -1021,6 +1032,13 @@ export async function buildWorld(scene: THREE.Scene, mapId?: string): Promise<Wo
       }
     }
     addBox(g, W - 0.7, 0.28, 0.55, stone, 0, H - 0.34, 0);
+    for (const sx of [-W / 2 + 0.35, W / 2 - 0.35]) {
+      for (let z = -10; z <= 10; z += 2.5) {
+        const wx = bridge.cx + sx * bridge.dirz + z * bridge.dirx;
+        const wz = bridge.cz - sx * bridge.dirx + z * bridge.dirz;
+        bridgeColliders.push({ x: wx, z: wz, r: 0.35 });
+      }
+    }
 
     // bridge name plaques on the outside faces
     for (const sx of [-W / 2 - 0.02, W / 2 + 0.02]) {
@@ -1304,6 +1322,7 @@ export async function buildWorld(scene: THREE.Scene, mapId?: string): Promise<Wo
     minimapPath: track.filter((_, i) => i % 2 === 0),
     track,
     groundAt,
+    bridgeColliders: bridge ? bridgeColliders : undefined,
     update() {
       if (skidDirty) {
         skidTex.needsUpdate = true;

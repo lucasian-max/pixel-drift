@@ -242,6 +242,9 @@ async function boot() {
       car.z = world.start.z;
       car.heading = world.start.heading;
       car.vx = car.vz = 0;
+      car.pitch = 0;
+      car.tilt.rotation.x = 0;
+      car.trackIndex = 0;
       car.group.position.set(car.x, 0.24, car.z);
       car.group.rotation.y = car.heading;
       garagePad = new THREE.Mesh(
@@ -276,6 +279,9 @@ async function boot() {
       car.z = garageHome.z;
       car.heading = garageHome.heading;
       car.vx = car.vz = 0;
+      car.pitch = 0;
+      car.tilt.rotation.x = 0;
+      car.trackIndex = 0;
       car.group.position.set(car.x, 0, car.z);
       car.group.rotation.y = car.heading;
       viewHeight = 14;
@@ -523,6 +529,7 @@ async function boot() {
     const crossed = started && prevU > 0.8 && u < 0.2;
     prevU = u;
     nearest = idx;
+    car.trackIndex = idx;
     if (!started && Math.hypot(car.x - world.start.x, car.z - world.start.z) > 5) {
       started = true;
       resetTrace();

@@ -17,6 +17,7 @@ export class Car {
   z = 0;
   heading = 0;
   groundY = 0;
+  trackIndex = 0;
   vx = 0;
   vz = 0;
   steerAngle = 0;
@@ -117,6 +118,7 @@ export class Car {
     this.steerAngle = 0;
     this.driftScore = 0;
     this.groundY = 0;
+    this.trackIndex = 0;
     this.pitch = 0;
     this.powerTime = 0;
     this.powerCd = 0;
@@ -206,13 +208,13 @@ export class Car {
     }
 
     const wasPowered = this.powerTime > 0;
-    this.groundY = world.groundAt ? world.groundAt(this.x, this.z, this.heading) : 0;
+    this.groundY = world.groundAt ? world.groundAt(this.x, this.z, this.heading, this.trackIndex) : 0;
     if (world.groundAt) {
       const half = 0.9;
-      const hF = world.groundAt(this.x + fx * half, this.z + fz * half, this.heading);
-      const hB = world.groundAt(this.x - fx * half, this.z - fz * half, this.heading);
-      const targetPitch = Math.atan2(hF - hB, half * 2);
-      this.pitch += (targetPitch - this.pitch) * Math.min(1, dt * 8);
+      const hF = world.groundAt(this.x + fx * half, this.z + fz * half, this.heading, this.trackIndex);
+      const hB = world.groundAt(this.x - fx * half, this.z - fz * half, this.heading, this.trackIndex);
+      const targetPitch = this.groundY > 0.02 ? Math.atan2(hF - hB, half * 2) : 0;
+      this.pitch += (targetPitch - this.pitch) * Math.min(1, dt * (this.groundY > 0.02 ? 8 : 14));
     } else {
       this.pitch += (0 - this.pitch) * Math.min(1, dt * 8);
     }
@@ -409,7 +411,7 @@ export class Car {
 
   private collide(world: World, ghost = false) {
     const R = 1.9;   // the car is 4.6 long, a 1.15 circle let the nose clip through barriers
-    if (!ghost) for (const c of world.colliders) {
+    const hit = (c: { x: number; z: number; r: number }) => {
       const dx = this.x - c.x, dz = this.z - c.z;
       const d = Math.hypot(dx, dz);
       const min = c.r + R;
@@ -424,7 +426,9 @@ export class Car {
           if (-vn > 2 && this.onImpact) this.onImpact(Math.min(1, -vn / 14));
         }
       }
-    }
+    };
+    if (!ghost) for (const c of world.colliders) hit(c);
+    if (!ghost && this.groundY > 0.8) for (const c of world.bridgeColliders ?? []) hit(c);
     const edge = 82;
     if (Math.abs(this.x) > edge) { this.x = Math.sign(this.x) * edge; this.vx *= -0.3; }
     if (Math.abs(this.z) > edge) { this.z = Math.sign(this.z) * edge; this.vz *= -0.3; }
