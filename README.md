@@ -68,6 +68,17 @@ The API runs as a local user service on `127.0.0.1:8790` (Vite proxies `/api`
 to it). Use `SPRITE_API=http://host:port` to point a dev server elsewhere. See
 [`server/README.md`](server/README.md).
 
+## Data desk
+
+Signed-in admins can open `/dashboard.html`, or hit **DASHBOARD** in the in-game
+admin panel. It shows the laps gathered so far: per-circuit boards, total
+laps and drivers, the fastest lap, recent submissions and the local 60 Hz
+recorder runs from this browser. New laps are validated server-side against
+the real circuit — the rules are in
+[`server/README.md`](server/README.md#lap-submission-and-anti-cheat).
+
+![Data desk](docs/dashboard.png)
+
 ## Three circuits
 
 | | |
