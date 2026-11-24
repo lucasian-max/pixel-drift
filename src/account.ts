@@ -3,12 +3,13 @@
    network/server failures surface as `offline` (refresh) or an `error`
    message (login/signup/logout). */
 
-export interface User { id: string; username: string }
+export interface User { id: string; username: string; role?: 'admin' | 'player' }
 export interface TimeEntry { rank: number; username: string; ms: number; at: string }
 export interface LapTracePoint { x: number; z: number; t: number }
 
 export interface AccountResult { ok: boolean; error?: string }
 export interface SubmitResult { ok: boolean; rank?: number; error?: string }
+export interface AdminResult { ok: boolean; removed?: number; error?: string }
 
 /* server rules (server/store.mjs) */
 const USERNAME_RE = /^[a-z0-9_]{3,16}$/;
@@ -101,6 +102,27 @@ export const account = {
     if (!r.ok) return { ok: false, error: OFFLINE_MSG };
     this.user = null;
     return { ok: true };
+  },
+
+  /** Admin only: delete one player's best time on the current board. */
+  async adminDeleteTime(map: string, username: string): Promise<AdminResult> {
+    return this.adminPost('/api/admin/delete-time', { map, username });
+  },
+
+  /** Admin only: wipe one map's board. */
+  async adminClearMap(map: string): Promise<AdminResult> {
+    return this.adminPost('/api/admin/clear-map', { map });
+  },
+
+  async adminPost(path: string, body: Record<string, string>): Promise<AdminResult> {
+    const r = await request<{ times?: TimeEntry[]; removed?: number }>(path, 'POST', body);
+    if (r.status === 401) this.user = null;
+    if (!r.ok) {
+      const error = r.status === 403 ? 'admin only' : 'request failed';
+      return { ok: false, error };
+    }
+    this.times = r.body?.times ?? [];
+    return { ok: true, removed: r.body?.removed };
   },
 
   /** Post a lap time with its replay trace for one map. Silent no-op when

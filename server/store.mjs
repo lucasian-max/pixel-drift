@@ -14,6 +14,27 @@ export const TIME_MIN_MS = 12_000;
 export const TIME_MAX_MS = 1_800_000;
 export const DEFAULT_MAP = 'coast';
 export const MAP_RE = /^[a-z0-9_-]{1,32}$/;
+export const ROLE_ADMIN = 'admin';
+export const ROLE_PLAYER = 'player';
+
+/** Admin names come from SPRITE_ADMINS and/or server/data/admins.json,
+ *  never from the client. The data folder is gitignored. */
+function loadAdminNames(dataPath) {
+  const names = new Set();
+  for (const part of String(process.env.SPRITE_ADMINS ?? '').split(/[,\s]+/)) {
+    if (part) names.add(part);
+  }
+  try {
+    const file = path.join(path.dirname(dataPath), 'admins.json');
+    const parsed = JSON.parse(fs.readFileSync(file, 'utf8'));
+    if (Array.isArray(parsed)) for (const name of parsed) {
+      if (typeof name === 'string' && name) names.add(name);
+    }
+  } catch {
+    /* no admins file is fine */
+  }
+  return names;
+}
 
 const SCRYPT = { N: 16384, r: 8, p: 1, maxmem: 64 * 1024 * 1024 };
 const KEYLEN = 64; // bytes -> 128 hex chars
@@ -48,6 +69,7 @@ export function emptyDb() {
 export class Store {
   constructor(dataPath) {
     this.dataPath = dataPath;
+    this.admins = loadAdminNames(dataPath);
     this.db = emptyDb();
     this.sessions = new Map(); // token -> { userId, expires }
     this._timer = null;
@@ -85,6 +107,7 @@ export class Store {
       sessions: {},
       times: Array.isArray(parsed.times) ? parsed.times : [],
     };
+    this._syncRoles();
     const now = Date.now();
     const stored =
       parsed.sessions && typeof parsed.sessions === 'object' ? parsed.sessions : {};
@@ -131,6 +154,31 @@ export class Store {
 
   // ---- users ---------------------------------------------------------------
 
+  _roleFor(username) {
+    return this.admins.has(username) ? ROLE_ADMIN : ROLE_PLAYER;
+  }
+
+  /** Derive roles from the admin list and persist the change if it moved. */
+  _syncRoles() {
+    let changed = false;
+    for (const u of this.db.users) {
+      const role = this._roleFor(u.username);
+      if (u.role !== role) {
+        u.role = role;
+        changed = true;
+      }
+    }
+    if (changed) this._scheduleSave();
+  }
+
+  _publicUser(user) {
+    return { id: user.id, username: user.username, role: this._roleFor(user.username) };
+  }
+
+  isAdmin(user) {
+    return !!user && this._roleFor(user.username) === ROLE_ADMIN;
+  }
+
   _userById(id) {
     return this.db.users.find((u) => u.id === id) ?? null;
   }
@@ -159,11 +207,12 @@ export class Store {
       username,
       salt,
       hash: hashPassword(password, salt),
+      role: this._roleFor(username),
       createdAt: new Date().toISOString(),
     };
     this.db.users.push(user);
     this._scheduleSave();
-    return { id: user.id, username: user.username };
+    return this._publicUser(user);
   }
 
   // Returns {id, username} on success, null on any failure. Callers emit one
@@ -176,7 +225,7 @@ export class Store {
       return null;
     }
     if (!verifyPassword(password, user.salt, user.hash)) return null;
-    return { id: user.id, username: user.username };
+    return this._publicUser(user);
   }
 
   // ---- sessions --------------------------------------------------------------
@@ -203,7 +252,7 @@ export class Store {
       this._scheduleSave();
       return null;
     }
-    return { id: user.id, username: user.username };
+    return this._publicUser(user);
   }
 
   destroySession(token) {
@@ -232,6 +281,31 @@ export class Store {
     }
     this._scheduleSave();
     return this.topTimes(map);
+  }
+
+  /** Admin moderation: drop one player's best on one map. */
+  deleteTime(map, username) {
+    if (typeof map !== 'string' || !MAP_RE.test(map)) {
+      throw new StoreError(400, 'invalid_map', 'map must match [a-z0-9_-]{1,32}');
+    }
+    if (typeof username !== 'string' || username === '') {
+      throw new StoreError(400, 'invalid_username', 'username required');
+    }
+    const before = this.db.times.length;
+    this.db.times = this.db.times.filter((t) => !(t.map === map && t.username === username));
+    if (this.db.times.length !== before) this._scheduleSave();
+    return { removed: before - this.db.times.length, times: this.topTimes(map) };
+  }
+
+  /** Admin moderation: wipe a map's board. */
+  clearTimes(map) {
+    if (typeof map !== 'string' || !MAP_RE.test(map)) {
+      throw new StoreError(400, 'invalid_map', 'map must match [a-z0-9_-]{1,32}');
+    }
+    const before = this.db.times.length;
+    this.db.times = this.db.times.filter((t) => t.map !== map);
+    if (this.db.times.length !== before) this._scheduleSave();
+    return { removed: before - this.db.times.length, times: this.topTimes(map) };
   }
 
   topTimes(map = DEFAULT_MAP, limit = 10) {

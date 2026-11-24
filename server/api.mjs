@@ -30,6 +30,8 @@ const KNOWN_PATHS = new Set([
   '/api/logout',
   '/api/me',
   '/api/times',
+  '/api/admin/delete-time',
+  '/api/admin/clear-map',
 ]);
 
 const here = path.dirname(fileURLToPath(import.meta.url));
@@ -157,6 +159,18 @@ async function handle(req, res, pathname) {
     // Times are trusted as submitted. The trace is still accepted and stored by
     // the client for replays, but it is not used to reject a lap.
     return send(res, 200, { times: store.submitTime(user, body.ms, map) });
+  }
+
+  if (pathname.startsWith('/api/admin/')) {
+    if (req.method !== 'POST') return send(res, 405, { error: 'method_not_allowed' });
+    if (!user) return send(res, 401, { error: 'unauthorized' });
+    if (!store.isAdmin(user)) return send(res, 403, { error: 'forbidden' });
+    const body = await readJsonBody(req);
+    if (pathname === '/api/admin/delete-time') {
+      return send(res, 200, store.deleteTime(body.map, body.username));
+    }
+    // /api/admin/clear-map
+    return send(res, 200, store.clearTimes(body.map));
   }
 
   if (pathname === '/api/logout') {

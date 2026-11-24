@@ -50,6 +50,8 @@ With this in place, pages on `https://drift.lucasian.tech` can call
 | GET    | `/api/me`     | cookie | —                         | `200 {user:{id,username}}` or `401` |
 | GET    | `/api/times`  | —      | —                         | `200 {times:[{rank,username,ms,at}]}` top 10, ascending |
 | POST   | `/api/times`  | cookie | `{ms, trace?:[{x,z,t}]}` (`map` optional, default `"coast"`) | `200 {times}` after upsert, `401`, `400 invalid_ms` |
+| POST   | `/api/admin/delete-time` | admin | `{map, username}` | `200 {removed, times}`, `403`, `401` |
+| POST   | `/api/admin/clear-map` | admin | `{map}` | `200 {removed, times}`, `403`, `401` |
 
 ## Lap submission
 
@@ -67,6 +69,25 @@ Notes:
   The server prefers `X-Forwarded-For` when present (safe because it only
   binds to localhost); if you later enable Vite's `xfwd` proxy option, the
   limit becomes per-visitor instead of per-proxy.
+
+## Admin accounts
+
+Admin names are never chosen by the client. Set them in either place:
+
+```sh
+SPRITE_ADMINS=lucasian node server/api.mjs
+# or, gitignored:
+echo '["lucasian"]' > server/data/admins.json
+```
+
+The role is derived from that list on load and on signup/login, exposed as
+`user.role` (`admin` or `player`) by `/api/me`, login and signup. Admin
+endpoints check the session role; a signed-in player gets `403`.
+
+Admins get an **ADMIN** button on the title screen. The panel deletes one
+player's best time on the current circuit (confirm-free) or clears that
+circuit's board (requires a second confirming click). The list is
+`server/data/admins.json` or `SPRITE_ADMINS`, never a password.
 
 ## Accounts
 

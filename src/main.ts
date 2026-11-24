@@ -227,6 +227,7 @@ async function boot() {
   const begin = () => {
     if (running) return;
     running = true;
+    adminPanel = false;
     sound.start();
   };
 
@@ -244,6 +245,8 @@ async function boot() {
 
   let garage = false;
   let powerInfo = false;
+  let adminPanel = false;
+  let adminConfirmUntil = 0;
   let garagePad: THREE.Mesh | null = null;
   const garageHome = { x: car.x, z: car.z, heading: car.heading };
 
@@ -317,6 +320,35 @@ async function boot() {
     else if (a === 'garage-back') setGarage(false);
     else if (a === 'login') loginForm.open();
     else if (a === 'logout') void account.logout();
+    else if (a === 'admin') {
+      adminPanel = true;
+      adminConfirmUntil = 0;
+      void account.refresh(mapId);
+    }
+    else if (a === 'admin-close') {
+      adminPanel = false;
+      adminConfirmUntil = 0;
+    }
+    else if (a === 'admin-clear') {
+      const now = performance.now() / 1000;
+      if (now < adminConfirmUntil) {
+        adminConfirmUntil = 0;
+        void account.adminClearMap(mapId).then((r) => {
+          if (!r.ok) warn(r.error ?? 'CLEAR FAILED');
+        });
+      } else {
+        adminConfirmUntil = now + 3;
+      }
+    }
+    else if (a.startsWith('admin-del-')) {
+      const i = Number(a.slice('admin-del-'.length));
+      const name = account.times[i]?.username;
+      if (name) {
+        void account.adminDeleteTime(mapId, name).then((r) => {
+          if (!r.ok) warn(r.error ?? 'DELETE FAILED');
+        });
+      }
+    }
   };
 
   const input = new Input();
@@ -556,6 +588,7 @@ async function boot() {
       }
     }
 
+    if (!account.user || account.user.role !== 'admin') adminPanel = false;
     const idx = nearestIndexNear(car.x, car.z, nearest);
     const np = track[idx];
     const trackDist = Math.hypot(car.x - np.x, car.z - np.z);
@@ -678,6 +711,9 @@ async function boot() {
       mapIndex,
       mapName: MAPS[mapIndex]?.name,
       account,
+      admin: account.user?.role === 'admin',
+      adminPanel: adminPanel && account.user?.role === 'admin',
+      adminConfirm: now / 1000 < adminConfirmUntil,
       garage,
       powerInfo,
       powerBlurb: car.power.blurb,

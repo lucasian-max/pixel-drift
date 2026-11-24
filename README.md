@@ -51,6 +51,14 @@ Sign in on the title to post lap times. Each circuit has its own board: the
 best lap per player, top 10. Times are trusted as submitted; a position trace
 is kept for replays but is not used to reject a lap.
 
+Admin names come from `SPRITE_ADMINS` or the gitignored
+`server/data/admins.json`; admin accounts get an **ADMIN** button on the title
+for deleting a time or clearing a circuit board.
+
+![Admin panel](docs/admin.png)
+
+See [`server/README.md`](server/README.md#admin-accounts).
+
 The API runs as a local user service on `127.0.0.1:8790` (Vite proxies `/api`
 to it). Use `SPRITE_API=http://host:port` to point a dev server elsewhere. See
 [`server/README.md`](server/README.md).

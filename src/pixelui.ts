@@ -48,6 +48,12 @@ export interface UiState {
   powerDuration?: number;
   powerCooldown?: number;
   lapHistory?: number[];
+  /** signed-in account is an admin (server role) */
+  admin?: boolean;
+  /** admin moderation overlay is open on the title */
+  adminPanel?: boolean;
+  /** clear-board button is in its second, confirming click */
+  adminConfirm?: boolean;
   /** transient red notice, e.g. "LAP NOT COUNTED — OFF TRACK" */
   warning?: string;
   /** currently outside the clean corridor */
@@ -91,7 +97,8 @@ function pxBorder(c: CanvasRenderingContext2D, x: number, y: number, w: number, 
 
 /** every clickable thing on the canvas */
 export type HitId = 'prev-map' | 'next-map' | 'prev-car' | 'next-car' | 'solo' | 'login' | 'logout'
-  | 'power-info' | 'garage' | 'garage-back';
+  | 'power-info' | 'garage' | 'garage-back'
+  | 'admin' | 'admin-close' | 'admin-clear' | `admin-del-${number}`;
 
 interface Button { id: HitId; x: number; y: number; w: number; h: number; label: string }
 
@@ -116,6 +123,9 @@ export class PixelUI {
   private bSolo: Button = { id: 'solo', x: 0, y: 0, w: 148, h: 28, label: 'SOLO' };
   private bLogin: Button = { id: 'login', x: 0, y: 0, w: 72, h: 14, label: 'SIGN IN' };
   private bLogout: Button = { id: 'logout', x: 0, y: 0, w: 72, h: 14, label: 'SIGN OUT' };
+  private bAdmin: Button = { id: 'admin', x: 0, y: 0, w: 62, h: 14, label: 'ADMIN' };
+  private bAdminClear: Button = { id: 'admin-clear', x: 0, y: 0, w: 120, h: 16, label: 'CLEAR BOARD' };
+  private bAdminClose: Button = { id: 'admin-close', x: 0, y: 0, w: 58, h: 16, label: 'CLOSE' };
   private buttons: Button[] = [];
 
   /* NEW BEST banner bookkeeping */
@@ -201,6 +211,11 @@ export class PixelUI {
     const c = this.ctx;
     c.clearRect(0, 0, this.w, this.h);
     c.imageSmoothingEnabled = false;
+
+    if (state.adminPanel) {
+      this.drawAdminPanel(time, state);
+      return;
+    }
 
     if (!state.started) {
       if (state.garage) this.drawGarage(time, state);
@@ -377,6 +392,81 @@ export class PixelUI {
       this.text('PAUSED', this.w / 2, this.h / 2 - 12, { size: 24, weight: 700, align: 'center' });
       this.text('P TO RESUME', this.w / 2, this.h / 2 + 18, { size: 8, color: DIM, align: 'center' });
     }
+  }
+
+  /** Admin moderation overlay: delete individual cheated times or wipe a board. */
+  private drawAdminPanel(time: number, state: UiState) {
+    const c = this.ctx;
+    this.buttons.length = 0;
+    c.fillStyle = 'rgba(10,12,16,0.72)';
+    c.fillRect(0, 0, this.w, this.h);
+
+    const w = Math.min(430, this.w - 20);
+    const h = 250;
+    const x = Math.round((this.w - w) / 2);
+    const y = Math.round((this.h - h) / 2);
+    pxRect(c, x, y, w, h, SLAB);
+    pxBorder(c, x, y, w, h, ACCENT);
+
+    this.text('ADMIN', x + 14, y + 11, { size: 16, weight: 700, color: ACCENT, spacing: 1 });
+    this.text((state.mapName ?? 'LEADERBOARD').toUpperCase(), x + w - 14, y + 13, {
+      size: 8, weight: 700, color: CREAM, align: 'right', spacing: 1,
+    });
+    this.text('DELETE A TIME OR CLEAR THE BOARD', x + 14, y + 30, { size: 8, color: DIM });
+
+    c.fillStyle = LINE;
+    c.fillRect(x + 12, y + 42, w - 24, 1);
+    this.text('RK', x + 14, y + 48, { size: 8, color: DIM });
+    this.text('PLAYER', x + 38, y + 48, { size: 8, color: DIM });
+    this.text('TIME', x + w - 46, y + 48, { size: 8, color: DIM, align: 'right' });
+
+    const acct = state.account;
+    const rows = acct?.times ?? [];
+    const n = Math.min(10, rows.length);
+    for (let i = 0; i < n; i++) {
+      const t = rows[i];
+      const ry = y + 62 + i * 15;
+      this.text(String(t.rank).padStart(2, '0'), x + 14, ry, { size: 8, color: DIM });
+      let name = t.username.toUpperCase();
+      this.font(8);
+      while (name.length > 1 && c.measureText(name).width > w - 120) name = name.slice(0, -1);
+      this.text(name, x + 38, ry, { size: 8, color: CREAM });
+      this.text(fmtMs(t.ms), x + w - 46, ry, { size: 8, color: CREAM, align: 'right' });
+      const bx = x + w - 32, by = ry - 2;
+      pxRect(c, bx, by, 18, 11, 'rgba(224,81,63,0.18)');
+      pxBorder(c, bx, by, 18, 11, 'rgba(224,81,63,0.75)');
+      this.text('X', bx + 9, by + 1, { size: 8, weight: 700, color: ACCENT, align: 'center' });
+      this.buttons.push({ id: `admin-del-${i}`, x: bx, y: by, w: 18, h: 11, label: 'X' });
+    }
+    if (n === 0) {
+      this.text('NO TIMES ON THIS BOARD', x + w / 2, y + 80, {
+        size: 8, color: DIM, align: 'center', spacing: 1,
+      });
+    }
+
+    this.bAdminClear.label = state.adminConfirm ? 'SURE? CLEAR' : 'CLEAR BOARD';
+    this.bAdminClear.x = x + 12;
+    this.bAdminClear.y = y + h - 30;
+    pxRect(c, this.bAdminClear.x, this.bAdminClear.y, this.bAdminClear.w, this.bAdminClear.h,
+      state.adminConfirm ? ACCENT : SLAB);
+    pxBorder(c, this.bAdminClear.x, this.bAdminClear.y, this.bAdminClear.w, this.bAdminClear.h,
+      state.adminConfirm ? CREAM : 'rgba(242,238,225,0.55)');
+    this.text(this.bAdminClear.label, this.bAdminClear.x + this.bAdminClear.w / 2,
+      this.bAdminClear.y + 4, { size: 8, weight: 700, color: CREAM, align: 'center' });
+    this.buttons.push(this.bAdminClear);
+
+    this.bAdminClose.x = x + w - this.bAdminClose.w - 12;
+    this.bAdminClose.y = y + h - 30;
+    pxRect(c, this.bAdminClose.x, this.bAdminClose.y, this.bAdminClose.w, this.bAdminClose.h, SLAB);
+    pxBorder(c, this.bAdminClose.x, this.bAdminClose.y, this.bAdminClose.w, this.bAdminClose.h,
+      'rgba(242,238,225,0.55)');
+    this.text(this.bAdminClose.label, this.bAdminClose.x + this.bAdminClose.w / 2,
+      this.bAdminClose.y + 4, { size: 8, color: CREAM, align: 'center' });
+    this.buttons.push(this.bAdminClose);
+
+    this.text('CHANGES APPLY IMMEDIATELY', x + w / 2, y + h - 46, {
+      size: 8, color: HINT, align: 'center',
+    });
   }
 
   /** Power description modal; also used from the garage. */
@@ -643,15 +733,28 @@ export class PixelUI {
     let blinkY = 296;
     if (acct) {
       if (acct.user) {
-        this.text('SIGNED IN AS ' + acct.user.username.toUpperCase(), cx, 290, {
-          size: 8, color: 'rgba(242,238,225,0.8)', align: 'center', spacing: 1,
+        const admin = acct.user.role === 'admin';
+        this.text((admin ? 'ADMIN · ' : '') + 'SIGNED IN AS ' + acct.user.username.toUpperCase(), cx, 290, {
+          size: 8, color: admin ? ACCENT : 'rgba(242,238,225,0.8)', align: 'center', spacing: 1,
         });
+        if (admin) {
+          this.bAdmin.x = Math.round(cx - 71);
+          this.bAdmin.y = 302;
+          pxRect(c, this.bAdmin.x, this.bAdmin.y, this.bAdmin.w, this.bAdmin.h, ACCENT);
+          pxBorder(c, this.bAdmin.x, this.bAdmin.y, this.bAdmin.w, this.bAdmin.h, CREAM);
+          this.text(this.bAdmin.label, this.bAdmin.x + this.bAdmin.w / 2, this.bAdmin.y + 3,
+            { size: 8, weight: 700, color: CREAM, align: 'center' });
+          this.buttons.push(this.bAdmin);
+          this.bLogout.x = Math.round(cx - 1);
+        } else {
+          this.bLogout.x = Math.round(cx - this.bLogout.w / 2);
+        }
         this.bLogout.label = acct.busy ? '...' : 'SIGN OUT';
-        this.bLogout.x = Math.round(cx - this.bLogout.w / 2);
         this.bLogout.y = 302;
         pxRect(c, this.bLogout.x, this.bLogout.y, this.bLogout.w, this.bLogout.h, SLAB);
         pxBorder(c, this.bLogout.x, this.bLogout.y, this.bLogout.w, this.bLogout.h, 'rgba(242,238,225,0.55)');
-        this.text(this.bLogout.label, cx, this.bLogout.y + 3, { size: 8, color: CREAM, align: 'center' });
+        this.text(this.bLogout.label, this.bLogout.x + this.bLogout.w / 2, this.bLogout.y + 3,
+          { size: 8, color: CREAM, align: 'center' });
         this.buttons.push(this.bLogout);
         blinkY = 320;
       } else {
