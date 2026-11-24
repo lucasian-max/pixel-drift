@@ -53,23 +53,30 @@ async function request<T>(path: string, method: 'GET' | 'POST', body?: unknown):
 
 export const account = {
   user: null as User | null,
+  /** board the current `times` belong to; one board per map */
+  map: 'coast',
   times: [] as TimeEntry[],
   offline: false,
   busy: false,
 
-  /** Load session + leaderboard. A 401 just means signed out; only a
-      network/5xx failure flips `offline`. */
-  async refresh(): Promise<void> {
+  /** Load session + the leaderboard for one map. A 401 just means signed
+      out; only a network/5xx failure flips `offline`. */
+  async refresh(map?: string): Promise<void> {
     this.busy = true;
+    const boardMap = map ?? this.map;
+    const sameMap = boardMap === this.map;
+    this.map = boardMap;
     let offline = false;
     let user: User | null = null;
-    let times = this.times;
+    let times: TimeEntry[] = sameMap ? this.times : [];
 
     const me = await request<{ user?: User | null }>('/api/me', 'GET');
     if (me.status === 0 || me.status >= 500) offline = true;
     else if (me.ok) user = me.body?.user ?? null;
 
-    const board = await request<{ times?: TimeEntry[] }>('/api/times', 'GET');
+    const board = await request<{ times?: TimeEntry[] }>(
+      `/api/times?map=${encodeURIComponent(boardMap)}`, 'GET',
+    );
     if (board.status === 0 || board.status >= 500) offline = true;
     else if (board.ok) times = board.body?.times ?? [];
 
@@ -96,22 +103,25 @@ export const account = {
     return { ok: true };
   },
 
-  /** Post a lap time with its replay trace. Silent no-op when signed out or
-      out of range; the board (`times`) refreshes from the POST response. */
-  async submitLap(ms: number, trace: LapTracePoint[]): Promise<SubmitResult> {
+  /** Post a lap time with its replay trace for one map. Silent no-op when
+      signed out or out of range; the board (`times`) refreshes from the
+      POST response. */
+  async submitLap(ms: number, trace: LapTracePoint[], map?: string): Promise<SubmitResult> {
     if (!this.user) return { ok: false, error: 'sign in to save times' };
     if (!Number.isInteger(ms) || ms < MS_MIN || ms > MS_MAX) {
       return { ok: false, error: 'lap time out of range' };
     }
+    const lapMap = map ?? this.map;
     const name = this.user.username;
     const r = await request<{ times?: TimeEntry[]; error?: string }>(
-      '/api/times', 'POST', { ms, trace },
+      '/api/times', 'POST', { ms, trace, map: lapMap },
     );
     if (!r.ok) {
       if (r.status === 401) this.user = null;   // session expired mid-race
       return { ok: false, error: 'lap not saved' };
     }
     const times = r.body?.times ?? [];
+    this.map = lapMap;
     this.times = times;
     const mine = times.find((t) => t.username === name && t.ms === ms);
     return { ok: true, rank: mine?.rank };
@@ -136,6 +146,6 @@ async function authPost(path: string, username: string, password: string): Promi
   }
   account.user = r.body?.user ?? null;
   account.offline = false;
-  void account.refresh();   // board may only be reachable now that we are online
+  void account.refresh(account.map);   // board may only be reachable now that we are online
   return { ok: true };
 }

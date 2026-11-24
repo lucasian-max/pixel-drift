@@ -35,9 +35,9 @@ the `multiplayer` branch and `multiplayer-archive` tag (see
 
 ## Accounts and leaderboard
 
-Sign in on the title to post lap times. The board is the best lap per player,
-top 10. Times are trusted as submitted; a position trace is kept for replays
-but is not used to reject a lap.
+Sign in on the title to post lap times. Each circuit has its own board: the
+best lap per player, top 10. Times are trusted as submitted; a position trace
+is kept for replays but is not used to reject a lap.
 
 The API runs as a local user service on `127.0.0.1:8790` (Vite proxies `/api`
 to it). Use `SPRITE_API=http://host:port` to point a dev server elsewhere. See
@@ -47,7 +47,7 @@ to it). Use `SPRITE_API=http://host:port` to point a dev server elsewhere. See
 
 | | |
 | --- | --- |
-| **Saltmarsh Coast** — green, a lake, pines and palms | **Frostbite Pass** — a big snow circuit with blue kerbs, snow pines, a frozen lake, ski lift, snow cannons, ice huts, a snowcat and falling snow |
+| **Saltmarsh Coast** — green, a lake, pines and palms | **Frostbite Pass** — a big Silverstone-inspired snow circuit with blue kerbs, an infield esses section, snow pines, a frozen lake with ice huts, a ski lift, snow cannons, a snowcat and falling snow |
 | ![coast](docs/coast.png) | ![ice](docs/alpine.png) |
 | **Sakura Circuit** — a Japanese forest figure-eight with sakura trees, kanji signage, torii, a pagoda, a red garden bridge and a drivable overpass | |
 | ![sakura](docs/sakura.png) | |

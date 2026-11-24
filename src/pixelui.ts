@@ -669,11 +669,16 @@ export class PixelUI {
     /* ---- leaderboard column (right edge) ---- */
     if (acct && w >= 560) {
       const lx = w - 176;
+      /* the board is per track, so the header names the track it belongs to */
       this.text('LEADERBOARD', w - 8, 48, { size: 8, weight: 700, color: CREAM, align: 'right', spacing: 2 });
+      let track = (state.mapName ?? '').toUpperCase();
+      this.font(8, 700);
+      while (track.length > 1 && c.measureText(track).width > 168) track = track.slice(0, -1);
+      this.text(track, w - 8, 60, { size: 8, weight: 700, color: ACCENT, align: 'right', spacing: 1 });
       c.fillStyle = LINE;
-      c.fillRect(lx, 60, 168, 1);
+      c.fillRect(lx, 72, 168, 1);
       if (acct.offline) {
-        this.text('OFFLINE', w - 8, 66, { size: 8, color: DIM, align: 'right', spacing: 1 });
+        this.text('OFFLINE', w - 8, 78, { size: 8, color: DIM, align: 'right', spacing: 1 });
       } else {
         this.font(8);
         const timeW = Math.ceil(c.measureText('00:00.00').width);
@@ -681,14 +686,14 @@ export class PixelUI {
         const n = Math.min(10, acct.times.length);
         for (let i = 0; i < n; i++) {
           const t = acct.times[i];
-          const y = 66 + i * 12;
+          const y = 78 + i * 12;
           this.text(String(t.rank).padStart(2, '0'), lx, y, { size: 8, color: DIM });
           let name = t.username.toUpperCase();
           while (name.length > 1 && c.measureText(name).width > nameMax) name = name.slice(0, -1);
           this.text(name, lx + 18, y, { size: 8, color: CREAM });
           this.text(fmtMs(t.ms), w - 8, y, { size: 8, color: CREAM, align: 'right' });
         }
-        if (n === 0) this.text('NO TIMES YET', w - 8, 66, { size: 8, color: DIM, align: 'right', spacing: 1 });
+        if (n === 0) this.text('NO TIMES YET', w - 8, 78, { size: 8, color: DIM, align: 'right', spacing: 1 });
       }
     }
 

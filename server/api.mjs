@@ -23,6 +23,7 @@ const PORT = 8790;
 const BODY_LIMIT_BYTES = 32768; // lap traces (kept for replays) need the headroom
 const AUTH_WINDOW_MS = 60_000; // 10 signup/login attempts per IP per 60s
 const AUTH_MAX = 10;
+const MAP_RE = /^[a-z0-9_-]{1,32}$/; // must match Store's map validation
 const KNOWN_PATHS = new Set([
   '/api/signup',
   '/api/login',
@@ -144,7 +145,11 @@ async function handle(req, res, pathname) {
   }
 
   if (pathname === '/api/times') {
-    if (req.method === 'GET') return send(res, 200, { times: store.topTimes(DEFAULT_MAP) });
+    if (req.method === 'GET') {
+      const asked = new URL(req.url, 'http://localhost').searchParams.get('map');
+      const map = asked && MAP_RE.test(asked) ? asked : DEFAULT_MAP;
+      return send(res, 200, { map, times: store.topTimes(map) });
+    }
     if (req.method !== 'POST') return send(res, 405, { error: 'method_not_allowed' });
     if (!user) return send(res, 401, { error: 'unauthorized' });
     const body = await readJsonBody(req);

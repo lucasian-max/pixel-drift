@@ -136,7 +136,6 @@ const loginForm = (() => {
 })();
 
 async function boot() {
-  void account.refresh();   // session + leaderboard; the UI reads the store live
   const params = new URLSearchParams(location.search);
   // Old multiplayer invites are inert now; drop the dead param from the URL.
   if (params.has('room')) {
@@ -157,6 +156,7 @@ async function boot() {
 
   const wantedMap = params.get('map');
   const mapId = MAPS.some((m) => m.id === wantedMap) ? wantedMap! : 'coast';
+  void account.refresh(mapId);   // session + this map's leaderboard; the UI reads the store live
   const world = await buildWorld(scene, mapId);
   scene.background = new THREE.Color(world.sky);
   const mapIndex = Math.max(0, MAPS.findIndex((m) => m.id === mapId));
@@ -558,7 +558,7 @@ async function boot() {
         try { localStorage.setItem(bestKey, String(bestTime)); } catch { /* private mode */ }
       }
       const trace = lapTrace.slice();
-      void account.submitLap(ms, trace).then((r) => {
+      void account.submitLap(ms, trace, mapId).then((r) => {
         if (!account.user) warn('SIGN IN TO SAVE LAPS', 2.2);
         else if (!r.ok) warn(r.error ?? 'LAP NOT SAVED');
       });

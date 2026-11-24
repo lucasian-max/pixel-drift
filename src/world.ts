@@ -114,13 +114,14 @@ export const MAPS: MapDef[] = [
     props: { trees: 280, rocks: 58, buildings: 15, lampStride: 58, rockScale: 1 },
   },
   {
-    // Big alpine dumbbell with an infield V and a frozen lake; a ski lift,
-    // snow cannons, a snowcat and ice-fishing huts fill the service areas.
+    // Silverstone-inspired outline: long outer sweep with a tight infield
+    // esses section returning to the left edge, plus a frozen lake inside.
     id: 'alpine', name: 'Frostbite Pass', roadHalf: 4.2, smooth: true,
     ctrl: [
-      [-54, -22], [-38, -34], [-18, -38], [-4, -24], [4, -24], [18, -38],
-      [38, -34], [54, -22], [58, -4], [52, 12], [40, 24], [24, 30],
-      [8, 22], [0, 10], [-8, 22], [-24, 30], [-40, 24], [-52, 12], [-58, -4],
+      [-50, 4], [-40, 22], [-20, 36], [4, 42], [28, 38], [46, 28], [58, 10],
+      [58, -10], [50, -30], [34, -44], [12, -50], [-8, -48], [-22, -40],
+      [-27, -29], [-19, -22], [-27, -15], [-36, -19], [-44, -24], [-49, -18],
+      [-52, -8],
     ],
     palette: {
       grass: '#dfe6ea', tones: ['#eef3f6', '#c9d5dc', '#f7fafc', '#b6c6d0', '#ffffff'],
@@ -129,7 +130,7 @@ export const MAPS: MapDef[] = [
       shoulder: '#93a2ab', asphalt: '#4a4f57', grainA: '#737a84', grainB: '#2f333a',
       line: 'rgba(250,252,255,0.85)', kerbA: '#f2f6f8', kerbB: '#3f6fb0',
     },
-    lake: { x: -8, z: -12, rx: 11, rz: 7 },
+    lake: { x: 2, z: 4, rx: 11, rz: 8 },
     trees: 'pine', density: 1.0, tint: '#f3fbff', snow: true, snowGear: true,
     props: { trees: 230, rocks: 44, buildings: 0, lampStride: 46, rockScale: 1.2 },
     town: [],
@@ -792,8 +793,8 @@ export async function buildWorld(scene: THREE.Scene, mapId?: string): Promise<Wo
     const x = p.x + (dz / len) * out * side;
     const z = p.z - (dx / len) * out * side;
     const nearLake = map.lake ? Math.hypot(x - map.lake.x, z - map.lake.z) < map.lake.rx + 2 : false;
-    const palmChance = map.trees === 'palm' ? 0.9 : map.trees === 'mixed' ? 0.45 : 0.08;
-    addTree(x + (rnd() - 0.5) * 2, z + (rnd() - 0.5) * 2, nearLake ? rnd() > 0.35 : rnd() < palmChance);
+    const palmChance = map.snow ? 0 : map.trees === 'palm' ? 0.9 : map.trees === 'mixed' ? 0.45 : 0.08;
+    addTree(x + (rnd() - 0.5) * 2, z + (rnd() - 0.5) * 2, !map.snow && nearLake ? rnd() > 0.35 : rnd() < palmChance);
   }
   // scattered woodland
   let guard = 0;
@@ -801,9 +802,9 @@ export async function buildWorld(scene: THREE.Scene, mapId?: string): Promise<Wo
   while (pines.length + palms.length + sakuras.length < treeTarget && guard++ < 3000) {
     const x = (rnd() - 0.5) * (WORLD - 8);
     const z = (rnd() - 0.5) * (WORLD - 8);
-    const palmChance = map.trees === 'palm' ? 0.9 : map.trees === 'mixed' ? 0.45 : 0.08;
+    const palmChance = map.snow ? 0 : map.trees === 'palm' ? 0.9 : map.trees === 'mixed' ? 0.45 : 0.08;
     const nearLake = map.lake ? Math.hypot(x - map.lake.x, z - map.lake.z) < map.lake.rx + 3 : false;
-    addTree(x, z, nearLake ? rnd() > 0.35 : rnd() < palmChance);
+    addTree(x, z, !map.snow && nearLake ? rnd() > 0.35 : rnd() < palmChance);
   }
 
   // rocks
@@ -829,6 +830,8 @@ export async function buildWorld(scene: THREE.Scene, mapId?: string): Promise<Wo
     const nx = dz / len, nz = -dx / len;
     const x = p.x + nx * (ROAD_HALF + 1.6);
     const z = p.z + nz * (ROAD_HALF + 1.6);
+    // a nearby branch of the circuit can put the lamp on tarmac; skip those
+    if (nearbyRoad(x, z, ROAD_HALF + 0.7)) continue;
     lamps.push({ x, z, rot: Math.atan2(dx, dz), scale: 1 });
     colliders.push({ x, z, r: 0.28 });
     shadows.push({ x, z, rot: 0, scale: 0.6 });
@@ -849,6 +852,7 @@ export async function buildWorld(scene: THREE.Scene, mapId?: string): Promise<Wo
     for (let k = -2; k <= 2; k++) {
       const bx = b.x + nx * side * (ROAD_HALF + 1.1) + (v1x / l1) * k * 1.5;
       const bz = b.z + nz * side * (ROAD_HALF + 1.1) + (v1z / l1) * k * 1.5;
+      if (nearbyRoad(bx, bz, ROAD_HALF + 0.5)) continue;
       tyres.push({ x: bx, z: bz, rot: rnd() * 6.28, scale: 0.95 + rnd() * 0.15 });
       colliders.push({ x: bx, z: bz, r: 0.62 });
       shadows.push({ x: bx, z: bz, rot: 0, scale: 0.9 });
@@ -1204,14 +1208,24 @@ export async function buildWorld(scene: THREE.Scene, mapId?: string): Promise<Wo
       group.add(g);
       colliders.push({ x, z, r: 1.1 });
     };
-    cannon(-50, 16, 0.5);
-    cannon(50, 16, -0.5);
-    cannon(24, -42, Math.PI);
+    cannon(-55, 20, 0.6);
+    cannon(61, -28, -0.7);
+    cannon(20, -56, Math.PI);
 
-    // parked snowcat / plough in the infield service area
-    if (free(34, 6, 3)) {
+    // parked snowcat / plough in the infield service area; scan for a clear
+    // patch so rocks or trees never evict it
+    let catAt: [number, number] | null = null;
+    for (let a = 0; a < 96 && !catAt; a++) {
+      const ang = a * 0.61;
+      const rad = 7 + (a % 6) * 3.5;
+      const px = 34 + Math.cos(ang) * rad;
+      const pz = 6 + Math.sin(ang) * rad;
+      if (free(px, pz, 3)) catAt = [px, pz];
+    }
+    if (catAt) {
+      const [cx, cz] = catAt;
       const g = new THREE.Group();
-      g.position.set(34, 0, 6);
+      g.position.set(cx, 0, cz);
       g.rotation.y = 0.4;
       addBox(g, 4.2, 1.2, 2.0, red, 0, 1.0, 0);
       addBox(g, 2.0, 1.2, 1.7, white, -0.7, 2.05, 0);
@@ -1225,12 +1239,12 @@ export async function buildWorld(scene: THREE.Scene, mapId?: string): Promise<Wo
       addBox(g, 0.25, 2.2, 0.25, red, -1.1, 3.1, -0.65);
       addBox(g, 0.25, 2.2, 0.25, red, 1.1, 3.1, -0.65);
       group.add(g);
-      colliders.push({ x: 34, z: 6, r: 3.2 });
+      colliders.push({ x: cx, z: cz, r: 3.2 });
     }
 
     // ice-fishing huts on the frozen lake
     if (map.lake) {
-      const huts: [number, number, number][] = [[-12, -12, 0.25], [-3, -15, -0.35], [-9, -7, 0.7]];
+      const huts: [number, number, number][] = [[-2, 4, 0.25], [7, 1, -0.35], [1, 9, 0.7]];
       for (const [x, z, rot] of huts) {
         const g = new THREE.Group();
         g.position.set(x, 0, z);
