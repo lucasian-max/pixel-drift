@@ -17,10 +17,11 @@ import {
   SESSION_TTL_MS,
   DEFAULT_MAP,
 } from './store.mjs';
+import { TRACK_HALF, distanceToTrack, trackU } from './track.mjs';
 
 const HOST = '127.0.0.1';
 const PORT = 8790;
-const BODY_LIMIT_BYTES = 4096; // JSON request bodies capped at 4KB
+const BODY_LIMIT_BYTES = 32768; // JSON request bodies (lap traces need room)
 const AUTH_WINDOW_MS = 60_000; // rate limit: ...
 const AUTH_MAX = 10; // ... 10 signup/login attempts per IP per 60s
 const ROOM_WINDOW_MS = 60_000;
@@ -28,8 +29,12 @@ const ROOM_MAX = 30; // ... 30 room creations per IP per minute (proxied IP is s
 const ROOM_CODE_RE = /^[A-HJ-NP-Z2-9]{4}$/; // no I/O/0/1
 const ROOM_TTL_MS = 2 * 60 * 60 * 1000;
 const MAX_ROOM_PLAYERS = 8;
-const MIN_LAP_MS = 8_500;
+const MIN_LAP_MS = 12_000;
 const MAX_LAP_MS = 600_000;
+const LAPS_TO_FINISH = 3;
+const TRACK_MARGIN = 2.4;      // kerbs + painted shoulder, but not the grass
+const MAX_OFF_MS = 900;        // a lap may brush a kerb, not tour the lawn
+const MAX_SPEED = 60;          // trace segments are sampled, so allow overshoot
 const TICK_MS = 50; // 20 Hz state broadcast
 const KNOWN_PATHS = new Set([
   '/api/signup',
@@ -171,7 +176,7 @@ function newRoomCode() {
 function createRoom() {
   const code = newRoomCode();
   if (!code) return null;
-  const room = { code, createdAt: Date.now(), clients: new Map(), best: null };
+  const room = { code, createdAt: Date.now(), clients: new Map(), best: null, finished: false, winner: null, startAt: 0 };
   rooms.set(code, room);
   return room;
 }
@@ -184,6 +189,7 @@ function roomRoster(room) {
     return {
       id: c.id, name: c.name, slot: c.slot, place: c.place,
       x: c.x, z: c.z, h: c.h, sp: c.speed, u: c.u, lap: c.lap,
+      best: c.bestLapMs,
     };
   });
 }
@@ -199,10 +205,57 @@ function broadcast(room, body) {
 
 function clamp(n, lo, hi) { return Math.max(lo, Math.min(hi, n)); }
 
+/**
+ * A lap submission carries 5 Hz positions. Accept it only if every sample is
+ * on the road (plus kerbs), the implied speed is possible, the timestamps span
+ * the claimed lap, and the samples progress around the circuit.
+ */
+function validateLapTrace(trace, ms) {
+  if (!Number.isFinite(ms) || ms <= 0) return false;
+  if (!Array.isArray(trace) || trace.length > 800) return false;
+  // 5 Hz from the client; require at least 2.5 Hz so a coarse trace cannot
+  // hide an infield shortcut between samples.
+  if (trace.length < Math.max(10, Math.ceil(ms / 400))) return false;
+  let prevT = null, prevX = 0, prevZ = 0, prevU = null, progress = 0;
+  let firstU = null, lastU = null;
+  for (const p of trace) {
+    if (!p || typeof p !== 'object') return false;
+    const x = Number(p.x), z = Number(p.z), t = Number(p.t);
+    if (![x, z, t].every(Number.isFinite)) return false;
+    if (t < 0 || t > ms + 1500) return false;
+    if (prevT !== null && t <= prevT) return false;
+    if (distanceToTrack(x, z) > TRACK_HALF + TRACK_MARGIN) return false;
+    if (prevT !== null) {
+      const dt = (t - prevT) / 1000;
+      if (dt <= 0) return false;
+      if (Math.hypot(x - prevX, z - prevZ) / dt > MAX_SPEED) return false;
+    }
+    const u = trackU(x, z);
+    if (firstU === null) firstU = u;
+    lastU = u;
+    if (prevU !== null) {
+      let du = u - prevU;
+      if (du < -0.5) du += 1; else if (du > 0.5) du -= 1;
+      if (du > 0 && du < 0.2) progress += du;
+    }
+    prevU = u; prevT = t; prevX = x; prevZ = z;
+  }
+  if (prevT === null || Math.abs(prevT - ms) > 1500) return false;
+  const atLine = (u) => u === null || u < 0.08 || u > 0.92;
+  if (!atLine(firstU) || !atLine(lastU)) return false;
+  return progress >= 0.85 && progress <= 1.35;
+}
+
 function attachClient(ws, req, room) {
   if (room.clients.size >= MAX_ROOM_PLAYERS) {
     ws.close(4005, 'room full');
     return;
+  }
+  if (room.clients.size === 0) {
+    room.finished = false;
+    room.winner = null;
+    room.best = null;
+    room.startAt = 0;
   }
   const token = parseCookies(req)[SESSION_COOKIE];
   const user = token ? store.userForToken(token) : null;
@@ -219,6 +272,8 @@ function attachClient(ws, req, room) {
     id: `p${nextClientId++}`, name, slot, ws,
     x: 0, z: 0, h: 0, speed: 0, u: 0, lap: 0,
     progress: 0, lastU: 0, place: 0, lastLapMs: 0, joinedAt: Date.now(),
+    bestLapMs: 0, dirty: false, offMs: 0,
+    lastX: 0, lastZ: 0, lastStateAt: 0,
   };
   room.clients.set(client.id, client);
   console.log(`[room ${room.code}] + ${name} (${client.id}) slot ${slot}`);
@@ -226,6 +281,9 @@ function attachClient(ws, req, room) {
   sendJson(ws, {
     t: 'welcome', id: client.id, name, slot, room: room.code,
     count: room.clients.size, racers: roomRoster(room), best: room.best,
+    finished: room.finished, winner: room.winner, laps: LAPS_TO_FINISH,
+    startIn: room.startAt ? Math.max(0, room.startAt - Date.now()) : 0,
+    racing: room.startAt > 0,
   });
 
   ws.on('message', (raw) => {
@@ -233,16 +291,50 @@ function attachClient(ws, req, room) {
     try { msg = JSON.parse(raw.toString()); } catch { return; }
     if (!msg || typeof msg !== 'object') return;
 
+    if (msg.t === 'start') {
+      if (room.finished) return;                       // press R for a rematch
+      if (room.startAt > 0) return;                    // already counting down / racing
+      room.startAt = Date.now() + 3600;
+      broadcast(room, { t: 'start', ms: 3600 });
+      console.log(`[room ${room.code}] start from ${name}`);
+      return;
+    }
+
     if (msg.t === 'state') {
       const x = Number(msg.x), z = Number(msg.z), h = Number(msg.h);
-      const sp = Number(msg.sp), u = Number(msg.u), lap = Number(msg.lap);
-      if (![x, z, h, sp, u, lap].every(Number.isFinite)) return;
+      const sp = Number(msg.sp);
+      if (![x, z, h, sp].every(Number.isFinite)) return;
+      const now = Date.now();
+      const deltaMs = client.lastStateAt > 0
+        ? Math.min(200, Math.max(1, now - client.lastStateAt))
+        : TICK_MS;
+      // Teleports and speed hacks: the car cannot cross more than its top
+      // speed allows between two 20 Hz poses.
+      if (client.lastStateAt > 0) {
+        const dt = Math.max(0.02, (now - client.lastStateAt) / 1000);
+        const jumped = Math.hypot(x - client.lastX, z - client.lastZ);
+        // A paused tab can legitimately produce a long gap; a teleport is a
+        // large jump AND an impossible speed.
+        if (jumped > 12 && jumped / dt > MAX_SPEED * 3) client.dirty = true;
+      }
+      client.lastStateAt = now;
+      client.lastX = x;
+      client.lastZ = z;
       client.x = clamp(x, -250, 250);
       client.z = clamp(z, -250, 250);
       client.h = h;
       client.speed = clamp(sp, -80, 80);
-      client.u = ((u % 1) + 1) % 1;
-      client.lap = clamp(Math.round(lap), 0, 999);
+
+      // Grass is a shortcut, so time outside the corridor dirties the lap.
+      const off = distanceToTrack(client.x, client.z);
+      if (off > TRACK_HALF + TRACK_MARGIN) {
+        client.offMs += deltaMs;
+        if (off > TRACK_HALF + 12) client.dirty = true;
+      }
+
+      // Progress comes from the server's own centreline lookup, never from
+      // the client's reported `u`.
+      client.u = trackU(client.x, client.z);
       let d = client.u - client.lastU;
       if (d < -0.5) d += 1; else if (d > 0.5) d -= 1;
       if (d > 0 && d < 0.08) client.progress += d;
@@ -250,25 +342,64 @@ function attachClient(ws, req, room) {
       return;
     }
 
+    if (msg.t === 'reset') {
+      if (room.finished) {
+        room.finished = false;
+        room.winner = null;
+        room.best = null;
+        room.startAt = Date.now() + 3600;
+        for (const c of room.clients.values()) {
+          c.lap = 0; c.u = 0; c.lastU = 0; c.progress = 0;
+          c.dirty = false; c.offMs = 0; c.bestLapMs = 0;
+          c.lastStateAt = 0; c.lastX = 0; c.lastZ = 0;
+        }
+        broadcast(room, { t: 'rematch', laps: LAPS_TO_FINISH });
+        broadcast(room, { t: 'start', ms: 3600 });
+        console.log(`[room ${room.code}] rematch`);
+      } else {
+        client.lap = 0;
+        client.u = 0;
+        client.lastU = 0;
+        client.progress = 0;
+        client.dirty = false;
+        client.offMs = 0;
+      }
+      return;
+    }
+
     if (msg.t === 'lap') {
       const ms = Math.round(Number(msg.ms));
-      const lapNo = Math.round(Number(msg.lap));
-      // A lap only counts if the client actually moved around the circuit and
-      // the clock is inside humanly possible bounds.
-      const valid = Number.isFinite(ms) && Number.isFinite(lapNo)
-        && ms >= MIN_LAP_MS && ms <= MAX_LAP_MS
-        && client.progress >= 0.85 && client.progress <= 1.6
-        && lapNo === client.lap + 1;
+      let reason = '';
+      if (!Number.isFinite(ms) || ms < MIN_LAP_MS || ms > MAX_LAP_MS) reason = 'invalid_time';
+      else if (client.progress < 0.85 || client.progress > 1.6) reason = 'invalid_progress';
+      else if (client.offMs > MAX_OFF_MS) reason = 'off_track';
+      else if (client.dirty) reason = 'off_track';
+
+      const valid = reason === '';
       if (valid) {
-        client.lap = lapNo;
+        // Increment the server's own count. The client's lap number is only a
+        // hint; it cannot skip or declare a finish.
+        client.lap += 1;
         client.lastLapMs = ms;
+        if (!client.bestLapMs || ms < client.bestLapMs) client.bestLapMs = ms;
         if (!room.best || ms < room.best.ms) room.best = { name, ms };
+        if (client.lap >= LAPS_TO_FINISH && !room.finished) {
+          room.finished = true;
+          room.winner = { id: client.id, name, ms };
+          broadcast(room, {
+            t: 'finish', winner: room.winner,
+            standings: roomRoster(room), laps: LAPS_TO_FINISH,
+          });
+          console.log(`[room ${room.code}] finish ${name} ${ms}ms`);
+        }
       }
       client.progress = 0;
+      client.dirty = false;
+      client.offMs = 0;
       client.lastU = client.u;
       broadcast(room, {
-        t: 'lap', id: client.id, name, ms, valid,
-        lap: client.lap, best: room.best,
+        t: 'lap', id: client.id, name, ms, valid, reason,
+        lap: client.lap, best: room.best, bestLap: client.bestLapMs,
       });
       return;
     }
@@ -291,7 +422,10 @@ setInterval(() => {
       continue;
     }
     const racers = roomRoster(room);
-    broadcast(room, { t: 'states', racers, count: room.clients.size, best: room.best });
+    broadcast(room, {
+      t: 'states', racers, count: room.clients.size, best: room.best,
+      finished: room.finished, winner: room.winner, laps: LAPS_TO_FINISH,
+    });
   }
 }, TICK_MS);
 
@@ -326,6 +460,12 @@ async function handle(req, res, pathname) {
     if (!user) return send(res, 401, { error: 'unauthorized' });
     const body = await readJsonBody(req);
     const map = typeof body.map === 'string' ? body.map : DEFAULT_MAP;
+    // The coast board is telemetry-checked: a time with no trace, or a trace
+    // that leaves the road, cuts the infield, or covers the lap impossibly
+    // fast, never reaches the store.
+    if (map === DEFAULT_MAP && !validateLapTrace(body.trace, Number(body.ms))) {
+      return send(res, 400, { error: 'invalid_lap' });
+    }
     return send(res, 200, { times: store.submitTime(user, body.ms, map) });
   }
 
@@ -402,7 +542,7 @@ server.on('upgrade', (req, socket, head) => {
   // arcade rules: any code is a room, created on first join
   let room = rooms.get(code);
   if (!room) {
-    room = { code, createdAt: Date.now(), clients: new Map(), best: null };
+    room = { code, createdAt: Date.now(), clients: new Map(), best: null, finished: false, winner: null, startAt: 0 };
     rooms.set(code, room);
   }
   wss.handleUpgrade(req, socket, head, (ws) => attachClient(ws, req, room));

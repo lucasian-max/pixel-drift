@@ -4,15 +4,16 @@
    message (login/signup/logout). */
 
 export interface User { id: string; username: string }
-export interface TimeEntry { rank: number; username: string; ms: number; at: number }
+export interface TimeEntry { rank: number; username: string; ms: number; at: string }
+export interface LapTracePoint { x: number; z: number; t: number }
 
 export interface AccountResult { ok: boolean; error?: string }
-export interface SubmitResult { ok: boolean; rank?: number }
+export interface SubmitResult { ok: boolean; rank?: number; error?: string }
 
 /* server rules (server/store.mjs) */
 const USERNAME_RE = /^[a-z0-9_]{3,16}$/;
 const PASSWORD_MIN = 8;
-const MS_MIN = 15000;
+const MS_MIN = 12000;
 const MS_MAX = 1800000;
 
 const OFFLINE_MSG = 'cannot reach the server';
@@ -95,16 +96,28 @@ export const account = {
     return { ok: true };
   },
 
-  /** Post a lap time. Silent no-op when signed out or out of range; the
-      board (`times`) refreshes from the POST response. */
-  async submitLap(ms: number): Promise<SubmitResult> {
-    if (!this.user) return { ok: false };
-    if (!Number.isInteger(ms) || ms < MS_MIN || ms > MS_MAX) return { ok: false };
+  /** Post a lap time with its on-road trace. Silent no-op when signed out or
+      out of range; the board (`times`) refreshes from the POST response. */
+  async submitLap(ms: number, trace: LapTracePoint[]): Promise<SubmitResult> {
+    if (!this.user) return { ok: false, error: 'sign in to save times' };
+    if (!Number.isInteger(ms) || ms < MS_MIN || ms > MS_MAX) {
+      return { ok: false, error: 'lap time out of range' };
+    }
+    if (!Array.isArray(trace) || trace.length < 10) {
+      return { ok: false, error: 'lap trace missing' };
+    }
     const name = this.user.username;
-    const r = await request<{ times?: TimeEntry[] }>('/api/times', 'POST', { ms });
+    const r = await request<{ times?: TimeEntry[]; error?: string }>(
+      '/api/times', 'POST', { ms, trace },
+    );
     if (!r.ok) {
       if (r.status === 401) this.user = null;   // session expired mid-race
-      return { ok: false };
+      return {
+        ok: false,
+        error: r.status === 400 && r.body?.error === 'invalid_lap'
+          ? 'lap did not pass the road check'
+          : 'lap not saved',
+      };
     }
     const times = r.body?.times ?? [];
     this.times = times;

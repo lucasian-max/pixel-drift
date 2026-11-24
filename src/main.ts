@@ -7,7 +7,8 @@ import { loadSheet, shadowPatch } from './stack';
 import type { StackDef } from './stack';
 import { Sound } from './sound';
 import { account } from './account';
-import { Net, createRoom, gridPoint } from './net';
+import type { LapTracePoint } from './account';
+import { Net, createRoom, gridPoint, makeRoomCode } from './net';
 
 const gameCanvas = document.getElementById('game') as HTMLCanvasElement;
 const uiCanvas = document.getElementById('ui') as HTMLCanvasElement;
@@ -209,7 +210,7 @@ async function boot() {
   car.onImpact = (s: number) => sound.impact(s);
   let running = false;
   let laps = 0;
-  let countdown = net.connected ? 3.6 : 0;
+  let countdown = 0;
   let finished = false;
 
 
@@ -217,6 +218,11 @@ async function boot() {
     if (running) return;
     running = true;
     sound.start();
+    if (roomParam) {
+      // the room owns the countdown; every client starts on the server's cue
+      countdown = net.connected ? 0 : 3.6;
+      net.startRace();
+    }
   };
 
   const gotoMap = (delta: number) => {
@@ -232,9 +238,8 @@ async function boot() {
     else if (a === 'next-map') gotoMap(1);
     else if (a === 'online') {
       void createRoom().then((code) => {
-        if (!code) return;
         const url = new URL(location.href);
-        url.searchParams.set('room', code);
+        url.searchParams.set('room', code ?? makeRoomCode());
         location.href = url.toString();
       });
     }
@@ -314,6 +319,27 @@ async function boot() {
   const bestKey = `sprite-drift:best:${mapId}`;
   let bestTime = Number(localStorage.getItem(bestKey) || 0) || 0;
 
+  /* ---- lap integrity -------------------------------------------------------
+     A lap is only submitted if it stays on the road. The trace is also sent to
+     the API, which re-checks the corridor, speed and lap coverage server-side. */
+  let offTime = 0;
+  let maxOff = 0;
+  let lapTrace: LapTracePoint[] = [];
+  let lastTrace: LapTracePoint[] = [];
+  let traceIn = 0;
+  let warning = '';
+  let warningUntil = 0;
+  const warn = (text: string, sec = 2.8) => {
+    warning = text;
+    warningUntil = performance.now() / 1000 + sec;
+  };
+  const resetTrace = () => {
+    offTime = 0;
+    maxOff = 0;
+    lapTrace = [];
+    traceIn = 0;
+  };
+
   let startIdx = 0;
   const nearestIndex = (x: number, z: number) => {
     let best = 0, bd = Infinity;
@@ -325,6 +351,43 @@ async function boot() {
   };
   startIdx = nearestIndex(world.start.x, world.start.z);
   prevU = ((nearestIndex(car.x, car.z) - startIdx + track.length) % track.length) / track.length;
+
+  const resetRaceLocal = (withCountdown = false) => {
+    if (roomParam) {
+      const p = gridPoint(world.start, mySlot);
+      car.place(p.x, p.z, world.start.heading);
+    } else {
+      car.reset(world);
+    }
+    world.clearSkid();
+    progress = 0;
+    lapTime = 0;
+    started = false;
+    laps = 0;
+    finished = false;
+    resetTrace();
+    warning = '';
+    warningUntil = 0;
+    countdown = withCountdown && net.connected ? 3.6 : 0;
+    nearest = nearestIndex(car.x, car.z);
+    prevU = ((nearest - startIdx + track.length) % track.length) / track.length;
+  };
+  net.onFinish = () => {
+    finished = true;
+    warning = '';
+  };
+  net.onRematch = () => resetRaceLocal(false);
+  net.onStart = (ms) => {
+    if (!running) {
+      running = true;
+      sound.start();
+    }
+    resetRaceLocal(false);
+    countdown = Math.max(0, ms / 1000);
+  };
+  const earlyStart = net.takeStart();
+  if (earlyStart !== null) net.onStart(earlyStart);
+  if (net.finished) net.onFinish?.();
 
   const autopilot = () => {
     const n = track.length;
@@ -385,9 +448,6 @@ async function boot() {
       controls.throttle = 0;
       controls.handbrake = true;
     }
-    if (net.connected && !finished && net.topLap >= 3) {
-      finished = true;   // someone crossed the line first: show the board to everyone
-    }
     if (finished) { controls.throttle = 0; }
     camYaw += input.look * dt * 1.8;
     if (input.zoom !== 0) {
@@ -405,46 +465,72 @@ async function boot() {
       }
       if (input.consumeKey('KeyC')) car.nextVariant();
       if (input.consumeReset()) {
-        if (roomParam) {
-          const p = gridPoint(world.start, mySlot);
-          car.place(p.x, p.z, world.start.heading);
-        } else {
-          car.reset(world);
-        }
-        world.clearSkid();
-        progress = 0; lapTime = 0; started = false; laps = 0; finished = false;
-        countdown = net.connected ? 3.6 : 0;
-        nearest = nearestIndex(car.x, car.z);
+        net.resetRace();
+        resetRaceLocal(false);
       }
     }
 
     const idx = nearestIndex(car.x, car.z);
-    {
-      const np = track[idx];
-      const d = Math.hypot(car.x - np.x, car.z - np.z);
-      car.onKerb = car.onRoad && d > 3.4;
-    }
+    const np = track[idx];
+    const trackDist = Math.hypot(car.x - np.x, car.z - np.z);
+    car.onKerb = car.onRoad && trackDist > world.roadHalf - 1.0;
     const u = ((idx - startIdx + track.length) % track.length) / track.length;
     const crossed = started && prevU > 0.8 && u < 0.2;
     prevU = u;
     nearest = idx;
-    if (!started && Math.hypot(car.x - world.start.x, car.z - world.start.z) > 5) started = true;
+    if (!started && Math.hypot(car.x - world.start.x, car.z - world.start.z) > 5) {
+      started = true;
+      resetTrace();
+      lapTrace.push({ x: car.x, z: car.z, t: 0 });
+    }
     if (started) lapTime += dt;
-    if (crossed) {
-      lapHistory.unshift(lapTime);
-      if (net.connected && laps >= 3) finished = true;
-      if (lapHistory.length > 5) lapHistory.length = 5;
-      if (lapTime > 8 && (bestTime === 0 || lapTime < bestTime)) {
-        bestTime = lapTime;
-        try { localStorage.setItem(bestKey, String(bestTime)); } catch { /* private mode */ }
+
+    // sample the lap for the server-side road check; time spent outside the
+    // kerb corridor is what makes a shortcut lap dirty
+    if (started && !finished && !input.paused) {
+      if (trackDist > world.roadHalf + 1.2) {
+        offTime += dt;
+        if (trackDist > maxOff) maxOff = trackDist;
       }
-      /* leaderboard: submit and let the store refresh the board from the response */
-      void account.submitLap(Math.round(lapTime * 1000)).then(() => account.refresh());
-      net.sendLap(Math.round(lapTime * 1000), laps + 1);
+      traceIn -= dt;
+      if (traceIn <= 0) {
+        traceIn = 0.2;
+        lapTrace.push({ x: +car.x.toFixed(2), z: +car.z.toFixed(2), t: Math.round(lapTime * 1000) });
+        if (lapTrace.length > 600) lapTrace.splice(1, 1);
+      }
+    }
+
+    if (crossed) {
+      const ms = Math.round(lapTime * 1000);
+      lapTrace.push({ x: car.x, z: car.z, t: ms });
+      const clean = offTime < 0.75
+        && maxOff < world.roadHalf + 2.0
+        && ms >= 12000
+        && lapTrace.length >= 10;
+      lastTrace = lapTrace.slice();
+      if (clean) {
+        lapHistory.unshift(lapTime);
+        if (lapHistory.length > 5) lapHistory.length = 5;
+        if (bestTime === 0 || lapTime < bestTime) {
+          bestTime = lapTime;
+          try { localStorage.setItem(bestKey, String(bestTime)); } catch { /* private mode */ }
+        }
+        const trace = lapTrace.slice();
+        void account.submitLap(ms, trace).then((r) => {
+          if (!account.user) warn('SIGN IN TO SAVE LAPS', 2.2);
+          else if (!r.ok) warn(r.error ?? 'LAP NOT SAVED');
+        });
+        net.sendLap(ms, laps + 1, true);
+        laps++;
+        console.log(`lap ${laps} ${(ms / 1000).toFixed(2)}s`);
+      } else {
+        net.sendLap(ms, laps + 1, false);
+        warn('LAP NOT COUNTED — OFF TRACK');
+        console.log(`dirty lap: off=${offTime.toFixed(2)}s max=${maxOff.toFixed(1)}`);
+      }
       lapTime = 0;
       progress -= 1;
-      laps++;
-      console.log(`lap ${laps} ${lapTime.toFixed(2)}s`);
+      resetTrace();
     }
     // Send a pose even on the title screen: a lobby player parks on the grid
     // instead of showing up as a ghost at the world origin.
@@ -511,17 +597,25 @@ async function boot() {
     carShadow.instanceMatrix.needsUpdate = true;
 
     renderer.render(scene, camera);
+    const ownBest = net.connected
+      ? (net.myBest || Math.round(bestTime * 1000))
+      : Math.round(bestTime * 1000);
     ui.draw({
       car, lapTime: started ? lapTime : 0, bestTime, started: running,
-      paused: input.paused, throttle: controls.throttle, laps,
+      paused: input.paused, throttle: controls.throttle,
+      laps: net.connected ? net.myLap : laps,
       maps: MAPS.filter((m) => m.id === 'coast').map((m) => ({ id: m.id, name: m.name })),
       lapHistory: [...lapHistory],
       results: net.connected ? [
-        ...(bestTime ? [{ name: account.user?.username?.toUpperCase() ?? 'YOU', best: bestTime * 1000 }] : []),
+        ...(ownBest ? [{ name: account.user?.username?.toUpperCase() ?? 'YOU', best: ownBest }] : []),
         ...net.peerLaps().map((p) => ({ name: net.nameOf(p.id), best: p.best })),
       ].sort((a, b) => a.best - b.best) : undefined,
       countdown,
       finished,
+      lapsToFinish: net.lapsToFinish,
+      winner: net.winner?.name,
+      warning: warning && now < warningUntil ? warning : undefined,
+      offTrack: started && !finished && trackDist > world.roadHalf + 1.2,
       mapIndex,
       mapName: MAPS[mapIndex]?.name,
       account,
@@ -535,7 +629,17 @@ async function boot() {
   };
   frame();
 
-  (window as unknown as { game: unknown }).game = { car, world, camera, renderer, scene, net };
+  (window as unknown as { game: unknown }).game = {
+    car, world, camera, renderer, scene, net, account, ui,
+    get laps() { return laps; },
+    get lapTime() { return lapTime; },
+    get started() { return started; },
+    get trace() { return lapTrace; },
+    get lastTrace() { return lastTrace; },
+    get offTime() { return offTime; },
+    get warning() { return warning; },
+    get finished() { return finished; },
+  };
 }
 
 boot().catch((e) => {

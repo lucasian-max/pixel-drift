@@ -46,6 +46,12 @@ export interface UiState {
   countdown?: number;
   finished?: boolean;
   results?: { name: string; best: number }[];
+  lapsToFinish?: number;
+  winner?: string;
+  /** transient red notice, e.g. "LAP NOT COUNTED — OFF TRACK" */
+  warning?: string;
+  /** currently outside the clean corridor */
+  offTrack?: boolean;
   /** force the NEW BEST banner for a couple of seconds (also auto-detected) */
   bestFlash?: boolean;
   account?: AccountView;
@@ -256,6 +262,10 @@ export class PixelUI {
       this.text(label, this.w / 2, 12, { size: 8, color: state.connected ? CREAM : ACCENT, align: 'center' });
     }
     if (state.toast) this.drawToast(state.toast, 58);
+    if (state.warning) this.drawToast(state.warning, 78);
+    else if (state.offTrack && (time * 2) % 1 < 0.7) {
+      this.drawToast("OFF TRACK — LAP WON'T COUNT", 78);
+    }
 
     /* ---- NEW BEST banner ---- */
     if (time < this.bestUntil) {
@@ -337,16 +347,32 @@ export class PixelUI {
       }
     }
     if (state.finished) {
-      c.fillStyle = 'rgba(8,11,10,0.6)';
+      c.fillStyle = 'rgba(8,11,10,0.82)';
       c.fillRect(0, 0, this.w, this.h);
-      this.text('RACE COMPLETE', this.w / 2, this.h / 2 - 26, { size: 24, weight: 700, align: 'center' });
-      this.text(`BEST OF 3   ${fmt(state.bestTime)}`, this.w / 2, this.h / 2 + 8, { size: 8, color: CREAM, align: 'center' });
-      (state.results ?? []).slice(0, 5).forEach((r, i) => {
-        this.text(`${i + 1}  ${r.name.slice(0, 8)}  ${fmt(r.best)}`, this.w / 2, this.h / 2 + 24 + i * 11, {
+      const rows = (state.results ?? []).slice(0, 5);
+      const pw = 280;
+      const ph = 82 + rows.length * 11;
+      const px0 = Math.round(this.w / 2 - pw / 2);
+      const py0 = Math.round(this.h / 2 - ph / 2);
+      pxRect(c, px0, py0, pw, ph, 'rgba(14,17,20,0.96)');
+      pxBorder(c, px0, py0, pw, ph, 'rgba(242,238,225,0.4)');
+      this.text('RACE COMPLETE', this.w / 2, py0 + 8, { size: 24, weight: 700, align: 'center' });
+      this.text(
+        state.winner ? `${state.winner.toUpperCase()} WINS` : 'BEST OF 3',
+        this.w / 2, py0 + 38,
+        { size: 8, weight: 700, color: ACCENT, align: 'center', spacing: 1 },
+      );
+      this.text(
+        `FIRST TO ${state.lapsToFinish ?? 3} LAPS   BEST ${fmtMs(rows[0]?.best ?? 0)}`,
+        this.w / 2, py0 + 50,
+        { size: 8, color: CREAM, align: 'center' },
+      );
+      rows.forEach((r, i) => {
+        this.text(`${i + 1}  ${r.name.slice(0, 8)}  ${fmtMs(r.best)}`, this.w / 2, py0 + 64 + i * 11, {
           size: 8, color: DIM, align: 'center',
         });
       });
-      this.text('R TO RACE AGAIN', this.w / 2, this.h / 2 + 24 + Math.max(1, (state.results ?? []).length) * 11 + 6, { size: 8, color: DIM, align: 'center' });
+      this.text('R TO RACE AGAIN', this.w / 2, py0 + ph - 14, { size: 8, color: DIM, align: 'center' });
     }
 
     if (state.paused) {
@@ -546,7 +572,7 @@ export class PixelUI {
         this.font(8);
         const timeW = Math.ceil(c.measureText('00:00.00').width);
         const nameMax = 168 - 18 - timeW;
-        const n = Math.min(5, acct.times.length);
+        const n = Math.min(10, acct.times.length);
         for (let i = 0; i < n; i++) {
           const t = acct.times[i];
           const y = 66 + i * 12;

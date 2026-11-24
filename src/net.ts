@@ -14,11 +14,13 @@ export interface GridStart { x: number; z: number; heading: number }
 interface NetState {
   id: string; name: string; slot: number; place: number;
   x: number; z: number; h: number; sp: number; u: number; lap: number;
+  best?: number;
 }
 
 interface Remote {
   group: THREE.Group;
   laps: number[];
+  best: number;
   target: THREE.Vector3;
   targetHeading: number;
   heading: number;
@@ -75,6 +77,14 @@ export async function createRoom(): Promise<string | null> {
   }
 }
 
+/** Same alphabet the server accepts; used if the HTTP create call is down. */
+export function makeRoomCode(): string {
+  const alphabet = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+  let code = '';
+  for (let i = 0; i < 4; i++) code += alphabet[(Math.random() * alphabet.length) | 0];
+  return code;
+}
+
 export class Net {
   room = '';
   id = '';
@@ -83,10 +93,19 @@ export class Net {
   place = 0;
   best: { name: string; ms: number } | null = null;
   topLap = 0;   // highest lap count anyone in the room has reached
+  finished = false;
+  winner: { id: string; name: string; ms: number } | null = null;
+  lapsToFinish = 3;
+  myBest = 0;
+  myLap = 0;
   /** transient "ACE JOINED" text; draw while `performance.now()/1000 < noticeUntil` */
   notice = '';
   noticeUntil = 0;
   onWelcome?: (slot: number) => void;
+  onFinish?: () => void;
+  onRematch?: () => void;
+  onStart?: (ms: number) => void;
+  private pendingStart: number | null = null;
 
   private ws: WebSocket | null = null;
   private scene: THREE.Scene | null = null;
@@ -101,8 +120,8 @@ export class Net {
   /** best lap per other racer, for the shared results board */
   peerLaps(): { id: string; best: number }[] {
     return [...this.remotes.entries()]
-      .filter(([, r]) => r && r.laps.length > 0)
-      .map(([id, r]) => ({ id, best: Math.min(...r!.laps) }));
+      .map(([id, r]) => ({ id, best: r.best || (r.laps.length ? Math.min(...r.laps) : 0) }))
+      .filter((r) => r.best > 0);
   }
 
   /** world positions of every other racer (for local car-vs-car collision) */
@@ -115,6 +134,7 @@ export class Net {
   private sendIn = 0;
   private retry: ReturnType<typeof setTimeout> | null = null;
   private closed = true;
+  private wantStart = false;
 
   connect(room: string, scene: THREE.Scene, start: GridStart) {
     this.room = room.toUpperCase();
@@ -135,6 +155,7 @@ export class Net {
     ws.onopen = () => {
       this.connected = true;
       this.sendIn = 0;
+      if (this.wantStart) this.sendStart();
     };
     ws.onmessage = (ev) => {
       let msg: { t?: string } & Record<string, unknown>;
@@ -146,6 +167,10 @@ export class Net {
       this.id = '';
       this.count = 0;
       this.place = 0;
+      this.finished = false;
+      this.winner = null;
+      this.myBest = 0;
+      this.myLap = 0;
       this.notice = '';
       this.known.clear();
       this.clearRemotes();
@@ -167,7 +192,11 @@ export class Net {
     if (msg.t === 'welcome') {
       this.id = typeof msg.id === 'string' ? msg.id : '';
       this.count = Number(msg.count) || 1;
+      this.myLap = 0;
       this.best = (msg.best as { name: string; ms: number } | null) ?? null;
+      this.winner = (msg.winner as { id: string; name: string; ms: number } | null) ?? null;
+      this.setFinished(Boolean(msg.finished));
+      this.lapsToFinish = Number(msg.laps) || 3;
       // seed the roster so the first states frame does not announce everyone
       this.known.clear();
       const listed = Array.isArray(msg.racers) ? (msg.racers as NetState[]) : [];
@@ -177,6 +206,12 @@ export class Net {
         }
       }
       this.onWelcome?.(Number(msg.slot) || 0);
+      this.wantStart = false;
+      const startIn = Number(msg.startIn) || 0;
+      if (!this.finished) {
+        if (startIn > 0) this.emitStart(startIn);
+        else if (msg.racing) this.emitStart(0);
+      }
       return;
     }
     if (msg.t === 'states') {
@@ -184,12 +219,17 @@ export class Net {
       this.count = Number(msg.count) || list.length;
       this.topLap = list.reduce((m, r) => Math.max(m, Math.round(Number(r.lap) || 0)), 0);
       this.best = (msg.best as { name: string; ms: number } | null) ?? null;
+      this.lapsToFinish = Number(msg.laps) || this.lapsToFinish;
+      if (msg.winner) this.winner = msg.winner as { id: string; name: string; ms: number };
+      this.setFinished(Boolean(msg.finished));
       const seen = new Set<string>();
       for (const r of list) {
         if (!r || typeof r.id !== 'string' || !Number.isFinite(r.x) || !Number.isFinite(r.z)) continue;
         seen.add(r.id);
         if (r.id === this.id) {
           this.place = Number(r.place) || 0;
+          this.myBest = Number(r.best) || 0;
+          this.myLap = Number(r.lap) || 0;
           continue;
         }
         const name = String(r.name || 'RACER');
@@ -217,10 +257,65 @@ export class Net {
       return;
     }
     if (msg.t === 'lap') {
-      const peer = this.remotes.get(String(msg.id));
-      if (peer && typeof msg.ms === 'number') peer.laps.push(msg.ms);
+      const id = String(msg.id);
+      const peer = this.remotes.get(id);
+      const name = this.known.get(id) ?? (typeof msg.name === 'string' ? msg.name : 'RACER');
+      const ms = Number(msg.ms);
+      if (id === this.id) this.myLap = Number(msg.lap) || this.myLap;
+      if (msg.valid !== false) {
+        if (peer && Number.isFinite(ms)) {
+          peer.laps.push(ms);
+          const best = Number(msg.bestLap) || ms;
+          if (!peer.best || best < peer.best) peer.best = best;
+        }
+      } else {
+        const reason = typeof msg.reason === 'string' ? msg.reason : 'invalid';
+        if (reason === 'off_track') this.announce(`${name} LAP VOID — OFF TRACK`);
+        else if (reason !== 'lap_order') this.announce(`${name} LAP VOID`);
+      }
       this.best = (msg.best as { name: string; ms: number } | null) ?? null;
+      return;
     }
+    if (msg.t === 'start') {
+      this.wantStart = false;
+      this.emitStart(Number(msg.ms) || 0);
+      return;
+    }
+    if (msg.t === 'finish') {
+      this.winner = (msg.winner as { id: string; name: string; ms: number } | null) ?? null;
+      this.lapsToFinish = Number(msg.laps) || this.lapsToFinish;
+      this.setFinished(true);
+      return;
+    }
+    if (msg.t === 'rematch') {
+      this.lapsToFinish = Number(msg.laps) || this.lapsToFinish;
+      this.winner = null;
+      this.myBest = 0;
+      this.myLap = 0;
+      this.wantStart = false;
+      for (const r of this.remotes.values()) { r.laps.length = 0; r.best = 0; }
+      this.finished = false;
+      this.onRematch?.();
+      return;
+    }
+  }
+
+  private setFinished(v: boolean) {
+    if (v === this.finished) return;
+    this.finished = v;
+    if (v) this.onFinish?.();
+  }
+
+  private emitStart(ms: number) {
+    if (this.onStart) this.onStart(ms);
+    else this.pendingStart = ms;
+  }
+
+  /** A start that arrived before the game hooked its callback. */
+  takeStart(): number | null {
+    const ms = this.pendingStart;
+    this.pendingStart = null;
+    return ms;
   }
 
   private upsert(s: NetState) {
@@ -239,6 +334,7 @@ export class Net {
         targetHeading: s.h,
         heading: s.h,
         laps: [],
+        best: 0,
       };
       group.position.copy(r.target);
       group.rotation.y = s.h;
@@ -247,6 +343,7 @@ export class Net {
     if (!r) return;
     r.target.set(s.x, 0, s.z);
     r.targetHeading = s.h;
+    if (Number.isFinite(s.best) && Number(s.best) > 0) r.best = Number(s.best);
   }
 
   private remove(id: string) {
@@ -265,9 +362,28 @@ export class Net {
     for (const id of [...this.remotes.keys()]) this.remove(id);
   }
 
-  sendLap(ms: number, lap: number) {
+  /** Ask the room to start the synchronized countdown. */
+  startRace() {
+    this.wantStart = true;
+    this.sendStart();
+  }
+
+  private sendStart() {
     if (!this.connected || !this.ws) return;
-    try { this.ws.send(JSON.stringify({ t: 'lap', ms, lap })); } catch { /* dropped */ }
+    try { this.ws.send(JSON.stringify({ t: 'start' })); } catch { /* dropped */ }
+  }
+
+  sendLap(ms: number, lap: number, clean: boolean) {
+    if (!this.connected || !this.ws) return;
+    try {
+      this.ws.send(JSON.stringify({ t: 'lap', ms, lap, clean }));
+    } catch { /* dropped */ }
+  }
+
+  /** Ask the server to restart the room (or just this car before a finish). */
+  resetRace() {
+    if (!this.connected || !this.ws) return;
+    try { this.ws.send(JSON.stringify({ t: 'reset' })); } catch { /* dropped */ }
   }
 
   /** Call every frame. `self` is null on the title screen (lobby only). */
@@ -297,11 +413,16 @@ export class Net {
 
   disconnect() {
     this.closed = true;
+    this.wantStart = false;
     if (this.retry) { clearTimeout(this.retry); this.retry = null; }
     this.connected = false;
     this.id = '';
     this.count = 0;
     this.place = 0;
+    this.finished = false;
+    this.winner = null;
+    this.myBest = 0;
+    this.myLap = 0;
     this.notice = '';
     this.known.clear();
     this.clearRemotes();

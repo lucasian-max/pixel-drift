@@ -16,6 +16,7 @@ export interface World {
   group: THREE.Group;
   name: string;
   mapId: string;
+  roadHalf: number;
   update(): void;
   colliders: Collider[];
   roadAt(x: number, z: number): boolean;
@@ -780,6 +781,7 @@ export async function buildWorld(scene: THREE.Scene, mapId?: string): Promise<Wo
 
   return {
     group, colliders, roadAt, kerbAt, nearbyRoad, start, addSkid, clearSkid,
+    roadHalf: ROAD_HALF,
     name: map.name,
     mapId: map.id,
     minimapPath: track.filter((_, i) => i % 2 === 0),

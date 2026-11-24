@@ -24,13 +24,24 @@ npm run dev      # http://127.0.0.1:5180
 
 ## Race online
 
-Pick **RACE ONLINE** on the title screen to make a room. The four-character
-code is in the URL (`?room=WUAP`) and on the title, so sending the link is
-joining the room. Up to eight racers share the circuit; each car is simulated
-locally and broadcast at 20 Hz, with server-side lap sanity checks.
+Pick **ONLINE** on the title screen to make a room. The four-character code is
+in the URL (`?room=WUAP`) and on the title, so sending the link is joining the
+room. Up to eight racers share the circuit; the server runs a synchronized
+3-2-1 start, owns the lap count, and ends the race for everyone when the first
+racer finishes three clean laps. Press **R** together for a rematch.
 
-The API and WebSocket live at `api.lucasian.tech`; see
-[`docs/multiplayer.md`](docs/multiplayer.md) and [`server/README.md`](server/README.md).
+## Accounts and leaderboard
+
+Sign in on the title to post lap times. The board is the best clean lap per
+player, top 10. Every submission carries a 5 Hz position trace; the API rejects
+laps that leave the road, cut the infield, teleport, or cover the circuit
+impossibly fast. A dirty lap never reaches the board and does not count in a
+room.
+
+The API and WebSocket run as a local user service on `127.0.0.1:8790` (Vite
+proxies `/api` to it). Use `SPRITE_API=http://host:port` to point a dev server
+elsewhere. See [`docs/multiplayer.md`](docs/multiplayer.md) and
+[`server/README.md`](server/README.md).
 
 ## Four circuits
 

@@ -1,8 +1,8 @@
 import { defineConfig } from 'vite';
 
-// `SPRITE_API` lets a second dev server point at a local API instance while the
-// live one keeps talking to the deployed host.
-const apiTarget = process.env.SPRITE_API || 'https://api.lucasian.tech';
+// `SPRITE_API` can point a dev server at another API instance; by default the
+// API runs on this machine as the sprite-drift-api user service.
+const apiTarget = process.env.SPRITE_API || 'http://127.0.0.1:8790';
 
 export default defineConfig({
   server: {

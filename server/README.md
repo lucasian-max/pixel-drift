@@ -17,25 +17,30 @@ WebSocket upgrade — no framework.
 node server/api.mjs        # or: npm run api
 ```
 
-`ws` is already in the project's dev dependencies. On a deploy host, create a
-`package.json` with `{ "type": "module", "dependencies": { "ws": "^8.23.0" } }`
-next to `server/` and run `npm install --omit=dev` once.
+The live setup runs it as the `sprite-drift-api` systemd user service on this
+machine; `sprite-drift-web` runs Vite on 5180. Both are enabled and linger is
+on, so they survive a session logout.
+
+`ws` is in the project's dev dependencies. If you deploy the API elsewhere,
+create a `package.json` with
+`{ "type": "module", "dependencies": { "ws": "^8.23.0" } }` next to `server/`
+and run `npm install --omit=dev` once.
 
 The server does not touch the Vite dev server; start/stop them independently.
 It flushes pending writes and exits cleanly on SIGINT/SIGTERM.
 
 ## Wire it into Vite
 
-`vite.config.ts` already proxies `/api` to the deployed API and forwards the
-WebSocket upgrade:
+`vite.config.ts` proxies `/api` to the local API and forwards the WebSocket
+upgrade:
 
 ```ts
 // vite.config.ts
-proxy: { '/api': { target: 'https://api.lucasian.tech', changeOrigin: true, secure: true, ws: true } },
+proxy: { '/api': { target: 'http://127.0.0.1:8790', changeOrigin: true, ws: true } },
 ```
 
-For a local API, start a second dev server with
-`SPRITE_API=http://127.0.0.1:8790 npx vite --port 5182`.
+Point a dev server at another host with
+`SPRITE_API=https://api.example.com npx vite --port 5182`.
 
 With this in place, pages on `https://drift.lucasian.tech` can call
 `fetch('/api/...')` and `new WebSocket('/api/ws')` same-origin, so no CORS
@@ -50,30 +55,57 @@ handling is needed anywhere.
 | POST   | `/api/logout` | —      | —                         | `204`, clears the session cookie |
 | GET    | `/api/me`     | cookie | —                         | `200 {user:{id,username}}` or `401` |
 | GET    | `/api/times`  | —      | —                         | `200 {times:[{rank,username,ms,at}]}` top 10, ascending |
-| POST   | `/api/times`  | cookie | `{ms}` (`map` optional, default `"coast"`) | `200 {times}` after upsert, `401`, `400` ms out of range |
+| POST   | `/api/times`  | cookie | `{ms, trace:[{x,z,t}]}` (`map` optional, default `"coast"`) | `200 {times}` after upsert, `400 invalid_lap`, `401`, `400 invalid_ms` |
 | POST   | `/api/rooms`  | —      | —                         | `200 {room, players}`, `429` too many rooms |
-| GET    | `/api/ws?room=CODE` | cookie | —                  | WebSocket upgrade; `404` unknown code, `4005` room full |
+| GET    | `/api/ws?room=CODE` | cookie | —                  | WebSocket upgrade; any valid code creates a room; `4005` room full |
 
 ## Rooms
 
-`POST /api/rooms` returns a four-character code (alphabet excludes `I/O/0/1`).
-Clients join `GET /api/ws?room=CODE`; the socket is a plain JSON protocol:
+`POST /api/rooms` returns a four-character code (alphabet excludes `I/O/0/1`),
+but any valid code also creates a room on first join, so a shared URL is enough.
 
-- client → server: `{t:'state',x,z,h,sp,u,lap}` at 20 Hz, `{t:'lap',ms,lap}`.
-- server → client: `welcome`, `states` (20 Hz, up to 8 racers), `lap`, `left`.
+Client → server:
 
-The server owns slots, places, and best lap in the room. A lap counts only when
-the client's reported progress added up to at least 0.85 of the circuit, the
-clock is between 8.5 s and 10 min, and the lap number is sequential. See
-[`docs/multiplayer.md`](../docs/multiplayer.md) for the full protocol.
+- `{t:'state',x,z,h,sp,u,lap}` at 20 Hz. The server **ignores `lap` and `u`**;
+  progress comes from its own centreline lookup against `x,z`, and only a
+  validated `lap` event advances the race.
+- `{t:'lap',ms,lap}` on crossing.
+- `{t:'start'}` starts the synchronized 3.6 s countdown for everyone.
+- `{t:'reset'}` restarts this car, or the whole room after a finish.
 
-Rooms are in memory and expire two hours after going empty. No room state is
-written to `db.json`.
+Server → client: `welcome`, `states` (20 Hz, up to 8 racers, includes
+`best`/`finished`/`winner`), `start`, `lap` (with `valid`, `reason`,
+`bestLap`), `finish`, `rematch`, `left`.
+
+A room race is first to three laps. The server finishes the race for everyone
+when the first valid lap count reaches three, then broadcasts the standings.
+`reset` after a finish starts a rematch for the room.
+
+## Anti-cheat
+
+- **Corridor:** every 20 Hz pose is checked against the coast centreline. More
+  than 0.9 s outside the road + kerb corridor voids the lap.
+- **Teleports:** a pose that jumps more than 12 units at an impossible speed
+  voids the lap.
+- **Authoritative laps:** the client's `lap` field is ignored; only validated
+  `lap` events move the counter, so a modified client cannot declare itself
+  finished.
+- **Global board:** `POST /api/times` requires a 5 Hz trace. The server checks
+  the corridor, speed, lap coverage, monotonic time and `ms`; a missing or
+  grass-cutting trace is `400 invalid_lap`.
+- **Client:** the game also tracks off-road time and the furthest point from
+  the road, refuses to submit dirty laps, and shows `OFF TRACK` / `LAP NOT
+  COUNTED` feedback.
+
+This stops normal shortcuts and modified-client lap declarations. A determined
+attacker can still fabricate an on-road trace through the HTTP API; making that
+impossible needs cryptographic sampling or server-side simulation.
 
 Notes:
 
 - All `/api` responses send `Cache-Control: no-store`.
-- JSON request bodies are capped at 4KB (`413` beyond that).
+- JSON request bodies are capped at 32KB (`413` beyond that); lap traces need
+  the headroom.
 - Signup/login are rate limited: 10 attempts per IP per 60s, then `429`.
   The server prefers `X-Forwarded-For` when present (safe because it only
   binds to localhost); if you later enable Vite's `xfwd` proxy option, the
@@ -128,5 +160,15 @@ journalctl --user -u sprite-drift-api.service -f          # tail logs
 ```
 
 The unit runs `node server/api.mjs` from the repo directory and restarts
-automatically (`Restart=always`) if it ever dies. Nothing is enabled or
-started by this repo itself — that is up to you.
+automatically (`Restart=always`) if it ever dies.
+
+The web server is the matching `deploy/sprite-drift-web.service`:
+
+```sh
+ln -sf /home/lucasian/Work/sprite-drift/deploy/sprite-drift-web.service ~/.config/systemd/user/sprite-drift-web.service
+systemctl --user daemon-reload
+systemctl --user enable --now sprite-drift-web.service
+```
+
+With `loginctl enable-linger "$USER"` both services survive a session logout.
+The Cloudflare tunnel maps `drift.lucasian.tech` to Vite on `127.0.0.1:5180`.

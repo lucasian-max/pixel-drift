@@ -1,0 +1,13 @@
+[Unit]
+Description=Sprite Drift web (Vite dev server on 5180)
+After=network.target sprite-drift-api.service
+
+[Service]
+Type=simple
+WorkingDirectory=/home/lucasian/Work/sprite-drift
+ExecStart=/home/lucasian/.local/share/mise/installs/node/latest/bin/npm run dev
+Restart=always
+RestartSec=2
+
+[Install]
+WantedBy=default.target

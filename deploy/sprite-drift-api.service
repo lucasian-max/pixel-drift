@@ -1,10 +1,10 @@
 [Unit]
-Description=Sprite Drift API (accounts + leaderboard, node:http)
+Description=Sprite Drift API (accounts, leaderboard and rooms)
 After=network.target
 
 [Service]
 Type=simple
-ExecStart=/usr/bin/env node /home/lucasian/Work/sprite-drift/server/api.mjs
+ExecStart=/home/lucasian/.local/share/mise/installs/node/latest/bin/node /home/lucasian/Work/sprite-drift/server/api.mjs
 WorkingDirectory=/home/lucasian/Work/sprite-drift
 Restart=always
 RestartSec=1
