@@ -57,6 +57,8 @@ export interface UiState {
   adminConfirm?: boolean;
   /** transient red notice, e.g. "LAP NOT COUNTED — OFF TRACK" */
   warning?: string;
+  /** transient cream confirmation, e.g. "LAP SAVED · RANK 2" */
+  notice?: string;
   /** currently outside the clean corridor */
   offTrack?: boolean;
   /** force the NEW BEST banner for a couple of seconds (also auto-detected) */
@@ -313,6 +315,8 @@ export class PixelUI {
     if (state.warning) this.drawToast(state.warning, 58);
     else if (state.offTrack && (time * 2) % 1 < 0.7) {
       this.drawToast('OFF TRACK', 58);
+    } else if (state.notice) {
+      this.drawNotice(state.notice, 58);
     }
 
     /* ---- NEW BEST banner ---- */
@@ -555,6 +559,17 @@ export class PixelUI {
       this.buttons.push(b);
     }
     if (state.powerInfo) this.drawPowerInfo(state);
+  }
+
+  /** success confirmation: dark on cream, centred */
+  private drawNotice(text: string, y: number) {
+    const c = this.ctx;
+    this.font(8, 700);
+    const w = Math.ceil(c.measureText(text).width) + 22;
+    const x = Math.round(this.w / 2 - w / 2);
+    pxRect(c, x, y, w, 16, CREAM);
+    pxBorder(c, x, y, w, 16, INK);
+    this.text(text, this.w / 2, y + 4, { size: 8, weight: 700, color: INK, align: 'center' });
   }
 
   /** transient warning: cream on red, centred */

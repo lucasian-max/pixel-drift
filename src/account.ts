@@ -8,13 +8,13 @@ export interface TimeEntry { rank: number; username: string; ms: number; at: str
 export interface LapTracePoint { x: number; z: number; t: number }
 
 export interface AccountResult { ok: boolean; error?: string }
-export interface SubmitResult { ok: boolean; rank?: number; error?: string }
+export interface SubmitResult { ok: boolean; rank?: number; improved?: boolean; error?: string }
 export interface AdminResult { ok: boolean; removed?: number; error?: string }
 
 /* server rules (server/store.mjs) */
 const USERNAME_RE = /^[a-z0-9_]{3,16}$/;
 const PASSWORD_MIN = 8;
-const MS_MIN = 12000;
+const MS_MIN = 1000;   // trusted times; the server allows any real lap
 const MS_MAX = 1800000;
 
 const OFFLINE_MSG = 'cannot reach the server';
@@ -135,6 +135,7 @@ export const account = {
     }
     const lapMap = map ?? this.map;
     const name = this.user.username;
+    const previousBest = this.times.find((t) => t.username === name)?.ms;
     const r = await request<{ times?: TimeEntry[]; error?: string }>(
       '/api/times', 'POST', { ms, trace, map: lapMap },
     );
@@ -146,7 +147,7 @@ export const account = {
     this.map = lapMap;
     this.times = times;
     const mine = times.find((t) => t.username === name && t.ms === ms);
-    return { ok: true, rank: mine?.rank };
+    return { ok: true, rank: mine?.rank, improved: previousBest === undefined || ms < previousBest };
   },
 };
 

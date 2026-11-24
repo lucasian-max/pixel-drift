@@ -423,6 +423,15 @@ async function boot() {
   const input = new Input();
   if (params.has('skip') || params.has('demo')) begin();
 
+  // keep the title board fresh (and recover from a transient API restart)
+  const refreshBoard = () => {
+    if (!running && !loginForm.isOpen()) void account.refresh(mapId);
+  };
+  addEventListener('focus', refreshBoard);
+  document.addEventListener('visibilitychange', () => {
+    if (!document.hidden) refreshBoard();
+  });
+
   addEventListener('pointerdown', (e) => {
     if (running || loginForm.isOpen()) return;
     const hit = ui.hit(e.clientX, e.clientY);
@@ -514,9 +523,15 @@ async function boot() {
   let traceIn = 0;
   let warning = '';
   let warningUntil = 0;
+  let notice = '';
+  let noticeUntil = 0;
   const warn = (text: string, sec = 2.8) => {
     warning = text;
     warningUntil = performance.now() / 1000 + sec;
+  };
+  const note = (text: string, sec = 2.6) => {
+    notice = text;
+    noticeUntil = performance.now() / 1000 + sec;
   };
   const resetTrace = () => {
     lapTrace = [];
@@ -557,6 +572,8 @@ async function boot() {
     resetTrace();
     warning = '';
     warningUntil = 0;
+    notice = '';
+    noticeUntil = 0;
     nearest = nearestIndex(car.x, car.z);
     prevU = ((nearest - startIdx + track.length) % track.length) / track.length;
   };
@@ -709,6 +726,9 @@ async function boot() {
       void account.submitLap(ms, trace, mapId).then((r) => {
         if (!account.user) warn('SIGN IN TO SAVE LAPS', 2.2);
         else if (!r.ok) warn(r.error ?? 'LAP NOT SAVED');
+        else if (r.rank) note(`LAP SAVED · RANK ${r.rank}`);
+        else if (r.improved) note('LAP SAVED');
+        else note('LAP SAVED · BEST KEPT');
       });
       laps++;
       console.log(`lap ${laps} ${(ms / 1000).toFixed(2)}s`);
@@ -784,6 +804,7 @@ async function boot() {
       },
       lapHistory: [...lapHistory],
       warning: warning && now < warningUntil ? warning : undefined,
+      notice: notice && now < noticeUntil ? notice : undefined,
       offTrack: started && trackDist > world.roadHalf + 1.2,
       mapIndex,
       mapName: MAPS[mapIndex]?.name,
