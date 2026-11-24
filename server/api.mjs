@@ -17,6 +17,7 @@ import {
   SESSION_TTL_MS,
   DEFAULT_MAP,
 } from './store.mjs';
+import { validateLap, mapNames } from './anticheat.mjs';
 
 const HOST = '127.0.0.1';
 const PORT = 8790;
@@ -32,6 +33,7 @@ const KNOWN_PATHS = new Set([
   '/api/times',
   '/api/admin/delete-time',
   '/api/admin/clear-map',
+  '/api/admin/stats',
 ]);
 
 const here = path.dirname(fileURLToPath(import.meta.url));
@@ -156,9 +158,22 @@ async function handle(req, res, pathname) {
     if (!user) return send(res, 401, { error: 'unauthorized' });
     const body = await readJsonBody(req);
     const map = typeof body.map === 'string' ? body.map : DEFAULT_MAP;
-    // Times are trusted as submitted. The trace is still accepted and stored by
-    // the client for replays, but it is not used to reject a lap.
-    return send(res, 200, { times: store.submitTime(user, body.ms, map) });
+    // Validate the submitted lap against the circuit before it reaches the
+    // board. Shortcuts, teleports and missing/edited traces are rejected.
+    const verdict = validateLap(map, body.ms, body.trace);
+    if (!verdict.ok) {
+      return send(res, 422, { error: 'invalid_trace', reason: verdict.reason });
+    }
+    return send(res, 200, {
+      times: store.submitTime(user, body.ms, map, body.trace, verdict.summary),
+    });
+  }
+
+  if (pathname === '/api/admin/stats') {
+    if (req.method !== 'GET') return send(res, 405, { error: 'method_not_allowed' });
+    if (!user) return send(res, 401, { error: 'unauthorized' });
+    if (!store.isAdmin(user)) return send(res, 403, { error: 'forbidden' });
+    return send(res, 200, store.stats(mapNames()));
   }
 
   if (pathname.startsWith('/api/admin/')) {

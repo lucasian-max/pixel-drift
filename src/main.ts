@@ -398,6 +398,9 @@ async function boot() {
       adminPanel = false;
       adminConfirmUntil = 0;
     }
+    else if (a === 'admin-dashboard') {
+      window.open('/dashboard.html', '_blank', 'noopener');
+    }
     else if (a === 'admin-clear') {
       const now = performance.now() / 1000;
       if (now < adminConfirmUntil) {

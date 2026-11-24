@@ -101,7 +101,7 @@ function pxBorder(c: CanvasRenderingContext2D, x: number, y: number, w: number, 
 /** every clickable thing on the canvas */
 export type HitId = 'prev-map' | 'next-map' | 'prev-car' | 'next-car' | 'solo' | 'login' | 'logout'
   | 'power-info' | 'garage' | 'garage-back'
-  | 'admin' | 'admin-close' | 'admin-clear' | `admin-del-${number}`;
+  | 'admin' | 'admin-close' | 'admin-clear' | 'admin-dashboard' | `admin-del-${number}`;
 
 interface Button { id: HitId; x: number; y: number; w: number; h: number; label: string }
 
@@ -127,7 +127,8 @@ export class PixelUI {
   private bLogin: Button = { id: 'login', x: 0, y: 0, w: 72, h: 14, label: 'SIGN IN' };
   private bLogout: Button = { id: 'logout', x: 0, y: 0, w: 72, h: 14, label: 'SIGN OUT' };
   private bAdmin: Button = { id: 'admin', x: 0, y: 0, w: 62, h: 14, label: 'ADMIN' };
-  private bAdminClear: Button = { id: 'admin-clear', x: 0, y: 0, w: 120, h: 16, label: 'CLEAR BOARD' };
+  private bAdminClear: Button = { id: 'admin-clear', x: 0, y: 0, w: 104, h: 16, label: 'CLEAR BOARD' };
+  private bAdminDash: Button = { id: 'admin-dashboard', x: 0, y: 0, w: 104, h: 16, label: 'DASHBOARD' };
   private bAdminClose: Button = { id: 'admin-close', x: 0, y: 0, w: 58, h: 16, label: 'CLOSE' };
   private buttons: Button[] = [];
 
@@ -459,6 +460,15 @@ export class PixelUI {
     this.text(this.bAdminClear.label, this.bAdminClear.x + this.bAdminClear.w / 2,
       this.bAdminClear.y + 4, { size: 8, weight: 700, color: CREAM, align: 'center' });
     this.buttons.push(this.bAdminClear);
+
+    this.bAdminDash.x = x + 124;
+    this.bAdminDash.y = y + h - 30;
+    pxRect(c, this.bAdminDash.x, this.bAdminDash.y, this.bAdminDash.w, this.bAdminDash.h, SLAB);
+    pxBorder(c, this.bAdminDash.x, this.bAdminDash.y, this.bAdminDash.w, this.bAdminDash.h,
+      'rgba(242,238,225,0.55)');
+    this.text(this.bAdminDash.label, this.bAdminDash.x + this.bAdminDash.w / 2,
+      this.bAdminDash.y + 4, { size: 8, color: CREAM, align: 'center' });
+    this.buttons.push(this.bAdminDash);
 
     this.bAdminClose.x = x + w - this.bAdminClose.w - 12;
     this.bAdminClose.y = y + h - 30;

@@ -49,16 +49,42 @@ With this in place, pages on `https://drift.lucasian.tech` can call
 | POST   | `/api/logout` | —      | —                         | `204`, clears the session cookie |
 | GET    | `/api/me`     | cookie | —                         | `200 {user:{id,username}}` or `401` |
 | GET    | `/api/times`  | —      | —                         | `200 {times:[{rank,username,ms,at}]}` top 10, ascending |
-| POST   | `/api/times`  | cookie | `{ms, trace?:[{x,z,t}]}` (`map` optional, default `"coast"`) | `200 {times}` after upsert, `401`, `400 invalid_ms` |
+| POST   | `/api/times`  | cookie | `{ms, trace:[{x,z,t}], map?}` | `200 {times}` after upsert, `401`, `400 invalid_ms`, `422 invalid_trace` |
 | POST   | `/api/admin/delete-time` | admin | `{map, username}` | `200 {removed, times}`, `403`, `401` |
 | POST   | `/api/admin/clear-map` | admin | `{map}` | `200 {removed, times}`, `403`, `401` |
+| GET    | `/api/admin/stats` | admin | — | `200` aggregate laps/players/maps/recent, `403`, `401` |
 
-## Lap submission
+## Lap submission and anti-cheat
 
-`POST /api/times` accepts the submitted `ms` after the normal integer/range
-check and upserts the player's best time. The optional `trace` is accepted for
-replay tooling but is not validated and cannot reject a lap. The client still
-records traces locally and sends them for replays.
+`POST /api/times` requires the lap's position trace:
+`[{x,z,t}, ...]` in metres and milliseconds, sampled at roughly 5 Hz plus an
+exact final point on the line. The server validates it against
+`track-data.json`, its own copy of the smoothed centrelines, before the time
+can reach the board.
+
+Checks (all generous; clean racing passes):
+
+- the trace has enough samples and timestamps are monotonic;
+- the last timestamp matches the submitted `ms` (2.5 s slack);
+- the first and last points are within 35 m of the start/finish line;
+- each sample is within `roadHalf + 14 m` of the centreline;
+- route length is 78%–200% of one lap;
+- no segment exceeds 65 units/s (top speed with a power is ~45);
+- the route's bounding box covers at least 55% of the circuit's bounds.
+
+Failures return `422 {error:"invalid_trace", reason:"..."}` and are not
+stored. A determined forger can still fabricate a full plausible trace; this
+stops shortcuts, teleports, edited clocks and missing telemetry, not
+determined reverse engineering.
+
+`server/track-data.json` is generated from the game's actual smoothed track
+(`game.world.track`, `start`, `roadHalf`, `name` per map). Regenerate it
+whenever a circuit layout changes, or the server will validate against the
+old line. Current lengths: Coast 358.2 m, Frostbite 420.6 m, Sakura 410.0 m.
+
+Every accepted submission is also appended to the lap history (capped at
+5000) for the data desk. The best entry keeps a downsampled trace for future
+replays.
 
 Notes:
 
@@ -97,6 +123,16 @@ circuit's board (requires a second confirming click). The list is
 - Sessions: 32 random bytes (hex) in a `sd_session` cookie —
   `HttpOnly; SameSite=Lax; Path=/`, 7-day expiry. Failed logins always
   return the same generic `invalid username or password`.
+
+## Data desk
+
+`/dashboard.html` (served by Vite from `public/`) is an admin-only dashboard:
+per-circuit boards, total laps/players, fastest lap, recent laps, and the local
+60 Hz recorder runs from the admin's own browser. It uses the same admin cookie;
+non-admins get a gate. The in-game admin panel has a **DASHBOARD** button.
+
+The dashboard does **not** receive other players' 60 Hz runs: those stay in
+each player's IndexedDB. Only lap times and their traces are sent to the API.
 
 ## Storage
 

@@ -63,7 +63,7 @@ export function verifyPassword(password, saltHex, hashHex) {
 }
 
 export function emptyDb() {
-  return { users: [], sessions: {}, times: [] };
+  return { users: [], sessions: {}, times: [], laps: [] };
 }
 
 export class Store {
@@ -106,7 +106,16 @@ export class Store {
       users: Array.isArray(parsed.users) ? parsed.users : [],
       sessions: {},
       times: Array.isArray(parsed.times) ? parsed.times : [],
+      laps: Array.isArray(parsed.laps) ? parsed.laps : [],
     };
+    // seed the lap history once from pre-history best times
+    if (!Array.isArray(parsed.laps) && this.db.times.length > 0) {
+      this.db.laps = this.db.times.map((t) => ({
+        userId: t.userId, username: t.username, ms: t.ms, at: t.at, map: t.map,
+        summary: null, migrated: true,
+      }));
+      this._scheduleSave();
+    }
     this._syncRoles();
     const now = Date.now();
     const stored =
@@ -263,7 +272,7 @@ export class Store {
 
   // Records a finish time; keeps only each user's best (lowest) ms per map.
   // Returns the current top-10 board for that map.
-  submitTime(user, ms, map = DEFAULT_MAP) {
+  submitTime(user, ms, map = DEFAULT_MAP, trace = null, summary = null) {
     if (!Number.isInteger(ms) || ms < TIME_MIN_MS || ms > TIME_MAX_MS) {
       throw new StoreError(400, 'invalid_ms', `ms must be an integer between ${TIME_MIN_MS} and ${TIME_MAX_MS}`);
     }
@@ -271,16 +280,112 @@ export class Store {
       throw new StoreError(400, 'invalid_map', 'map must match [a-z0-9_-]{1,32}');
     }
     const at = new Date().toISOString();
+    this.db.laps.push({ userId: user.id, username: user.username, ms, at, map, summary: summary ?? null });
+    if (this.db.laps.length > 5000) this.db.laps.splice(0, this.db.laps.length - 5000);
+
+    const shortTrace = this._shortTrace(trace);
     const best = this.db.times.find((t) => t.userId === user.id && t.map === map);
     if (best) {
-      if (ms >= best.ms) return this.topTimes(map); // not an improvement
+      if (ms >= best.ms) {
+        this._scheduleSave();
+        return this.topTimes(map); // not an improvement, but the lap is logged
+      }
       best.ms = ms;
       best.at = at;
+      best.summary = summary ?? null;
+      best.trace = shortTrace;
     } else {
-      this.db.times.push({ userId: user.id, username: user.username, ms, at, map });
+      this.db.times.push({
+        userId: user.id, username: user.username, ms, at, map,
+        summary: summary ?? null, trace: shortTrace,
+      });
     }
     this._scheduleSave();
     return this.topTimes(map);
+  }
+
+  /** Keep the best lap's line small enough for db.json, for future replays. */
+  _shortTrace(trace) {
+    if (!Array.isArray(trace) || trace.length === 0) return null;
+    const step = Math.max(1, Math.ceil(trace.length / 240));
+    const out = [];
+    for (let i = 0; i < trace.length; i += step) {
+      const p = trace[i];
+      out.push([Math.round(p.x * 100) / 100, Math.round(p.z * 100) / 100, Math.round(p.t)]);
+    }
+    const last = trace[trace.length - 1];
+    const prev = out[out.length - 1];
+    if (!prev || prev[0] !== Math.round(last.x * 100) / 100 || prev[1] !== Math.round(last.z * 100) / 100) {
+      out.push([Math.round(last.x * 100) / 100, Math.round(last.z * 100) / 100, Math.round(last.t)]);
+    }
+    return out;
+  }
+
+  /** Admin dashboard aggregates. mapNames maps ids to display names. */
+  stats(mapNames = {}) {
+    const players = new Map();
+    const maps = new Map();
+    for (const lap of this.db.laps) {
+      let p = players.get(lap.username);
+      if (!p) {
+        p = { username: lap.username, laps: 0, bestMs: null, bestMap: null };
+        players.set(lap.username, p);
+      }
+      p.laps++;
+      if (p.bestMs === null || lap.ms < p.bestMs) {
+        p.bestMs = lap.ms;
+        p.bestMap = lap.map;
+      }
+      let m = maps.get(lap.map);
+      if (!m) {
+        m = {
+          id: lap.map, name: mapNames[lap.map] ?? lap.map, laps: 0, msSum: 0,
+          bestMs: null, bestUser: null, lastAt: null, players: new Set(),
+        };
+        maps.set(lap.map, m);
+      }
+      m.laps++;
+      m.msSum += lap.ms;
+      m.players.add(lap.username);
+      if (m.bestMs === null || lap.ms < m.bestMs) {
+        m.bestMs = lap.ms;
+        m.bestUser = lap.username;
+      }
+      if (!m.lastAt || lap.at > m.lastAt) m.lastAt = lap.at;
+    }
+
+    const mapRows = [...maps.values()]
+      .map((m) => ({
+        id: m.id, name: m.name, laps: m.laps, players: m.players.size,
+        avgMs: Math.round(m.msSum / m.laps), bestMs: m.bestMs,
+        bestUser: m.bestUser, lastAt: m.lastAt,
+      }))
+      .sort((a, b) => b.laps - a.laps);
+
+    const recent = [...this.db.laps]
+      .sort((a, b) => String(b.at).localeCompare(String(a.at)))
+      .slice(0, 15)
+      .map((l) => ({
+        username: l.username, map: l.map, ms: l.ms, at: l.at,
+        avgSpeed: l.summary?.avgSpeed ?? null, pathLength: l.summary?.pathLength ?? null,
+      }));
+
+    const playerRows = [...players.values()].sort((a, b) => a.bestMs - b.bestMs);
+    let bestLap = null;
+    for (const lap of this.db.laps) if (!bestLap || lap.ms < bestLap.ms) bestLap = lap;
+
+    return {
+      generatedAt: new Date().toISOString(),
+      totalLaps: this.db.laps.length,
+      totalPlayers: players.size,
+      totalMaps: maps.size,
+      bestLap: bestLap ? {
+        username: bestLap.username, map: bestLap.map, ms: bestLap.ms, at: bestLap.at,
+      } : null,
+      players: playerRows,
+      maps: mapRows,
+      recent,
+    };
   }
 
   /** Admin moderation: drop one player's best on one map. */
@@ -293,6 +398,7 @@ export class Store {
     }
     const before = this.db.times.length;
     this.db.times = this.db.times.filter((t) => !(t.map === map && t.username === username));
+    this.db.laps = this.db.laps.filter((l) => !(l.map === map && l.username === username));
     if (this.db.times.length !== before) this._scheduleSave();
     return { removed: before - this.db.times.length, times: this.topTimes(map) };
   }
@@ -304,6 +410,7 @@ export class Store {
     }
     const before = this.db.times.length;
     this.db.times = this.db.times.filter((t) => t.map !== map);
+    this.db.laps = this.db.laps.filter((l) => l.map !== map);
     if (this.db.times.length !== before) this._scheduleSave();
     return { removed: before - this.db.times.length, times: this.topTimes(map) };
   }

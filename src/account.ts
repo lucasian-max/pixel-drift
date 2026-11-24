@@ -136,12 +136,13 @@ export const account = {
     const lapMap = map ?? this.map;
     const name = this.user.username;
     const previousBest = this.times.find((t) => t.username === name)?.ms;
-    const r = await request<{ times?: TimeEntry[]; error?: string }>(
+    const r = await request<{ times?: TimeEntry[]; error?: string; reason?: string }>(
       '/api/times', 'POST', { ms, trace, map: lapMap },
     );
     if (!r.ok) {
       if (r.status === 401) this.user = null;   // session expired mid-race
-      return { ok: false, error: 'lap not saved' };
+      const reason = typeof r.body?.reason === 'string' ? r.body.reason : 'lap not saved';
+      return { ok: false, error: `LAP NOT SAVED · ${reason.toUpperCase()}` };
     }
     const times = r.body?.times ?? [];
     this.map = lapMap;

@@ -1,0 +1,407 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Pixel Drift · Data Desk</title>
+<style>
+  @font-face {
+    font-family: "Silkscreen";
+    src: url("/fonts/silkscreen-400.woff2") format("woff2");
+    font-weight: 400;
+    font-display: swap;
+  }
+  @font-face {
+    font-family: "Silkscreen";
+    src: url("/fonts/silkscreen-700.woff2") format("woff2");
+    font-weight: 700;
+    font-display: swap;
+  }
+  :root {
+    --ink: #0a0c0f;
+    --bg: #14161a;
+    --panel: #1b1e24;
+    --cream: #f2eee1;
+    --dim: #9a978d;
+    --red: #e0513f;
+    --line: rgba(242, 238, 225, 0.22);
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    background: var(--bg);
+    color: var(--cream);
+    font-family: "Silkscreen", ui-monospace, monospace;
+    font-size: 12px;
+    line-height: 1.6;
+    -webkit-font-smoothing: none;
+  }
+  .checker {
+    height: 10px;
+    background-image: repeating-linear-gradient(90deg, var(--cream) 0 10px, var(--ink) 10px 20px);
+  }
+  header {
+    display: flex;
+    align-items: flex-end;
+    justify-content: space-between;
+    gap: 16px;
+    flex-wrap: wrap;
+    padding: 18px 22px 14px;
+    border-bottom: 2px solid var(--cream);
+  }
+  .kicker { color: var(--red); font-size: 10px; letter-spacing: 4px; }
+  h1 { margin: 2px 0 0; font-size: 30px; letter-spacing: 2px; line-height: 1; }
+  .who { text-align: right; font-size: 10px; color: var(--dim); }
+  .who b { color: var(--cream); font-weight: 400; }
+  .who a { color: var(--red); text-decoration: none; margin-left: 12px; }
+  .who a:hover { text-decoration: underline; }
+  main { max-width: 1240px; margin: 0 auto; padding: 18px 22px 30px; }
+  .kpis {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(170px, 1fr));
+    gap: 10px;
+    margin-bottom: 18px;
+  }
+  .panel {
+    background: var(--panel);
+    border: 2px solid var(--cream);
+    box-shadow: 4px 4px 0 var(--ink);
+    padding: 14px 16px;
+    min-width: 0;
+  }
+  .kpi .l { color: var(--dim); font-size: 9px; letter-spacing: 2px; }
+  .kpi .v { font-size: 26px; line-height: 1.3; }
+  .kpi .s { color: var(--dim); font-size: 9px; }
+  .grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+    gap: 14px;
+    align-items: start;
+  }
+  .panel h2 {
+    margin: 0 0 10px;
+    color: var(--red);
+    font-size: 11px;
+    letter-spacing: 3px;
+    font-weight: 700;
+  }
+  .panel h3 {
+    margin: 14px 0 6px;
+    font-size: 9px;
+    letter-spacing: 2px;
+    color: var(--dim);
+    font-weight: 400;
+  }
+  table { width: 100%; border-collapse: collapse; }
+  th {
+    text-align: left;
+    font-weight: 400;
+    color: var(--dim);
+    font-size: 9px;
+    letter-spacing: 1px;
+    padding: 4px 0;
+    border-bottom: 1px solid var(--line);
+  }
+  td { padding: 5px 0; font-size: 10px; border-bottom: 1px solid rgba(242, 238, 225, 0.07); }
+  td.r, th.r { text-align: right; }
+  .board { margin-top: 4px; }
+  .bar {
+    height: 5px;
+    background: rgba(242, 238, 225, 0.1);
+    margin-top: 2px;
+  }
+  .bar i { display: block; height: 100%; background: var(--cream); }
+  .bar i.best { background: var(--red); }
+  .muted { color: var(--dim); }
+  .note { margin-top: 12px; color: var(--dim); font-size: 9px; line-height: 1.7; }
+  .gate {
+    max-width: 560px;
+    margin: 60px auto;
+    text-align: center;
+    padding: 28px;
+  }
+  .gate h2 { color: var(--red); font-size: 16px; letter-spacing: 2px; margin: 0 0 10px; }
+  .gate p { color: var(--dim); font-size: 10px; }
+  .gate a { color: var(--cream); }
+  footer {
+    max-width: 1240px;
+    margin: 0 auto;
+    padding: 0 22px 26px;
+    color: var(--dim);
+    font-size: 9px;
+    line-height: 1.8;
+    border-top: 1px solid var(--line);
+    padding-top: 14px;
+  }
+  footer b { color: var(--cream); font-weight: 400; }
+  @media (max-width: 640px) {
+    h1 { font-size: 22px; }
+    main { padding: 12px; }
+    header { padding: 14px 12px 10px; }
+  }
+</style>
+</head>
+<body>
+<div class="checker"></div>
+<header>
+  <div>
+    <div class="kicker">PIXEL DRIFT</div>
+    <h1>DATA DESK</h1>
+  </div>
+  <div class="who">
+    <b id="who">…</b>
+    <a href="/">BACK TO GAME</a>
+  </div>
+</header>
+<main id="app"><div class="panel">LOADING…</div></main>
+<footer>
+  <b>Board data:</b> best time per player per circuit, validated server-side before it is stored.
+  <b>Run data:</b> the 60 Hz recorder writes to IndexedDB in each player's own browser; the panel below only
+  sees runs recorded on this device. Press <b>X</b> in game to export them as JSONL.
+  <span id="gen"></span>
+</footer>
+<script>
+const app = document.getElementById('app');
+const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => (
+  { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]
+));
+const fmt = (ms) => {
+  if (!Number.isFinite(ms) || ms <= 0) return '--:--.--';
+  const m = Math.floor(ms / 60000);
+  const s = Math.floor((ms % 60000) / 1000);
+  const cs = Math.floor((ms % 1000) / 10);
+  return `${m}:${String(s).padStart(2, '0')}.${String(cs).padStart(2, '0')}`;
+};
+const ago = (iso) => {
+  if (!iso) return '';
+  const d = Date.parse(iso);
+  if (!Number.isFinite(d)) return '';
+  const sec = Math.max(0, Math.floor((Date.now() - d) / 1000));
+  if (sec < 60) return `${sec}s ago`;
+  if (sec < 3600) return `${Math.floor(sec / 60)}m ago`;
+  if (sec < 86400) return `${Math.floor(sec / 3600)}h ago`;
+  return `${Math.floor(sec / 86400)}d ago`;
+};
+const gate = (title, text) => {
+  app.innerHTML = `<div class="panel gate"><h2>${esc(title)}</h2><p>${esc(text)}</p>
+    <p><a href="/">OPEN THE GAME</a></p></div>`;
+};
+
+async function load() {
+  let me;
+  try {
+    const r = await fetch('/api/me', { credentials: 'same-origin' });
+    if (r.status === 401) return gate('ADMIN SIGN-IN REQUIRED', 'Sign in as the admin account in the game, then reload this page.');
+    if (!r.ok) throw new Error('HTTP ' + r.status);
+    me = (await r.json()).user;
+  } catch {
+    return gate('CANNOT REACH THE API', 'The data desk needs the local Pixel Drift API on 127.0.0.1:8790.');
+  }
+  if (!me || me.role !== 'admin') {
+    return gate('ADMIN ONLY', 'This page uses the server-side admin role. Sign in with the admin account in the game.');
+  }
+  document.getElementById('who').textContent = 'ADMIN · ' + me.username.toUpperCase();
+
+  let stats;
+  try {
+    const r = await fetch('/api/admin/stats', { credentials: 'same-origin' });
+    if (!r.ok) throw new Error('HTTP ' + r.status);
+    stats = await r.json();
+  } catch (e) {
+    return gate('STATS UNAVAILABLE', String(e.message || e));
+  }
+
+  const boards = {};
+  await Promise.all(stats.maps.map(async (m) => {
+    try {
+      boards[m.id] = await (await fetch('/api/times?map=' + encodeURIComponent(m.id))).json();
+    } catch {
+      boards[m.id] = { times: [] };
+    }
+  }));
+  render(stats, boards);
+  await renderRuns();
+}
+
+function render(stats, boards) {
+  const best = stats.bestLap;
+  const kpis = `
+    <div class="kpis">
+      ${kpi('LAPS LOGGED', stats.totalLaps, 'accepted submissions')}
+      ${kpi('DRIVERS', stats.totalPlayers, 'unique accounts')}
+      ${kpi('CIRCUITS', stats.totalMaps, 'with times')}
+      ${kpi('FASTEST', best ? fmt(best.ms) : '--', best ? `${esc(best.username)} · ${esc(mapName(stats, best.map))}` : 'no laps yet')}
+    </div>`;
+
+  const mapCards = stats.maps.map((m) => {
+    const rows = (boards[m.id]?.times || []).slice(0, 8);
+    const max = Math.max(1, ...rows.map((t) => t.ms));
+    return `
+      <div class="panel">
+        <h2>${esc(m.name)}</h2>
+        <table>
+          <tr><th>RK</th><th>PLAYER</th><th class="r">BEST</th></tr>
+          ${rows.map((t) => `
+            <tr>
+              <td>${String(t.rank).padStart(2, '0')}</td>
+              <td>${esc(t.username.toUpperCase())}
+                <div class="bar"><i class="${t.rank === 1 ? 'best' : ''}" style="width:${Math.round(t.ms / max * 100)}%"></i></div>
+              </td>
+              <td class="r">${fmt(t.ms)}</td>
+            </tr>`).join('')}
+          ${rows.length === 0 ? '<tr><td colspan="3" class="muted">NO TIMES YET</td></tr>' : ''}
+        </table>
+        <div class="note">
+          ${m.laps} LAPS · ${m.players} DRIVERS · AVG ${fmt(m.avgMs)}
+          ${m.lastAt ? ` · LAST ${ago(m.lastAt).toUpperCase()}` : ''}
+        </div>
+      </div>`;
+  }).join('');
+
+  const recent = `
+    <div class="panel" style="grid-column: 1 / -1">
+      <h2>RECENT LAPS</h2>
+      <table>
+        <tr><th>WHEN</th><th>PLAYER</th><th>CIRCUIT</th><th class="r">TIME</th><th class="r">AVG</th></tr>
+        ${stats.recent.map((l) => `
+          <tr>
+            <td class="muted">${esc(ago(l.at).toUpperCase())}</td>
+            <td>${esc(l.username.toUpperCase())}</td>
+            <td>${esc(mapName(stats, l.map))}</td>
+            <td class="r">${fmt(l.ms)}</td>
+            <td class="r muted">${l.avgSpeed ? l.avgSpeed + ' U/S' : '—'}</td>
+          </tr>`).join('')}
+        ${stats.recent.length === 0 ? '<tr><td colspan="5" class="muted">NO LAPS YET</td></tr>' : ''}
+      </table>
+    </div>`;
+
+  const antiCheat = `
+    <div class="panel" style="grid-column: 1 / -1">
+      <h2>HOW LAPS ARE CHECKED</h2>
+      <div class="note" style="margin-top:0">
+        Every new lap must include its position trace (~5 Hz). The server owns the circuit centrelines and checks:
+        the trace starts and finishes at the line, covers 78%–200% of the route length, never moves faster than
+        65 u/s, keeps every sample within 14 m of the road edge, and covers at least 55% of the circuit's bounds.
+        Missing traces, cut laps and teleports are rejected before they reach the board.
+      </div>
+    </div>`;
+
+  app.innerHTML = kpis + `<div class="grid">${mapCards}${recent}${antiCheat}
+    <div class="panel" id="runs" style="grid-column: 1 / -1"><h2>RECORDED RUNS · THIS BROWSER</h2>
+      <div class="muted">READING LOCAL INDEXEDDB…</div></div>
+    </div>`;
+  document.getElementById('gen').textContent = ' · updated ' + new Date(stats.generatedAt).toLocaleTimeString();
+}
+
+const kpi = (label, value, sub) => `
+  <div class="panel kpi">
+    <div class="l">${esc(label)}</div>
+    <div class="v">${esc(value)}</div>
+    <div class="s">${esc(sub)}</div>
+  </div>`;
+
+const mapName = (stats, id) => (stats.maps.find((m) => m.id === id)?.name || id);
+
+function idbOpen(name) {
+  return new Promise((resolve) => {
+    try {
+      const r = indexedDB.open(name);
+      r.onsuccess = () => resolve(r.result);
+      r.onerror = () => resolve(null);
+      r.onblocked = () => resolve(null);
+    } catch { resolve(null); }
+  });
+}
+function idbAll(db, store) {
+  return new Promise((resolve) => {
+    try {
+      const r = db.transaction(store, 'readonly').objectStore(store).getAll();
+      r.onsuccess = () => resolve(r.result || []);
+      r.onerror = () => resolve([]);
+    } catch { resolve([]); }
+  });
+}
+
+async function renderRuns() {
+  const host = document.getElementById('runs');
+  if (!host) return;
+  let dbName = 'pixel-drift-runs';
+  try {
+    const names = await indexedDB.databases?.();
+    if (names) {
+      if (names.some((d) => d.name === 'pixel-drift-runs')) dbName = 'pixel-drift-runs';
+      else if (names.some((d) => d.name === 'sprite-drift-runs')) dbName = 'sprite-drift-runs';
+      else {
+        host.innerHTML = `<h2>RECORDED RUNS · THIS BROWSER</h2>
+          <div class="muted">No local runs on this device yet. The recorder runs silently during every lap; press X in game to export.</div>`;
+        return;
+      }
+    }
+  } catch { /* databases() unsupported; try the current name */ }
+
+  const db = await idbOpen(dbName);
+  if (!db) {
+    host.innerHTML = `<h2>RECORDED RUNS · THIS BROWSER</h2><div class="muted">INDEXEDDB UNAVAILABLE</div>`;
+    return;
+  }
+  const eps = await idbAll(db, 'episodes');
+  db.close();
+  if (!eps.length) {
+    host.innerHTML = `<h2>RECORDED RUNS · THIS BROWSER</h2>
+      <div class="muted">No local runs on this device yet. The recorder runs silently during every lap; press X in game to export.</div>`;
+    return;
+  }
+
+  const OBS = 19;
+  let samples = 0;
+  const byMap = new Map();
+  const byCar = new Map();
+  const laps = [];
+  for (const e of eps) {
+    const n = Math.floor((e.obs?.length || 0) / OBS);
+    samples += n;
+    const m = byMap.get(e.mapId) || { runs: 0, laps: 0, samples: 0 };
+    m.runs++; m.samples += n;
+    if (e.complete) m.laps++;
+    byMap.set(e.mapId, m);
+    byCar.set(e.carName || 'CAR', (byCar.get(e.carName || 'CAR') || 0) + 1);
+    if (e.complete && e.lapMs) laps.push({ ms: e.lapMs, map: e.mapId, car: e.carName, at: e.createdAt });
+  }
+  const complete = [...byMap.values()].reduce((a, m) => a + m.laps, 0);
+  const totalSec = samples / 60;
+  laps.sort((a, b) => String(b.at).localeCompare(String(a.at)));
+
+  host.innerHTML = `<h2>RECORDED RUNS · THIS BROWSER</h2>
+    <div class="kpis" style="margin-bottom:12px">
+      ${kpi('LAPS RECORDED', complete, 'complete episodes')}
+      ${kpi('DATA', totalSec >= 3600 ? (totalSec / 3600).toFixed(1) + 'H' : Math.round(totalSec / 60) + 'M', 'at 60 Hz')}
+      ${kpi('RUNS', eps.length, 'incl. partial')}
+      ${kpi('CARS', byCar.size, 'represented')}
+    </div>
+    <div class="grid">
+      <div class="panel" style="box-shadow:none">
+        <h3 style="margin-top:0">BY CIRCUIT</h3>
+        <table><tr><th>CIRCUIT</th><th class="r">RUNS</th><th class="r">LAPS</th><th class="r">DATA</th></tr>
+        ${[...byMap.entries()].map(([id, m]) => `
+          <tr><td>${esc(id.toUpperCase())}</td><td class="r">${m.runs}</td>
+          <td class="r">${m.laps}</td><td class="r muted">${Math.round(m.samples / 60 / 60 * 10) / 10}M</td></tr>`).join('')}
+        </table>
+      </div>
+      <div class="panel" style="box-shadow:none">
+        <h3 style="margin-top:0">LATEST RECORDED LAPS</h3>
+        <table><tr><th>CAR</th><th>CIRCUIT</th><th class="r">LAP</th></tr>
+        ${laps.slice(0, 8).map((l) => `
+          <tr><td>${esc(l.car || 'CAR')}</td><td>${esc(l.map || '')}</td>
+          <td class="r">${fmt(l.ms)}</td></tr>`).join('')}
+        </table>
+      </div>
+    </div>
+    <div class="note">Runs are stored only in the browser that recorded them. Each player's telemetry stays on their
+      machine; this section shows the admin device's data. Press X in game to export it as JSONL for training.</div>`;
+}
+
+load();
+setInterval(() => { if (document.visibilityState === 'visible') load(); }, 30000);
+</script>
+</body>
+</html>
