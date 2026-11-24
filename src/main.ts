@@ -8,7 +8,6 @@ import type { StackDef } from './stack';
 import { Sound } from './sound';
 import { account } from './account';
 import type { LapTracePoint } from './account';
-import { Net, createRoom, gridPoint, makeRoomCode } from './net';
 
 const gameCanvas = document.getElementById('game') as HTMLCanvasElement;
 const uiCanvas = document.getElementById('ui') as HTMLCanvasElement;
@@ -137,6 +136,12 @@ const loginForm = (() => {
 async function boot() {
   void account.refresh();   // session + leaderboard; the UI reads the store live
   const params = new URLSearchParams(location.search);
+  // Old multiplayer invites are inert now; drop the dead param from the URL.
+  if (params.has('room')) {
+    const clean = new URL(location.href);
+    clean.searchParams.delete('room');
+    history.replaceState(null, '', clean);
+  }
   const renderer = new THREE.WebGLRenderer({ canvas: gameCanvas, antialias: false, powerPreference: 'high-performance' });
   renderer.setPixelRatio(1);
   renderer.outputColorSpace = THREE.SRGBColorSpace;
@@ -154,20 +159,6 @@ async function boot() {
   const overview = params.has('overview');
   const car = await new Car().init(world);
   scene.add(car.group);
-
-  // ---- multiplayer room ----------------------------------------------------
-  const roomParam = (params.get('room') ?? '').toUpperCase();
-  const net = new Net();
-  let mySlot = 0;
-  net.connect(roomParam, scene, world.start);
-  net.onWelcome = (slot) => {
-    mySlot = slot;
-    // drop the local car onto its grid slot while it is still parked
-    if (Math.abs(car.speed) < 1 && Math.hypot(car.x - world.start.x, car.z - world.start.z) < 6) {
-      const p = gridPoint(world.start, slot);
-      car.place(p.x, p.z, world.start.heading);
-    }
-  };
 
   const shadowTex = await loadSheet('/sprites/shadow.png');
   const carShadow = shadowPatch(shadowTex, [{ x: 0, z: 0, rot: 0, scale: 1 }], 2.7);
@@ -204,25 +195,16 @@ async function boot() {
   addEventListener('resize', () => { resize(); ui.resize(); });
   resize();
 
-  // ---- ui + net ------------------------------------------------------------
+  // ---- ui -----------------------------------------------------------------
   const ui = new PixelUI(uiCanvas, world.minimapPath);
   const sound = new Sound();
   car.onImpact = (s: number) => sound.impact(s);
   let running = false;
   let laps = 0;
-  let countdown = 0;
-  let finished = false;
-
-
   const begin = () => {
     if (running) return;
     running = true;
     sound.start();
-    if (roomParam) {
-      // the room owns the countdown; every client starts on the server's cue
-      countdown = net.connected ? 0 : 3.6;
-      net.startRace();
-    }
   };
 
   const gotoMap = (delta: number) => {
@@ -236,13 +218,6 @@ async function boot() {
     if (a === 'solo') begin();
     else if (a === 'prev-map') gotoMap(-1);
     else if (a === 'next-map') gotoMap(1);
-    else if (a === 'online') {
-      void createRoom().then((code) => {
-        const url = new URL(location.href);
-        url.searchParams.set('room', code ?? makeRoomCode());
-        location.href = url.toString();
-      });
-    }
     else if (a === 'login') loginForm.open();
     else if (a === 'logout') void account.logout();
   };
@@ -352,42 +327,19 @@ async function boot() {
   startIdx = nearestIndex(world.start.x, world.start.z);
   prevU = ((nearestIndex(car.x, car.z) - startIdx + track.length) % track.length) / track.length;
 
-  const resetRaceLocal = (withCountdown = false) => {
-    if (roomParam) {
-      const p = gridPoint(world.start, mySlot);
-      car.place(p.x, p.z, world.start.heading);
-    } else {
-      car.reset(world);
-    }
+  const resetRaceLocal = () => {
+    car.reset(world);
     world.clearSkid();
     progress = 0;
     lapTime = 0;
     started = false;
     laps = 0;
-    finished = false;
     resetTrace();
     warning = '';
     warningUntil = 0;
-    countdown = withCountdown && net.connected ? 3.6 : 0;
     nearest = nearestIndex(car.x, car.z);
     prevU = ((nearest - startIdx + track.length) % track.length) / track.length;
   };
-  net.onFinish = () => {
-    finished = true;
-    warning = '';
-  };
-  net.onRematch = () => resetRaceLocal(false);
-  net.onStart = (ms) => {
-    if (!running) {
-      running = true;
-      sound.start();
-    }
-    resetRaceLocal(false);
-    countdown = Math.max(0, ms / 1000);
-  };
-  const earlyStart = net.takeStart();
-  if (earlyStart !== null) net.onStart(earlyStart);
-  if (net.finished) net.onFinish?.();
 
   const autopilot = () => {
     const n = track.length;
@@ -434,7 +386,6 @@ async function boot() {
   let acc = 0;
   const STEP = 1 / 120;
   let dustTimer = 0;
-  let netTimer = 0;
 
   const frame = () => {
     requestAnimationFrame(frame);
@@ -443,12 +394,6 @@ async function boot() {
     last = now;
 
     const controls = params.has('demo') ? autopilot() : input.read();
-    if (countdown > 0 && !input.paused) {
-      countdown = Math.max(0, countdown - dt);
-      controls.throttle = 0;
-      controls.handbrake = true;
-    }
-    if (finished) { controls.throttle = 0; }
     camYaw += input.look * dt * 1.8;
     if (input.zoom !== 0) {
       viewHeight = THREE.MathUtils.clamp(viewHeight * (1 + input.zoom), 13, 40);
@@ -465,8 +410,7 @@ async function boot() {
       }
       if (input.consumeKey('KeyC')) car.nextVariant();
       if (input.consumeReset()) {
-        net.resetRace();
-        resetRaceLocal(false);
+        resetRaceLocal();
       }
     }
 
@@ -487,7 +431,7 @@ async function boot() {
 
     // sample the lap for the server-side road check; time spent outside the
     // kerb corridor is what makes a shortcut lap dirty
-    if (started && !finished && !input.paused) {
+    if (started && !input.paused) {
       if (trackDist > world.roadHalf + 1.2) {
         offTime += dt;
         if (trackDist > maxOff) maxOff = trackDist;
@@ -520,11 +464,9 @@ async function boot() {
           if (!account.user) warn('SIGN IN TO SAVE LAPS', 2.2);
           else if (!r.ok) warn(r.error ?? 'LAP NOT SAVED');
         });
-        net.sendLap(ms, laps + 1, true);
         laps++;
         console.log(`lap ${laps} ${(ms / 1000).toFixed(2)}s`);
       } else {
-        net.sendLap(ms, laps + 1, false);
         warn('LAP NOT COUNTED — OFF TRACK');
         console.log(`dirty lap: off=${offTime.toFixed(2)}s max=${maxOff.toFixed(1)}`);
       }
@@ -532,29 +474,7 @@ async function boot() {
       progress -= 1;
       resetTrace();
     }
-    // Send a pose even on the title screen: a lobby player parks on the grid
-    // instead of showing up as a ghost at the world origin.
-    net.update(dt, {
-      x: car.x, z: car.z, heading: car.heading,
-      speed: car.speed, u, lap: laps,
-    });
     world.update();
-
-    // other racers are solid: push out and kill the closing speed
-    if (net.connected) {
-      for (const b of net.remoteBodies()) {
-        const dx = car.x - b.x, dz = car.z - b.z;
-        const d = Math.hypot(dx, dz);
-        const min = 2.05;
-        if (d > 0.001 && d < min) {
-          const nx = dx / d, nz = dz / d;
-          car.x = b.x + nx * min;
-          car.z = b.z + nz * min;
-          const vn = car.vx * nx + car.vz * nz;
-          if (vn < 0) { car.vx -= vn * nx * 1.25; car.vz -= vn * nz * 1.25; }
-        }
-      }
-    }
 
     dustTimer -= dt;
     if (dustTimer <= 0 && Math.abs(car.speed) > 4) {
@@ -597,45 +517,23 @@ async function boot() {
     carShadow.instanceMatrix.needsUpdate = true;
 
     renderer.render(scene, camera);
-    const ownBest = net.connected
-      ? (net.myBest || Math.round(bestTime * 1000))
-      : Math.round(bestTime * 1000);
-    const results = net.connected
-      ? (net.finalStandings.length
-        ? [...net.finalStandings].sort((a, b) => a.best - b.best)
-        : [
-          ...(ownBest ? [{ name: account.user?.username?.toUpperCase() ?? 'YOU', best: ownBest }] : []),
-          ...net.peerLaps().map((p) => ({ name: net.nameOf(p.id), best: p.best })),
-        ].sort((a, b) => a.best - b.best))
-      : undefined;
     ui.draw({
       car, lapTime: started ? lapTime : 0, bestTime, started: running,
-      paused: input.paused, throttle: controls.throttle,
-      laps: net.connected ? net.myLap : laps,
+      paused: input.paused, throttle: controls.throttle, laps,
       maps: MAPS.filter((m) => m.id === 'coast').map((m) => ({ id: m.id, name: m.name })),
       lapHistory: [...lapHistory],
-      results,
-      countdown,
-      finished,
-      lapsToFinish: net.lapsToFinish,
-      winner: net.winner?.name,
       warning: warning && now < warningUntil ? warning : undefined,
-      offTrack: started && !finished && trackDist > world.roadHalf + 1.2,
+      offTrack: started && trackDist > world.roadHalf + 1.2,
       mapIndex,
       mapName: MAPS[mapIndex]?.name,
       account,
-      room: roomParam || undefined,
-      racers: net.count || 1,
-      connected: net.connected,
-      place: net.place,
-      toast: net.notice && now < net.noticeUntil ? net.notice : undefined,
     }, now);
     sound.update(car, controls.throttle, input.paused);
   };
   frame();
 
   (window as unknown as { game: unknown }).game = {
-    car, world, camera, renderer, scene, net, account, ui,
+    car, world, camera, renderer, scene, account, ui,
     get laps() { return laps; },
     get lapTime() { return lapTime; },
     get started() { return started; },
@@ -643,7 +541,6 @@ async function boot() {
     get lastTrace() { return lastTrace; },
     get offTime() { return offTime; },
     get warning() { return warning; },
-    get finished() { return finished; },
   };
 }
 

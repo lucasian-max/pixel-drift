@@ -33,21 +33,10 @@ export interface UiState {
   paused: boolean;
   throttle: number;
   laps: number;
-  room?: string;
-  racers?: number;
-  connected?: boolean;
-  place?: number;
-  /** transient room notice, e.g. "ACE JOINED" */
-  toast?: string;
   maps?: { id: string; name: string }[];
   mapIndex?: number;
   mapName?: string;
   lapHistory?: number[];
-  countdown?: number;
-  finished?: boolean;
-  results?: { name: string; best: number }[];
-  lapsToFinish?: number;
-  winner?: string;
   /** transient red notice, e.g. "LAP NOT COUNTED — OFF TRACK" */
   warning?: string;
   /** currently outside the clean corridor */
@@ -90,7 +79,7 @@ function pxBorder(c: CanvasRenderingContext2D, x: number, y: number, w: number, 
 }
 
 /** every clickable thing on the canvas */
-export type HitId = 'prev-map' | 'next-map' | 'solo' | 'online' | 'login' | 'logout';
+export type HitId = 'prev-map' | 'next-map' | 'solo' | 'login' | 'logout';
 
 interface Button { id: HitId; x: number; y: number; w: number; h: number; label: string }
 
@@ -108,7 +97,6 @@ export class PixelUI {
   private bPrev: Button = { id: 'prev-map', x: 0, y: 0, w: 24, h: 24, label: '<' };
   private bNext: Button = { id: 'next-map', x: 0, y: 0, w: 24, h: 24, label: '>' };
   private bSolo: Button = { id: 'solo', x: 0, y: 0, w: 148, h: 28, label: 'SOLO' };
-  private bOnline: Button = { id: 'online', x: 0, y: 0, w: 112, h: 28, label: 'ONLINE' };
   private bLogin: Button = { id: 'login', x: 0, y: 0, w: 72, h: 14, label: 'SIGN IN' };
   private bLogout: Button = { id: 'logout', x: 0, y: 0, w: 72, h: 14, label: 'SIGN OUT' };
   private buttons: Button[] = [];
@@ -250,28 +238,17 @@ export class PixelUI {
       c.fillRect(dx + 6, dy + 30, Math.max(1, Math.round(bw * slipFrac)), 3);
     }
 
-    /* ---- room chip (top-centre, online only) ---- */
-    if (state.room) {
-      let label = `ROOM ${state.room}  ${state.racers ?? 1} RACING`;
-      if (state.place && (state.racers ?? 1) > 1) label += `  P${state.place}/${state.racers}`;
-      this.font(8);
-      const cw = Math.ceil(c.measureText(label).width) + 14;
-      const rx = Math.round((this.w - cw) / 2);
-      pxRect(c, rx, 8, cw, 16, SLAB);
-      pxBorder(c, rx, 8, cw, 16, state.connected ? 'rgba(242,238,225,0.3)' : ACCENT);
-      this.text(label, this.w / 2, 12, { size: 8, color: state.connected ? CREAM : ACCENT, align: 'center' });
-    }
-    if (state.toast) this.drawToast(state.toast, 58);
-    if (state.warning) this.drawToast(state.warning, 78);
+    /* ---- track-limit warning ---- */
+    if (state.warning) this.drawToast(state.warning, 58);
     else if (state.offTrack && (time * 2) % 1 < 0.7) {
-      this.drawToast("OFF TRACK — LAP WON'T COUNT", 78);
+      this.drawToast("OFF TRACK — LAP WON'T COUNT", 58);
     }
 
     /* ---- NEW BEST banner ---- */
     if (time < this.bestUntil) {
       const bbw = 118, bbh = 22;
       const bx = Math.round(this.w / 2 - bbw / 2);
-      const by = state.room ? 30 : 10;
+      const by = 10;
       pxRect(c, bx, by, bbw, bbh, ACCENT);
       pxBorder(c, bx, by, bbw, bbh, (time * 10) % 2 < 1 ? 'rgba(242,238,225,1)' : 'rgba(242,238,225,0.3)');
       this.text('NEW BEST', this.w / 2, by + 3, { size: 16, weight: 700, color: CREAM, align: 'center' });
@@ -334,47 +311,6 @@ export class PixelUI {
     }
 
     /* ---- pause ---- */
-    if ((state.countdown ?? 0) > 0) {
-      const n = Math.ceil(state.countdown!);
-      const cx2 = Math.round(this.w / 2);
-      const y0 = 54;
-      pxRect(c, cx2 - 26, y0 - 8, 52, 22, 'rgba(16,19,22,0.85)');
-      pxBorder(c, cx2 - 26, y0 - 8, 52, 22, 'rgba(242,238,225,0.25)');
-      for (let i = 0; i < 3; i++) {
-        const lit = n <= 3 - i;
-        c.fillStyle = lit ? (n === 1 ? '#49c46a' : ACCENT) : 'rgba(242,238,225,0.14)';
-        c.fillRect(cx2 - 18 + i * 13, y0, 9, 9);
-      }
-    }
-    if (state.finished) {
-      c.fillStyle = 'rgba(8,11,10,0.82)';
-      c.fillRect(0, 0, this.w, this.h);
-      const rows = (state.results ?? []).slice(0, 5);
-      const pw = 280;
-      const ph = 82 + rows.length * 11;
-      const px0 = Math.round(this.w / 2 - pw / 2);
-      const py0 = Math.round(this.h / 2 - ph / 2);
-      pxRect(c, px0, py0, pw, ph, 'rgba(14,17,20,0.96)');
-      pxBorder(c, px0, py0, pw, ph, 'rgba(242,238,225,0.4)');
-      this.text('RACE COMPLETE', this.w / 2, py0 + 8, { size: 24, weight: 700, align: 'center' });
-      this.text(
-        state.winner ? `${state.winner.toUpperCase()} WINS` : 'BEST OF 3',
-        this.w / 2, py0 + 38,
-        { size: 8, weight: 700, color: ACCENT, align: 'center', spacing: 1 },
-      );
-      this.text(
-        `FIRST TO ${state.lapsToFinish ?? 3} LAPS   BEST ${fmtMs(rows[0]?.best ?? 0)}`,
-        this.w / 2, py0 + 50,
-        { size: 8, color: CREAM, align: 'center' },
-      );
-      rows.forEach((r, i) => {
-        this.text(`${i + 1}  ${r.name.slice(0, 8)}  ${fmtMs(r.best)}`, this.w / 2, py0 + 64 + i * 11, {
-          size: 8, color: DIM, align: 'center',
-        });
-      });
-      this.text('R TO RACE AGAIN', this.w / 2, py0 + ph - 14, { size: 8, color: DIM, align: 'center' });
-    }
-
     if (state.paused) {
       c.fillStyle = 'rgba(10,12,16,0.68)';
       c.fillRect(0, 0, this.w, this.h);
@@ -388,7 +324,7 @@ export class PixelUI {
     }
   }
 
-  /** transient room notice: cream on red, centred */
+  /** transient warning: cream on red, centred */
   private drawToast(text: string, y: number) {
     const c = this.ctx;
     this.font(8, 700);
@@ -480,13 +416,9 @@ export class PixelUI {
 
     const cx = Math.round(w / 2);
 
-    const kicker = state.room
-      ? state.connected === false
-        ? `ROOM ${state.room} · CONNECTING…`
-        : `ROOM ${state.room} · ${state.racers ?? 1} IN ROOM · SHARE THIS LINK`
-      : 'SPRITE-STACKED PIXEL RACER';
-    this.text(kicker, cx, 56, { size: 8, weight: 700, color: ACCENT, align: 'center', spacing: 2 });
-    if (state.toast) this.drawToast(state.toast, 26);
+    this.text('SPRITE-STACKED PIXEL RACER', cx, 56, {
+      size: 8, weight: 700, color: ACCENT, align: 'center', spacing: 2,
+    });
 
     /* lockup with hard offset shadow blocks */
     this.text('SPRITE', cx + 3, 77, { size: 48, weight: 700, color: SHADOW, align: 'center' });
@@ -506,11 +438,10 @@ export class PixelUI {
     // one circuit for now: name only, no chooser arrows
     this.text(name, cx, nameY, { size: 16, weight: 700, color: CREAM, align: 'center' });
 
-    /* SOLO + ONLINE buttons: chunky arcade keys with offset blocks */
-    const hasRoom = !!state.room;
-    this.bSolo.label = hasRoom ? 'START' : 'SOLO';
+    /* SOLO button: chunky arcade key with an offset block */
+    this.bSolo.label = 'SOLO';
     this.bSolo.w = 104;
-    this.bSolo.x = Math.round(hasRoom ? cx - 52 : cx - 114);
+    this.bSolo.x = Math.round(cx - 52);
     this.bSolo.y = 256;
     const key = (b: Button, fill: string) => {
       pxRect(c, b.x + 2, b.y + 2, b.w, b.h, SHADOW);
@@ -526,11 +457,6 @@ export class PixelUI {
       this.buttons.push(b);
     };
     key(this.bSolo, ACCENT);
-    if (!hasRoom) {
-      this.bOnline.x = Math.round(cx + 2);
-      this.bOnline.y = 256;
-      key(this.bOnline, 'rgba(18,22,26,0.92)');
-    }
 
     /* ---- account line under SOLO ---- */
     const acct = state.account;

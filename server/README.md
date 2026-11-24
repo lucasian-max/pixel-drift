@@ -1,15 +1,16 @@
 # sprite-drift API
 
-Accounts, leaderboard and multiplayer rooms for the game. Uses Node built-ins
-for HTTP and storage plus [`ws`](https://github.com/websockets/ws) for the
-WebSocket upgrade — no framework.
+Accounts and the solo leaderboard for the game. Dependency-free Node HTTP
+(`node:http`, `node:crypto`, `node:fs`).
 
-- **Listen address:** `127.0.0.1:8790` (localhost only; it is never exposed
-  directly — the Vite dev server proxies `/api` to it, and the Cloudflare
-  tunnel fronts Vite).
+- **Listen address:** `127.0.0.1:8790` (localhost only; Vite proxies `/api` to
+  it, and the Cloudflare tunnel fronts Vite).
 - **Data:** `server/data/db.json` (created on first run, gitignored).
-- **Log:** one line per request — `METHOD path STATUS ms`; room joins/leaves
-  add `[room CODE] + name` lines.
+- **Log:** one line per request — `METHOD path STATUS ms`.
+
+Multiplayer rooms and their WebSocket transport are **archived**, not part of
+this build. The complete implementation is on the `multiplayer` branch and the
+`multiplayer-archive` tag; see [docs/multiplayer.md](../docs/multiplayer.md).
 
 ## Run
 
@@ -21,30 +22,23 @@ The live setup runs it as the `sprite-drift-api` systemd user service on this
 machine; `sprite-drift-web` runs Vite on 5180. Both are enabled and linger is
 on, so they survive a session logout.
 
-`ws` is in the project's dev dependencies. If you deploy the API elsewhere,
-create a `package.json` with
-`{ "type": "module", "dependencies": { "ws": "^8.23.0" } }` next to `server/`
-and run `npm install --omit=dev` once.
-
 The server does not touch the Vite dev server; start/stop them independently.
 It flushes pending writes and exits cleanly on SIGINT/SIGTERM.
 
 ## Wire it into Vite
 
-`vite.config.ts` proxies `/api` to the local API and forwards the WebSocket
-upgrade:
+`vite.config.ts` proxies `/api` to the local API:
 
 ```ts
 // vite.config.ts
-proxy: { '/api': { target: 'http://127.0.0.1:8790', changeOrigin: true, ws: true } },
+proxy: { '/api': { target: 'http://127.0.0.1:8790', changeOrigin: true } },
 ```
 
 Point a dev server at another host with
 `SPRITE_API=https://api.example.com npx vite --port 5182`.
 
 With this in place, pages on `https://drift.lucasian.tech` can call
-`fetch('/api/...')` and `new WebSocket('/api/ws')` same-origin, so no CORS
-handling is needed anywhere.
+`fetch('/api/...')` same-origin, so no CORS handling is needed anywhere.
 
 ## Endpoints
 
@@ -56,50 +50,23 @@ handling is needed anywhere.
 | GET    | `/api/me`     | cookie | —                         | `200 {user:{id,username}}` or `401` |
 | GET    | `/api/times`  | —      | —                         | `200 {times:[{rank,username,ms,at}]}` top 10, ascending |
 | POST   | `/api/times`  | cookie | `{ms, trace:[{x,z,t}]}` (`map` optional, default `"coast"`) | `200 {times}` after upsert, `400 invalid_lap`, `401`, `400 invalid_ms` |
-| POST   | `/api/rooms`  | —      | —                         | `200 {room, players}`, `429` too many rooms |
-| GET    | `/api/ws?room=CODE` | cookie | —                  | WebSocket upgrade; any valid code creates a room; `4005` room full |
-
-## Rooms
-
-`POST /api/rooms` returns a four-character code (alphabet excludes `I/O/0/1`),
-but any valid code also creates a room on first join, so a shared URL is enough.
-
-Client → server:
-
-- `{t:'state',x,z,h,sp,u,lap}` at 20 Hz. The server **ignores `lap` and `u`**;
-  progress comes from its own centreline lookup against `x,z`, and only a
-  validated `lap` event advances the race.
-- `{t:'lap',ms,lap}` on crossing.
-- `{t:'start'}` starts the synchronized 3.6 s countdown for everyone.
-- `{t:'reset'}` restarts this car, or the whole room after a finish.
-
-Server → client: `welcome`, `states` (20 Hz, up to 8 racers, includes
-`best`/`finished`/`winner`), `start`, `lap` (with `valid`, `reason`,
-`bestLap`), `finish`, `rematch`, `left`.
-
-A room race is first to three laps. The server finishes the race for everyone
-when the first valid lap count reaches three, then broadcasts the standings.
-`reset` after a finish starts a rematch for the room.
 
 ## Anti-cheat
 
-- **Corridor:** every 20 Hz pose is checked against the coast centreline. More
-  than 0.6 s outside the road + kerb corridor voids the lap.
-- **Teleports:** a pose that jumps more than 12 units at an impossible speed
-  voids the lap.
-- **Authoritative laps:** the client's `lap` field is ignored; only validated
-  `lap` events move the counter, so a modified client cannot declare itself
-  finished.
-- **Global board:** `POST /api/times` requires a 5 Hz trace. The server checks
-  the corridor, speed, lap coverage, monotonic time and `ms`; a missing or
-  grass-cutting trace is `400 invalid_lap`.
-- **Client:** the game also tracks off-road time and the furthest point from
-  the road, refuses to submit dirty laps, and shows `OFF TRACK` / `LAP NOT
-  COUNTED` feedback.
+The coast board is telemetry-checked. `POST /api/times` requires a 5 Hz
+position trace and rejects (`400 invalid_lap`) when:
 
-This stops normal shortcuts and modified-client lap declarations. A determined
-attacker can still fabricate an on-road trace through the HTTP API; making that
-impossible needs cryptographic sampling or server-side simulation.
+- any sample leaves the road + kerb corridor,
+- the implied speed between samples is impossible,
+- the trace is too coarse for the claimed time,
+- the trace does not span the claimed `ms`, or
+- the first/last sample is not near the start line,
+- the samples do not progress around the circuit.
+
+The client also tracks off-road time and maximum distance, refuses to submit
+dirty laps, and shows `OFF TRACK` / `LAP NOT COUNTED` feedback. A determined
+attacker can still fabricate an on-road trace through HTTP; the check stops
+normal shortcut driving, not a bespoke replay forgery.
 
 Notes:
 
@@ -142,32 +109,23 @@ time entry carries a `map` field so more boards can be added later.
 
 ## Keep it running (systemd --user)
 
-The unit file is `deploy/sprite-drift-api.service`. To install it:
+The unit files are `deploy/sprite-drift-api.service` and
+`deploy/sprite-drift-web.service`.
 
 ```sh
 mkdir -p ~/.config/systemd/user
-ln -sf /home/lucasian/Work/sprite-drift/deploy/sprite-drift-api.service ~/.config/systemd/user/sprite-drift-api.service
+ln -sf /home/lucasian/Work/sprite-drift/deploy/sprite-drift-api.service ~/.config/systemd/user/
+ln -sf /home/lucasian/Work/sprite-drift/deploy/sprite-drift-web.service ~/.config/systemd/user/
 systemctl --user daemon-reload
+systemctl --user enable --now sprite-drift-api.service sprite-drift-web.service
 ```
 
-Then manage it with:
+Manage them with:
 
 ```sh
-systemctl --user enable --now sprite-drift-api.service   # start on login
-systemctl --user status  sprite-drift-api.service
+systemctl --user status sprite-drift-api.service
 systemctl --user restart sprite-drift-api.service
-journalctl --user -u sprite-drift-api.service -f          # tail logs
-```
-
-The unit runs `node server/api.mjs` from the repo directory and restarts
-automatically (`Restart=always`) if it ever dies.
-
-The web server is the matching `deploy/sprite-drift-web.service`:
-
-```sh
-ln -sf /home/lucasian/Work/sprite-drift/deploy/sprite-drift-web.service ~/.config/systemd/user/sprite-drift-web.service
-systemctl --user daemon-reload
-systemctl --user enable --now sprite-drift-web.service
+journalctl --user -u sprite-drift-api.service -f
 ```
 
 With `loginctl enable-linger "$USER"` both services survive a session logout.

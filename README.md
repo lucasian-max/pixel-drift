@@ -22,25 +22,21 @@ npm run dev      # http://127.0.0.1:5180
 | Pause | P or Esc |
 | Mute | M |
 
-## Race online
+## Online rooms — archived
 
-Pick **ONLINE** on the title screen to make a room. The four-character code is
-in the URL (`?room=WUAP`) and on the title, so sending the link is joining the
-room. Up to eight racers share the circuit; the server runs a synchronized
-3-2-1 start, owns the lap count, and ends the race for everyone when the first
-racer finishes three clean laps. Press **R** together for a rematch.
+Multiplayer is mothballed for this release. The complete implementation is on
+the `multiplayer` branch and `multiplayer-archive` tag (see
+[`docs/multiplayer.md`](docs/multiplayer.md)); the shipped build is solo only.
 
 ## Accounts and leaderboard
 
 Sign in on the title to post lap times. The board is the best clean lap per
 player, top 10. Every submission carries a 5 Hz position trace; the API rejects
 laps that leave the road, cut the infield, teleport, or cover the circuit
-impossibly fast. A dirty lap never reaches the board and does not count in a
-room.
+impossibly fast. A dirty lap never reaches the board.
 
-The API and WebSocket run as a local user service on `127.0.0.1:8790` (Vite
-proxies `/api` to it). Use `SPRITE_API=http://host:port` to point a dev server
-elsewhere. See [`docs/multiplayer.md`](docs/multiplayer.md) and
+The API runs as a local user service on `127.0.0.1:8790` (Vite proxies `/api`
+to it). Use `SPRITE_API=http://host:port` to point a dev server elsewhere. See
 [`server/README.md`](server/README.md).
 
 ## Four circuits

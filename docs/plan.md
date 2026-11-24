@@ -13,24 +13,27 @@ states (parked / mid-corner / at speed) → failure cases → tests → docs.
   engine.
 - **Accounts + leaderboard** — sign in, one best lap per player, top 10 board on
   the title screen and in the API.
-- **Block 5 — multiplayer rooms** — room codes in the URL, 20 Hz WebSocket
-  state, interpolated remote stacks, synchronized countdown, first-to-3
-  finish and room rematch. Design note: [docs/multiplayer.md](multiplayer.md).
-- **Anti-cheat + resilience** — server-authoritative lap count, road-corridor
-  checks from pose telemetry, trace-checked leaderboard submissions, and local
-  systemd services for the API and web server.
+- **Anti-cheat + resilience** — trace-checked clean-lap leaderboard
+  submissions, road-corridor validation, and local systemd services for the
+  API and web server.
+
+## Archived
+
+- **Block 5 — multiplayer rooms** — room codes, 20 Hz WebSocket state,
+  interpolated remote stacks, synchronized countdown, first-to-3 finish,
+  rematch and room anti-cheat. Removed from the shipped build; the complete
+  code is on the `multiplayer` branch and `multiplayer-archive` tag. Design
+  note: [docs/multiplayer.md](multiplayer.md).
 
 ## Next
 
-- Room chip: show the room best and a lap-complete flash.
 - A second circuit/board once the map set returns.
-- Replays from the recorded pose stream.
-- Chat / emotes in the room chip.
+- Replays from the recorded lap traces.
+- More leaderboard filtering/lap history.
 
 ## Known gaps
 
-- Room physics is client-side; the server validates route, speed and lap order
-  but does not re-simulate the car. A fabricated on-road HTTP trace can still
-  beat the leaderboard, though not by cutting the grass.
+- A fabricated on-road HTTP trace can still beat the leaderboard, though not by
+  cutting the grass or teleporting.
 - The nest host that used to serve `api.lucasian.tech` is unreachable; the game
   now uses the local API. `SPRITE_API` points a dev server elsewhere.

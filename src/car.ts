@@ -60,16 +60,6 @@ export class Car {
     this.sync();
   }
 
-  /** put the car down at a known point (grid slots, respawns) */
-  place(x: number, z: number, heading: number) {
-    this.x = x;
-    this.z = z;
-    this.heading = heading;
-    this.vx = this.vz = 0;
-    this.steerAngle = 0;
-    this.sync();
-  }
-
   private sync() {
     this.group.position.set(this.x, 0, this.z);
     this.group.rotation.y = this.heading;

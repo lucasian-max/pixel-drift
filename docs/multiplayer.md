@@ -1,7 +1,22 @@
-# Multiplayer rooms
+# Multiplayer rooms — ARCHIVED
+
+> **Not in the shipped build.** Online rooms are mothballed; solo racing and
+> the leaderboard are the active game. This document describes the archived
+> implementation, preserved on the `multiplayer` branch and the
+> `multiplayer-archive` tag. To recover it:
+>
+> ```sh
+> git checkout multiplayer
+> # or inspect without switching:
+> git show multiplayer-archive:src/net.ts
+> ```
+>
+> Re-enabling means restoring the client entry point, room UI, WebSocket
+> transport in the API, and the `ws` dependency. The server-side track checks
+> and the solo leaderboard checks share `server/track.mjs`.
 
 Casual same-circuit racing. A room is a four-character code in the URL
-(`?room=FNXZ`); the title screen shows it so the link can be shared.
+(`?room=FNXZ`); the title screen showed it so the link could be shared.
 
 ## Topology
 
