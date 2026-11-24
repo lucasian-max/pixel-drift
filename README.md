@@ -53,13 +53,24 @@ Pick a circuit on the title screen with the arrows, or link straight to one:
 
 ## The cars
 
-Ten machines, carved from four flat views each. The hero is a pearl-white GT
+Eleven machines, carved from four flat views each. The hero is a pearl-white GT
 with a twin racing stripe, a roof roundel, framed glass, mirrors, vented bonnet,
 a ducktail spoiler and chrome exhausts.
 
 ![hero car](preview/hero-big.png)
 
+The newest is a yellow-and-white Group B rally coupe built from a four-view
+sheet: boxy flares, a six-lamp pod, roof scoop, mudflaps and a tall rear wing.
+Press `C` to cycle to it.
+
+![rally car](docs/rally.png)
+
 Others include a taxi, a police car, a pizza van, a pickup, a sofa and a hot dog.
+
+Adding a car? The project copy of the agent skill is
+[`docs/pixel-car-stack.md`](docs/pixel-car-stack.md): the four-view sheet → 3D model
+contract, the stack-atlas path, the Opus 5.5 prompt, and the screenshot/verification
+recipe.
 
 ## How the art works
 

@@ -1,0 +1,77 @@
+<!doctype html>
+<html>
+<head>
+<meta charset="utf-8">
+<style>
+  html, body { margin: 0; height: 100%; background: #cfd6dd; overflow: hidden; }
+  canvas { display: block; width: 100vw; height: 100vh; }
+</style>
+</head>
+<body>
+<canvas id="c"></canvas>
+<script type="module">
+import * as THREE from 'three';
+import { buildCarModel } from '/src/carModel.ts';
+
+const params = new URLSearchParams(location.search);
+const variant = Number(params.get('variant') ?? 4);
+const view = params.get('view') ?? 'side';
+const zoom = Number(params.get('zoom') ?? 1.0);
+
+const canvas = document.getElementById('c');
+const renderer = new THREE.WebGLRenderer({ canvas, antialias: false, alpha: false });
+renderer.setPixelRatio(1);
+renderer.setSize(innerWidth, innerHeight, false);
+renderer.outputColorSpace = THREE.SRGBColorSpace;
+renderer.setClearColor(0xcfd6dd, 1);
+
+const scene = new THREE.Scene();
+scene.add(new THREE.AmbientLight(0xffffff, 2.2));
+const key = new THREE.DirectionalLight(0xffffff, 2.6);
+key.position.set(4, 8, 6);
+scene.add(key);
+const rim = new THREE.DirectionalLight(0xbcd0e0, 1.2);
+rim.position.set(-6, 4, -7);
+scene.add(rim);
+
+const car = buildCarModel(variant);
+car.rotation.y = Math.PI;
+scene.add(car);
+
+const ground = new THREE.Mesh(new THREE.PlaneGeometry(30, 30), new THREE.MeshBasicMaterial({ color: 0x9aa7b2 }));
+ground.rotation.x = -Math.PI / 2;
+ground.position.y = -0.002;
+scene.add(ground);
+
+const cam = new THREE.OrthographicCamera(-4, 4, 2.5, -2.5, 0.1, 100);
+const target = new THREE.Vector3(0, 0.65, 0);
+const dirs = {
+  side: new THREE.Vector3(9, 1.4, 0),
+  front: new THREE.Vector3(0, 0.85, -9),
+  rear: new THREE.Vector3(0, 0.85, 9),
+  top: new THREE.Vector3(0, 12, 0.01),
+  iso: new THREE.Vector3(6, 3.4, -6),
+  reariso: new THREE.Vector3(-6, 3.4, 6),
+};
+cam.position.copy(target).add(dirs[view] ?? dirs.side);
+cam.lookAt(target);
+cam.zoom = zoom;
+cam.updateProjectionMatrix();
+
+function resize() {
+  const aspect = innerWidth / innerHeight;
+  const h = view === 'front' || view === 'rear' ? 1.55 : 2.8;
+  cam.left = -h * aspect; cam.right = h * aspect; cam.top = h; cam.bottom = -h;
+  cam.updateProjectionMatrix();
+  renderer.setSize(innerWidth, innerHeight, false);
+}
+addEventListener('resize', resize);
+resize();
+
+const wheels = car.userData.wheels ?? [];
+for (const w of wheels) w.rotation.x = 0.4;
+renderer.render(scene, cam);
+window.carReady = true;
+</script>
+</body>
+</html>

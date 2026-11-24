@@ -1,2 +1,5 @@
 # Local API data (accounts + leaderboard)
 server/data/
+
+# generated stack atlases
+art/build/
