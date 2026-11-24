@@ -98,6 +98,7 @@ export class Net {
   lapsToFinish = 3;
   myBest = 0;
   myLap = 0;
+  finalStandings: { name: string; best: number }[] = [];
   /** transient "ACE JOINED" text; draw while `performance.now()/1000 < noticeUntil` */
   notice = '';
   noticeUntil = 0;
@@ -171,6 +172,7 @@ export class Net {
       this.winner = null;
       this.myBest = 0;
       this.myLap = 0;
+      this.finalStandings = [];
       this.notice = '';
       this.known.clear();
       this.clearRemotes();
@@ -206,6 +208,11 @@ export class Net {
         }
       }
       this.onWelcome?.(Number(msg.slot) || 0);
+      if (msg.finished) {
+        this.finalStandings = listed
+          .filter((r) => r && Number(r.best) > 0)
+          .map((r) => ({ name: String(r.name || 'RACER'), best: Number(r.best) }));
+      }
       this.wantStart = false;
       const startIn = Number(msg.startIn) || 0;
       if (!this.finished) {
@@ -284,6 +291,10 @@ export class Net {
     if (msg.t === 'finish') {
       this.winner = (msg.winner as { id: string; name: string; ms: number } | null) ?? null;
       this.lapsToFinish = Number(msg.laps) || this.lapsToFinish;
+      const rows = Array.isArray(msg.standings) ? (msg.standings as NetState[]) : [];
+      this.finalStandings = rows
+        .filter((r) => r && Number(r.best) > 0)
+        .map((r) => ({ name: String(r.name || 'RACER'), best: Number(r.best) }));
       this.setFinished(true);
       return;
     }
@@ -292,6 +303,7 @@ export class Net {
       this.winner = null;
       this.myBest = 0;
       this.myLap = 0;
+      this.finalStandings = [];
       this.wantStart = false;
       for (const r of this.remotes.values()) { r.laps.length = 0; r.best = 0; }
       this.finished = false;
@@ -423,6 +435,7 @@ export class Net {
     this.winner = null;
     this.myBest = 0;
     this.myLap = 0;
+    this.finalStandings = [];
     this.notice = '';
     this.known.clear();
     this.clearRemotes();

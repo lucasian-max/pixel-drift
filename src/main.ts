@@ -600,16 +600,21 @@ async function boot() {
     const ownBest = net.connected
       ? (net.myBest || Math.round(bestTime * 1000))
       : Math.round(bestTime * 1000);
+    const results = net.connected
+      ? (net.finalStandings.length
+        ? [...net.finalStandings].sort((a, b) => a.best - b.best)
+        : [
+          ...(ownBest ? [{ name: account.user?.username?.toUpperCase() ?? 'YOU', best: ownBest }] : []),
+          ...net.peerLaps().map((p) => ({ name: net.nameOf(p.id), best: p.best })),
+        ].sort((a, b) => a.best - b.best))
+      : undefined;
     ui.draw({
       car, lapTime: started ? lapTime : 0, bestTime, started: running,
       paused: input.paused, throttle: controls.throttle,
       laps: net.connected ? net.myLap : laps,
       maps: MAPS.filter((m) => m.id === 'coast').map((m) => ({ id: m.id, name: m.name })),
       lapHistory: [...lapHistory],
-      results: net.connected ? [
-        ...(ownBest ? [{ name: account.user?.username?.toUpperCase() ?? 'YOU', best: ownBest }] : []),
-        ...net.peerLaps().map((p) => ({ name: net.nameOf(p.id), best: p.best })),
-      ].sort((a, b) => a.best - b.best) : undefined,
+      results,
       countdown,
       finished,
       lapsToFinish: net.lapsToFinish,
