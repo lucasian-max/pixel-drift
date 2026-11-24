@@ -57,16 +57,14 @@ Pick a circuit on the title screen with the arrows, or link straight to one:
 
 ## The cars and their powers
 
-Five pickable machines. Choose with the car arrows on the title, or press `C` in
-a race. Every car has one power on the `F` key; the HUD card shows READY, ACTIVE
-and the cooldown.
+The garage is being cut to three. Right now it holds Pearl GT and the Group B
+rally car; the third slot is waiting for the car chosen from the next sheet.
+Choose with the car arrows on the title, or press `C` in a race. Every car has
+one power on the `F` key; the HUD card shows READY, ACTIVE and the cooldown.
 
 | Car | Power | What it does |
 | --- | --- | --- |
 | **Pearl GT** | Pearl Rush | A clean top-end surge |
-| **Crimson GT** | Redline | Extra grip and a sharper nose |
-| **Midnight GT** | Night Cloak | Phase through barriers for 2.5s |
-| **Violet GT** | Warp | A short phase-dash with a hard launch |
 | **Group B** | Thunderclap | Yellow lightning, a glowing shell and a hard launch |
 
 The hero is a pearl-white GT with a twin racing stripe, a roof roundel, framed

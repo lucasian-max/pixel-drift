@@ -107,15 +107,12 @@ function loft(secs: Section[], matFor: (j: number) => number): THREE.BufferGeome
 
 const PALETTES = [
   { body: 0xf1e4bc, a: 0x1fa59a, b: 0xc2287e },
-  { body: 0xd93b34, a: 0xf1e4bc, b: 0xd9a02c },
-  { body: 0x2b3a67, a: 0x48e0d0, b: 0xf2f2f2 },
-  { body: 0x7a56c9, a: 0x2aa197, b: 0xf2c94c },
 ];
 
 // one extra slot for the sheet-built rally car
 const RALLY_VARIANT = PALETTES.length;
 export const CAR_VARIANTS = PALETTES.length + 1;
-export const CAR_NAMES = ['PEARL GT', 'CRIMSON GT', 'MIDNIGHT GT', 'VIOLET GT', 'GROUP B'];
+export const CAR_NAMES = ['PEARL GT', 'GROUP B'];
 
 export function buildCarModel(variant = 0): THREE.Group {
   if (variant === RALLY_VARIANT) return buildRallyCar();
