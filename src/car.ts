@@ -16,6 +16,7 @@ export class Car {
   x = 0;
   z = 0;
   heading = 0;
+  groundY = 0;
   vx = 0;
   vz = 0;
   steerAngle = 0;
@@ -112,6 +113,7 @@ export class Car {
     this.vx = this.vz = 0;
     this.steerAngle = 0;
     this.driftScore = 0;
+    this.groundY = 0;
     this.powerTime = 0;
     this.powerCd = 0;
     this.powerCharge = 0;
@@ -120,7 +122,7 @@ export class Car {
   }
 
   private sync() {
-    this.group.position.set(this.x, 0, this.z);
+    this.group.position.set(this.x, this.groundY, this.z);
     this.group.rotation.y = this.heading;
   }
 
@@ -199,6 +201,7 @@ export class Car {
     }
 
     const wasPowered = this.powerTime > 0;
+    this.groundY = world.groundAt ? world.groundAt(this.x, this.z, this.heading) : 0;
     this.powerTime = Math.max(0, this.powerTime - dt);
     this.powerCd = Math.max(0, this.powerCd - dt);
     if (wasPowered && this.powerTime <= 0 && power.exitBoost && this.powerCharge > 0) {

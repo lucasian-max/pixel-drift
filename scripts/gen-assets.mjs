@@ -633,6 +633,77 @@ function pineAtlas(snow = false) {
   };
 }
 
+// sakura: 40×40, 18 layers — rounded cherry-blossom crown, dark trunk
+function sakuraAtlas() {
+  const W = 40, H = 40, L = 18;
+  const pinks = [hex('#ffe8f2'), hex('#ffc6de'), hex('#e77aa8'), hex('#b84f7d')];
+  const crownC = hex('#fff6fa');
+  const bark = hex('#6a4a3a'), barkDk = hex('#3f2a22'), line = hex('#4a1f33');
+  const trunk = { x: 20, z: 27, r: 2.2, h: 10.0 };
+  const branches = [
+    [20, 27, 6.5, 9, 16, 11.0],
+    [20, 27, 6.5, 31, 16, 11.0],
+    [20, 27, 7.5, 20, 8, 12.5],
+    [20, 27, 5.5, 20, 25, 10.0],
+  ];
+  const clusters = [
+    { x: 9, z: 16, r: 6.2, base: 9.5, top: 16.5 },
+    { x: 31, z: 16, r: 6.2, base: 9.5, top: 16.5 },
+    { x: 20, z: 8, r: 6.0, base: 10.5, top: 18.0 },
+    { x: 20, z: 25, r: 5.2, base: 9.0, top: 15.0 },
+  ];
+  const inTrunk = (x, z, y) => y <= trunk.h && Math.hypot(x - trunk.x, z - trunk.z) < trunk.r;
+  const onBranch = (x, z, y) => {
+    for (const [ax, az, ay, bx, bz, by] of branches) {
+      const dx = bx - ax, dz = bz - az;
+      const l2 = dx * dx + dz * dz || 1;
+      const t = clamp(((x - ax) * dx + (z - az) * dz) / l2, 0, 1);
+      const px = ax + dx * t, pz = az + dz * t, py = ay + (by - ay) * t;
+      if (Math.hypot(x - px, z - pz) < 1.15 && Math.abs(y - py) < 1.35) return true;
+    }
+    return false;
+  };
+  const clusterAt = (x, z) => {
+    let best = null;
+    for (let i = 0; i < clusters.length; i++) {
+      const c = clusters[i];
+      const d = Math.hypot(x - c.x, z - c.z);
+      if (d >= c.r) continue;
+      const h = c.base + (c.top - c.base) * (1 - (d / c.r) ** 2);
+      if (!best || h > best.h) best = { h, base: c.base, i, d, r: c.r };
+    }
+    return best;
+  };
+  return (x, z, y) => {
+    if (inTrunk(x, z, y)) {
+      let col = y % 3 === 0 ? barkDk : mix(bark, barkDk, 0.35);
+      if (x < trunk.x - 0.4) col = mix(col, hex('#8a6652'), 0.45);
+      return col;
+    }
+    if (onBranch(x, z, y)) return mix(bark, barkDk, y % 2 ? 0.35 : 0.2);
+    const c = clusterAt(x, z);
+    if (!c || y < c.base || y > c.h) return [0, 0, 0, 0];
+    const top = y > c.h - 1.0;
+    const gx = (clusterAt(x - 1, z)?.h ?? 0) - (clusterAt(x + 1, z)?.h ?? 0);
+    const gz = (clusterAt(x, z - 1)?.h ?? 0) - (clusterAt(x, z + 1)?.h ?? 0);
+    const lit = clamp(1 + (gx - gz) * 0.08, 0.82, 1.14);
+    if (top) {
+      const v = clamp(0.14 + (y / 17) * 0.7 + dith(x, z) * 0.36 + (c.i % 3) * 0.035, 0, 1);
+      let col = v < 0.42 ? mix(pinks[3], pinks[2], v / 0.42)
+        : v < 0.74 ? mix(pinks[2], pinks[1], (v - 0.42) / 0.32)
+          : mix(pinks[1], pinks[0], (v - 0.74) / 0.26);
+      if (y >= 13) col = mix(col, crownC, 0.30 + dith(x, z) * 0.3);
+      const edge = !clusterAt(x - 1, z) || !clusterAt(x + 1, z)
+        || !clusterAt(x, z - 1) || !clusterAt(x, z + 1);
+      if (edge) col = mix(col, line, 0.68);
+      return [col[0] * lit, col[1] * lit, col[2] * lit, 255];
+    }
+    let col = mix(pinks[3], pinks[2], clamp(0.22 + dith(x, z) * 0.55 + (y / 17) * 0.25, 0, 1));
+    const ao = 0.6 + 0.4 * clamp((y - c.base) / Math.max(1, c.h - c.base), 0, 1);
+    return [col[0] * lit * ao, col[1] * lit * ao, col[2] * lit * ao, 255];
+  };
+}
+
 // palm: 40×40, 18 layers — leaning ringed trunk + a crown of 7 serrated fronds
 function palmAtlas() {
   const W = 40, H = 40, L = 18;
@@ -1154,6 +1225,7 @@ console.log('generating sprite stacks…');
 
 for (const spec of CAR_SPECS) stack(48, 76, 28, carAtlas(spec), `${spec.file}.png`);
 stack(40, 40, 18, pineAtlas(false), 'pine.png');
+stack(40, 40, 18, sakuraAtlas(), 'sakura.png');
 stack(40, 40, 18, pineAtlas(true), 'pine-snow.png');
 stack(40, 40, 18, palmAtlas(), 'palm.png');
 stack(28, 28, 10, rockAtlas(), 'rock.png');

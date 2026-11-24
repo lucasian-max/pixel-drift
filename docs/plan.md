@@ -26,13 +26,12 @@ states (parked / mid-corner / at speed) → failure cases → tests → docs.
 
 ## Next
 
-- A second circuit/board once the map set returns.
+- A third car for the empty garage slot.
 - Replays from the recorded lap traces.
 - More leaderboard filtering/lap history.
 
 ## Known gaps
 
-- A fabricated on-road HTTP trace can still beat the leaderboard, though not by
-  cutting the grass or teleporting.
+- Leaderboard times are accepted as submitted; there is no trace anti-cheat.
 - The nest host that used to serve `api.lucasian.tech` is unreachable; the game
   now uses the local API. `SPRITE_API` points a dev server elsewhere.

@@ -41,19 +41,23 @@ The API runs as a local user service on `127.0.0.1:8790` (Vite proxies `/api`
 to it). Use `SPRITE_API=http://host:port` to point a dev server elsewhere. See
 [`server/README.md`](server/README.md).
 
-## Six circuits
+## Three circuits
 
 | | |
 | --- | --- |
-| **Saltmarsh Coast** — green, a lake, pines and palms | **Redrock Canyon** — sand, red kerbs, sparse pines |
-| ![coast](docs/coast.png) | ![canyon](docs/canyon.png) |
-| **Neon Docks** — dark, tight, yellow kerbs | **Frostbite Pass** — snow, blue kerbs, white pines |
-| ![night](docs/night.png) | ![alpine](docs/alpine.png) |
-| **Harbour Grand Prix** — a grey quay, marina, yachts, armco and grandstands | **Sakura Circuit** — a forest figure-eight with a torii and a ferris wheel |
-| ![harbour](docs/harbour.png) | ![sakura](docs/sakura.png) |
+| **Saltmarsh Coast** — green, a lake, pines and palms | **Frostbite Pass** — snow, blue kerbs, white pines |
+| ![coast](docs/coast.png) | ![ice](docs/alpine.png) |
+| **Sakura Circuit** — a Japanese forest figure-eight with sakura trees, kanji signage, torii, a pagoda, a red garden bridge and a drivable overpass | |
+| ![sakura](docs/sakura.png) | |
 
 Pick a circuit on the title screen with the arrows, or link straight to one:
-`?map=coast|canyon|night|alpine|harbour|sakura`.
+`?map=coast|alpine|sakura`.
+
+Sakura detail: sakura trees, kanji boards and the drivable overpass.
+
+![Sakura tree](docs/sakura-tree.png)
+
+![Sakura overpass](docs/sakura-overpass.png)
 
 ## The cars and their powers
 

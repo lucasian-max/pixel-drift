@@ -28,6 +28,7 @@ export interface World {
   clearSkid(): void;
   minimapPath: { x: number; z: number }[];
   track: { x: number; z: number }[];
+  groundAt?: (x: number, z: number, heading: number) => number;
 }
 
 type P2 = { x: number; z: number };
@@ -47,12 +48,13 @@ export interface MapDef {
   };
   lake?: { x: number; z: number; rx: number; rz: number };
   tint?: string;
-  trees?: 'pine' | 'palm' | 'mixed';
+  trees?: 'pine' | 'palm' | 'mixed' | 'sakura';
   town?: [number, number][];
   props?: { trees: number; rocks: number; buildings: number; lampStride: number; rockScale: number };
   density?: number;
   buildingScale?: number;
   sky?: string;
+  petals?: boolean;
   /** place tiered grandstands on the outside of the longest straights */
   grandstands?: boolean;
   /** continuous metal armco instead of loose tyre stacks */
@@ -63,6 +65,14 @@ export interface MapDef {
   ferris?: { x: number; z: number; rot: number; scale: number };
   /** landmark torii gate */
   torii?: { x: number; z: number; rot: number; scale: number };
+  /** multi-tier pagoda */
+  pagoda?: { x: number; z: number; rot: number; scale: number };
+  /** red arched garden bridge across the lake */
+  pondBridge?: boolean;
+  /** distant low-poly Fuji */
+  fuji?: { x: number; z: number; scale: number };
+  /** drivable bridge at the figure-eight crossing */
+  overpass?: boolean;
 }
 
 /** Closed parametric figure-eight: rx across, rz along, crossing at (0, 0). */
@@ -101,40 +111,6 @@ export const MAPS: MapDef[] = [
     props: { trees: 280, rocks: 58, buildings: 15, lampStride: 58, rockScale: 1 },
   },
   {
-    // NASCAR-style stadium: two long straights, two banked U-turns, no sweepers
-    id: 'canyon', name: 'Redrock Speedway', roadHalf: 5.2, smooth: false,
-    ctrl: [[-30, -22], [6, -22], [22, -18], [28, -8], [28, 8], [22, 18], [6, 22],
-      [-30, 22], [-38, 14], [-38, -14]],
-    palette: {
-      grass: '#c9a86a', tones: ['#d4b476', '#b8955a', '#dcc086', '#a88450', '#e2cb95'],
-      bladeA: '#e8d29b', bladeB: '#96754a',
-      sand: '#b08a52', water: '#3b7a86', waterLt: 'rgba(120,180,180,0.45)',
-      shoulder: '#8d7348', asphalt: '#4a4740', grainA: '#6d6a5f', grainB: '#2f2d29',
-      line: 'rgba(238,228,200,0.8)', kerbA: '#e6ddc4', kerbB: '#b5432f',
-    },
-    lake: { x: -35, z: 31, rx: 9, rz: 7 },
-    trees: 'pine', density: 0.55, tint: '#f0d9b0',
-    props: { trees: 18, rocks: 120, buildings: 4, lampStride: 78, rockScale: 1.9 },
-    town: [[-8, -6], [7, -8], [-9, 9], [8, 10]],
-  },
-  {
-    // city block: four 90-degree corners plus an inward chicane notch
-    id: 'night', name: 'Neon Blocks', roadHalf: 4.0, smooth: false,
-    ctrl: [[-26, -26], [26, -26], [26, -8], [12, -8], [12, 8], [26, 8], [26, 26],
-      [-26, 26], [-26, 0]],
-    palette: {
-      grass: '#243a34', tones: ['#2b463c', '#1c2f2a', '#33524a', '#16241f', '#3d5f52'],
-      bladeA: '#4b7a68', bladeB: '#12201c',
-      sand: '#2f4a44', water: '#16323d', waterLt: 'rgba(60,120,140,0.5)',
-      shoulder: '#232a2c', asphalt: '#2b2b33', grainA: '#454552', grainB: '#1b1b21',
-      line: 'rgba(240,230,190,0.7)', kerbA: '#e0c05a', kerbB: '#b5432f',
-    },
-    lake: { x: 33, z: 34, rx: 9, rz: 7 },
-    trees: 'pine', density: 0.35, tint: '#42604f',
-    props: { trees: 12, rocks: 18, buildings: 15, lampStride: 34, rockScale: 0.8 },
-    town: [[-12, -12], [-2, -12], [8, -12], [-12, 0], [8, 0], [-12, 12], [-2, 12], [8, 12]],
-  },
-  {
     // dumbbell: two round ends joined by a tight waist
     id: 'alpine', name: 'Frostbite Pass', roadHalf: 4.0,
     ctrl: [[-30, -12], [-16, -20], [-4, -8], [4, -8], [16, -20], [30, -12],
@@ -152,43 +128,10 @@ export const MAPS: MapDef[] = [
     town: [[-9, -5], [9, -3], [0, 9]],
   },
   {
-    // Tight harbour street circuit: long quay straight, a casino climb,
-    // a hairpin around the marina and a late chicane back onto the quay.
-    id: 'harbour', name: 'Harbour Grand Prix', roadHalf: 3.7, smooth: false,
-    ctrl: [
-      [-44, -30], [-22, -34], [2, -34], [20, -31], [30, -27], [36, -20],
-      [44, -12], [46, 2], [42, 14], [34, 22], [26, 26], [22, 30],
-      [12, 33], [-2, 33], [-16, 30], [-26, 24], [-34, 17], [-40, 8],
-      [-44, -4], [-44, -16], [-40, -24], [-32, -28],
-    ],
-    palette: {
-      grass: '#8b8b86', tones: ['#9a9a94', '#777771', '#a6a6a0', '#6a6a64', '#b3b3ac'],
-      bladeA: '#c4c4ba', bladeB: '#5f5f5a',
-      sand: '#d6c7a3', water: '#1f6f95', waterLt: 'rgba(112,196,220,0.5)',
-      shoulder: '#6f6f6a', asphalt: '#4b4b53', grainA: '#73737f', grainB: '#303038',
-      line: 'rgba(244,240,226,0.9)', kerbA: '#efe8d8', kerbB: '#c8463c',
-    },
-    lake: { x: 2, z: -7, rx: 20, rz: 12 },
-    trees: 'palm', density: 0.7, tint: '#ffe7b0', buildingScale: 1.55,
-    props: { trees: 64, rocks: 8, buildings: 36, lampStride: 34, rockScale: 0.55 },
-    town: [[-30, -20], [-26, 4], [-14, -22], [16, -20], [28, -6], [8, 20], [-8, -24], [30, 12], [-14, 12], [18, 12], [-34, -4], [-22, -12], [22, -20], [34, -10], [24, 4], [0, 16], [-20, 20], [12, 24], [-62, -38], [58, -38], [60, 20], [-58, 24], [0, 46], [-40, 46], [40, 46]],
-    sky: '#8ec8de',
-    grandstands: true,
-    armco: true,
-    yachts: [
-      { x: -6, z: -10, rot: 0.35, scale: 1.35 },
-      { x: 7, z: -4, rot: -0.5, scale: 1.15 },
-      { x: -11, z: -1, rot: 1.4, scale: 1.0 },
-      { x: 12, z: -11, rot: 2.4, scale: 1.5 },
-      { x: -1, z: 1, rot: 2.9, scale: 0.9 },
-      { x: 9, z: 2, rot: 0.8, scale: 0.8 },
-    ],
-  },
-  {
     // Suzuka-inspired figure-eight: the track crosses itself at the infield,
     // with a forest, a pond, a torii gate and a ferris wheel.
     id: 'sakura', name: 'Sakura Circuit', roadHalf: 4.2, smooth: true,
-    ctrl: figure8(47, 31, 64, 0.35),
+    ctrl: figure8(58, 38, 72, 0.35),
     palette: {
       grass: '#315b42', tones: ['#3c6e4e', '#244632', '#4c825f', '#1b3727', '#5d9572'],
       bladeA: '#7fb38a', bladeB: '#1c3a29',
@@ -196,14 +139,16 @@ export const MAPS: MapDef[] = [
       shoulder: '#6b6653', asphalt: '#41434a', grainA: '#646671', grainB: '#282a30',
       line: 'rgba(248,246,232,0.88)', kerbA: '#f2eee2', kerbB: '#c8463c',
     },
-    lake: { x: 0, z: -23, rx: 9, rz: 6 },
-    trees: 'pine', density: 1.15, tint: '#d7ead7',
-    props: { trees: 230, rocks: 38, buildings: 6, lampStride: 42, rockScale: 1.1 },
-    town: [[-18, -4], [20, 4], [0, 10]],
+    lake: { x: 0, z: -30, rx: 10, rz: 7 },
+    trees: 'sakura', density: 1.15, tint: '#ffe2ef', petals: true,
+    props: { trees: 190, rocks: 38, buildings: 0, lampStride: 42, rockScale: 1.1 },
+    town: [],
     sky: '#9fbea7',
-    grandstands: true,
-    ferris: { x: -20, z: 0, rot: 0.2, scale: 1.1 },
-    torii: { x: 22, z: 0, rot: Math.PI / 2, scale: 1.1 },
+    ferris: { x: -30, z: 0, rot: 0.2, scale: 1.15 },
+    torii: { x: 28, z: 0, rot: Math.PI / 2, scale: 1.1 },
+    pagoda: { x: 0, z: 30, rot: 0, scale: 0.8 },
+    pondBridge: true,
+    overpass: true,
   },
 ];
 
@@ -254,13 +199,14 @@ function sampleTrack(ctrl: [number, number][], smooth = true): P2[] {
 }
 
 /** Pick a straight stretch, away from self-crossings, for the start line. */
-function straightestIndex(track: P2[]): number {
+function straightestIndex(track: P2[], minOriginDist = 0): number {
   const n = track.length;
   const win = n > 300 ? 16 : 4;
   const avoid = Math.max(24, Math.round(n * 0.08));
   let best = Math.floor(n / 3), bestScore = -Infinity;
   for (let i = 0; i < n; i += 2) {
     const b = track[i];
+    if (Math.hypot(b.x, b.z) < minOriginDist) continue;
     const a = track[(i - win + n) % n];
     const c = track[(i + win) % n];
     const v1x = b.x - a.x, v1z = b.z - a.z;
@@ -354,6 +300,22 @@ function paintGround(track: P2[], map: MapDef): HTMLCanvasElement {
   }
   g.globalAlpha = 1;
 
+  // cherry petals: a soft pink scatter under the blossom trees
+  if (map.petals) {
+    for (let i = 0; i < 9000; i++) {
+      const x = (rnd() * PX) | 0, y = (rnd() * PX) | 0;
+      g.fillStyle = rnd() > 0.45 ? 'rgba(255,196,218,0.55)' : 'rgba(255,225,236,0.45)';
+      g.fillRect(x, y, rnd() > 0.6 ? 2 : 1, 1);
+    }
+    for (let i = 0; i < 180; i++) {
+      const cx = rnd() * PX, cy = rnd() * PX;
+      for (let k = 0; k < 10; k++) {
+        g.fillStyle = rnd() > 0.5 ? 'rgba(255,190,214,0.5)' : 'rgba(255,232,240,0.4)';
+        g.fillRect((cx + (rnd() - 0.5) * 20) | 0, (cy + (rnd() - 0.5) * 20) | 0, 1, 1);
+      }
+    }
+  }
+
   // clover / dirt clusters
   for (let i = 0; i < 420; i++) {
     const cx = rnd() * PX, cy = rnd() * PX;
@@ -421,7 +383,7 @@ function paintGround(track: P2[], map: MapDef): HTMLCanvasElement {
   dotted(g, track, 'rgba(246,246,240,0.62)', 0.16 * PPU, 1.9 * PPU, 2.4 * PPU);
 
   // start / finish checker
-  const si = straightestIndex(track);
+  const si = straightestIndex(track, map.overpass ? 46 : 0);
   const s = track[si], s2 = track[(si + 3) % track.length];
   const ang = Math.atan2(s2.z - s.z, s2.x - s.x) + Math.PI * 0.5;   // start line runs ACROSS the road
   g.save();
@@ -477,6 +439,49 @@ function boardTexture(label: string, accent: string): THREE.Texture {
   return tex;
 }
 
+/** Japanese circuit board: cream field, red rising sun, kanji. */
+function jpBoardTexture(label: string, accent: string): THREE.Texture {
+  const cv = document.createElement('canvas');
+  cv.width = 160; cv.height = 64;
+  const g = cv.getContext('2d')!;
+  g.fillStyle = '#f6f0e4'; g.fillRect(0, 0, 160, 64);
+  g.fillStyle = accent; g.fillRect(0, 0, 160, 7); g.fillRect(0, 57, 160, 7);
+  g.fillStyle = '#22252a';
+  g.fillRect(5, 9, 150, 2); g.fillRect(5, 53, 150, 2);
+  g.beginPath(); g.arc(25, 27, 11, 0, Math.PI * 2); g.fillStyle = '#c8463c'; g.fill();
+  g.fillStyle = '#f6f0e4'; g.beginPath(); g.arc(25, 27, 7, 0, Math.PI * 2); g.fill();
+  g.font = 'bold 27px "Noto Sans CJK JP", "Noto Sans JP", sans-serif';
+  g.textAlign = 'center';
+  g.textBaseline = 'middle';
+  g.fillStyle = '#1b1d22';
+  g.fillText(label, 100, 32);
+  const tex = new THREE.CanvasTexture(cv);
+  tex.magFilter = THREE.NearestFilter;
+  tex.minFilter = THREE.NearestFilter;
+  tex.colorSpace = THREE.SRGBColorSpace;
+  return tex;
+}
+
+function jpBannerTexture(label: string, accent: string): THREE.Texture {
+  const cv = document.createElement('canvas');
+  cv.width = 64; cv.height = 192;
+  const g = cv.getContext('2d')!;
+  g.fillStyle = '#f6f0e4'; g.fillRect(0, 0, 64, 192);
+  g.fillStyle = accent; g.fillRect(0, 0, 64, 8); g.fillRect(0, 184, 64, 8);
+  g.fillStyle = '#22252a'; g.fillRect(4, 12, 56, 2); g.fillRect(4, 178, 56, 2);
+  g.font = 'bold 44px "Noto Sans CJK JP", "Noto Sans JP", sans-serif';
+  g.textAlign = 'center';
+  g.textBaseline = 'middle';
+  g.fillStyle = '#1b1d22';
+  const chars = [...label];
+  chars.forEach((ch, i) => g.fillText(ch, 32, 40 + i * 54));
+  const tex = new THREE.CanvasTexture(cv);
+  tex.magFilter = THREE.NearestFilter;
+  tex.minFilter = THREE.NearestFilter;
+  tex.colorSpace = THREE.SRGBColorSpace;
+  return tex;
+}
+
 /** Turn board: three chunky chevrons, pointing left (-1) or right (+1). */
 function arrowTexture(dir: number): THREE.Texture {
   const cv = document.createElement('canvas');
@@ -514,6 +519,53 @@ export async function buildWorld(scene: THREE.Scene, mapId?: string): Promise<Wo
   scene.add(group);
 
   const track = sampleTrack(map.ctrl, map.smooth !== false);
+
+  // ---- Sakura overpass ------------------------------------------------------
+  // The figure-eight crosses itself at the origin. One branch climbs a short
+  // bridge; the other passes underneath. Height is selected from the car's
+  // heading so the two branches do not both rise.
+  let bridge: { cx: number; cz: number; dirx: number; dirz: number;
+    halfW: number; deckHalf: number; ramp: number; height: number } | null = null;
+  if (map.overpass) {
+    const near: number[] = [];
+    for (let i = 0; i < track.length; i += 2) {
+      if (Math.hypot(track[i].x, track[i].z) < 2.2) near.push(i);
+    }
+    const i0 = near[0] ?? 0;
+    const i1 = near.find((i) => Math.abs(i - i0) > track.length / 4)
+      ?? (i0 + Math.floor(track.length / 2)) % track.length;
+    const tangent = (i: number) => {
+      const a = track[(i - 5 + track.length) % track.length];
+      const b = track[(i + 5) % track.length];
+      const dx = b.x - a.x, dz = b.z - a.z;
+      const l = Math.hypot(dx, dz) || 1;
+      return { x: dx / l, z: dz / l };
+    };
+    const t0 = tangent(i0);
+    const t1 = tangent(i1);
+    const dir = t0.x >= t1.x ? t0 : t1;
+    bridge = {
+      cx: 0, cz: 0, dirx: dir.x, dirz: dir.z,
+      halfW: ROAD_HALF + 0.7, deckHalf: 4.5, ramp: 12.0, height: 3.2,
+    };
+  }
+  const bridgeHeight = (along: number) => {
+    if (!bridge) return 0;
+    const a = Math.abs(along);
+    if (a >= bridge.ramp) return 0;
+    if (a <= bridge.deckHalf) return bridge.height;
+    return bridge.height * (1 - (a - bridge.deckHalf) / (bridge.ramp - bridge.deckHalf));
+  };
+  const groundAt = (x: number, z: number, heading: number) => {
+    if (!bridge) return 0;
+    const dx = x - bridge.cx, dz = z - bridge.cz;
+    const along = dx * bridge.dirx + dz * bridge.dirz;
+    const across = dx * -bridge.dirz + dz * bridge.dirx;
+    if (Math.abs(across) > bridge.halfW || Math.abs(along) >= bridge.ramp) return 0;
+    const fwdX = -Math.sin(heading), fwdZ = -Math.cos(heading);
+    if (fwdX * bridge.dirx + fwdZ * bridge.dirz < 0.6) return 0;
+    return bridgeHeight(along);
+  };
 
   // ---- road membership grid -------------------------------------------------
   const cell = 1;
@@ -610,9 +662,10 @@ export async function buildWorld(scene: THREE.Scene, mapId?: string): Promise<Wo
   };
 
   // ---- props ----------------------------------------------------------------
-  const [pineTex, snowTex, palmTex, rockTex, lampTex, tyreTex, bldA, bldB, bldC, shadowTex,
+  const [pineTex, sakuraTex, snowTex, palmTex, rockTex, lampTex, tyreTex, bldA, bldB, bldC, shadowTex,
     cactusTex, mesaTex, pylonTex] = await Promise.all([
-    loadSheet('/sprites/pine.png'), loadSheet('/sprites/pine-snow.png'), loadSheet('/sprites/palm.png'),
+    loadSheet('/sprites/pine.png'), loadSheet('/sprites/sakura.png'),
+    loadSheet('/sprites/pine-snow.png'), loadSheet('/sprites/palm.png'),
     loadSheet('/sprites/rock.png'), loadSheet('/sprites/lamp.png'), loadSheet('/sprites/tyres.png'),
     loadSheet('/sprites/building-a.png'), loadSheet('/sprites/building-b.png'),
     loadSheet('/sprites/building-c.png'), loadSheet('/sprites/shadow.png'),
@@ -621,6 +674,7 @@ export async function buildWorld(scene: THREE.Scene, mapId?: string): Promise<Wo
 
   const defs: Record<string, StackDef> = {
     pine: { url: '', layers: 18, sheetW: 40, sheetH: 40, worldW: 3.1, lift: 0.125 },
+    sakura: { url: '', layers: 18, sheetW: 40, sheetH: 40, worldW: 3.1, lift: 0.125 },
     palm: { url: '', layers: 18, sheetW: 40, sheetH: 40, worldW: 3.4, lift: 0.135 },
     rock: { url: '', layers: 10, sheetW: 28, sheetH: 28, worldW: 1.9, lift: 0.09 },
     lamp: { url: '', layers: 26, sheetW: 16, sheetH: 16, worldW: 1.0, lift: 0.075 },
@@ -673,10 +727,11 @@ export async function buildWorld(scene: THREE.Scene, mapId?: string): Promise<Wo
   });
 
   // trees: a corridor along the track, then loose clusters in the open
-  const pines: Placement[] = [], palms: Placement[] = [];
+  const pines: Placement[] = [], palms: Placement[] = [], sakuras: Placement[] = [];
   const addTree = (x: number, z: number, palm = false) => {
     if (!free(x, z, 1.5, 0.9)) return;
-    if (palm) palms.push({ x, z, rot: rnd() * 6.28, scale: 0.9 + rnd() * 0.3 });
+    if (map.trees === 'sakura') sakuras.push({ x, z, rot: rnd() * 6.28, scale: 0.85 + rnd() * 0.45 });
+    else if (palm) palms.push({ x, z, rot: rnd() * 6.28, scale: 0.9 + rnd() * 0.3 });
     else pines.push({ x, z, rot: rnd() * 6.28, scale: 0.85 + rnd() * 0.45 });
     taken.push({ x, z, r: 1.5 });
     colliders.push({ x, z, r: 0.7 });
@@ -701,7 +756,7 @@ export async function buildWorld(scene: THREE.Scene, mapId?: string): Promise<Wo
   // scattered woodland
   let guard = 0;
   const treeTarget = map.props?.trees ?? Math.round(190 * (map.density ?? 1));
-  while (pines.length + palms.length < treeTarget && guard++ < 3000) {
+  while (pines.length + palms.length + sakuras.length < treeTarget && guard++ < 3000) {
     const x = (rnd() - 0.5) * (WORLD - 8);
     const z = (rnd() - 0.5) * (WORLD - 8);
     const palmChance = map.trees === 'palm' ? 0.9 : map.trees === 'mixed' ? 0.45 : 0.08;
@@ -896,6 +951,152 @@ export async function buildWorld(scene: THREE.Scene, mapId?: string): Promise<Wo
     colliders.push({ x: f.x, z: f.z, r: 4.0 });
   }
 
+  if (bridge) {
+    const g = new THREE.Group();
+    g.position.set(bridge.cx, 0, bridge.cz);
+    g.rotation.y = Math.atan2(bridge.dirx, bridge.dirz);
+    const W = bridge.halfW * 2;
+    const H = bridge.height;
+    const dh = bridge.deckHalf, rp = bridge.ramp;
+
+    // deck: flat top with long, gentle ramps
+    const zs = [-rp, -dh, dh, rp];
+    const ys = [0, H, H, 0];
+    const pos: number[] = [];
+    for (let i = 0; i < zs.length - 1; i++) {
+      const z0 = zs[i], z1 = zs[i + 1], y0 = ys[i], y1 = ys[i + 1];
+      pos.push(-W / 2, y0, z0, W / 2, y1, z1, W / 2, y0, z0);
+      pos.push(-W / 2, y0, z0, -W / 2, y1, z1, W / 2, y1, z1);
+    }
+    const geo = new THREE.BufferGeometry();
+    geo.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
+    geo.computeVertexNormals();
+    const deck = new THREE.Mesh(geo, new THREE.MeshBasicMaterial({
+      color: map.palette.asphalt, toneMapped: false,
+    }));
+    g.add(deck);
+
+    // cream edge bands and a restrained centre dash
+    for (const sx of [-W / 2 + 0.22, W / 2 - 0.22]) {
+      addBox(g, 0.18, 0.025, dh * 2, 0xf2eee1, sx, H + 0.03, 0);
+    }
+    for (let k = -3.5; k <= 3.5; k += 1.75) {
+      addBox(g, 0.16, 0.025, 0.9, 0xf2eee1, 0, H + 0.04, k);
+    }
+
+    // cream edge curbs follow both ramps and the flat deck
+    for (const [z0, z1] of [[-rp, -dh], [-dh, dh], [dh, rp]]) {
+      const y0 = bridgeHeight(z0), y1 = bridgeHeight(z1);
+      for (const sx of [-W / 2 + 0.18, W / 2 - 0.18]) {
+        addBox(g, 0.26, 0.06, Math.abs(z1 - z0), 0xf2eee1, sx, (y0 + y1) / 2 + 0.03, (z0 + z1) / 2);
+      }
+    }
+
+    // slim vermilion railings, posts and two stone supports
+    const red = 0xb5523f, stone = 0xa8adb3, cream = 0xf2eee1;
+    for (const sx of [-W / 2 + 0.08, W / 2 - 0.08]) {
+      for (let z = -dh + 0.9; z <= dh - 0.9; z += 2.4) {
+        addBox(g, 0.12, 0.9, 0.12, red, sx, H + 0.48, z);
+        addBox(g, 0.22, 0.12, 0.22, cream, sx, H + 0.98, z);
+      }
+      addBox(g, 0.10, 0.10, dh * 2 - 0.4, red, sx, H + 0.62, 0);
+      addBox(g, 0.08, 0.08, dh * 2 - 0.4, red, sx, H + 0.98, 0);
+      for (const z of [-dh - 2.4, dh + 2.4]) {
+        const hh = bridgeHeight(z);
+        addBox(g, 0.12, 0.9, 0.12, red, sx, hh + 0.45, z);
+      }
+    }
+    // warm lanterns on the four flat-deck corners
+    for (const sx of [-W / 2 + 0.08, W / 2 - 0.08]) {
+      for (const z of [-dh + 0.9, dh - 0.9]) {
+        addBox(g, 0.30, 0.36, 0.30, 0xffe1a0, sx, H + 1.35, z);
+        addBox(g, 0.48, 0.10, 0.48, 0x2b2d33, sx, H + 1.58, z);
+      }
+    }
+    // stone supports tucked just outside the lower lane
+    for (const sx of [-W / 2 + 0.55, W / 2 - 0.55]) {
+      for (const z of [-5.5, 5.5]) {
+        addBox(g, 0.55, H, 0.55, stone, sx, H / 2, z);
+        const wx = bridge.cx + sx * bridge.dirz + z * bridge.dirx;
+        const wz = bridge.cz - sx * bridge.dirx + z * bridge.dirz;
+        colliders.push({ x: wx, z: wz, r: 0.5 });
+      }
+    }
+    addBox(g, W - 0.6, 0.28, 0.6, stone, 0, H - 0.35, 0);
+    // small bridge name plaques on the outer rails
+    for (const sx of [-W / 2 - 0.03, W / 2 + 0.03]) {
+      const plaque = new THREE.Mesh(
+        new THREE.PlaneGeometry(2.4, 1.1),
+        new THREE.MeshBasicMaterial({ map: jpBoardTexture('桜橋', '#c8463c'), toneMapped: false }),
+      );
+      plaque.position.set(sx, H + 1.35, 0);
+      plaque.rotation.y = sx > 0 ? Math.PI / 2 : -Math.PI / 2;
+      g.add(plaque);
+    }
+    group.add(g);
+  }
+
+  if (map.pagoda) {
+    const pd = map.pagoda;
+    const g = new THREE.Group();
+    g.position.set(pd.x, 0, pd.z);
+    g.rotation.y = pd.rot;
+    g.scale.setScalar(pd.scale);
+    const red = 0xc8463c, roof = 0x8f2f2f, cream = 0xe8dcc2, stone = 0x9aa0a6, gold = 0xd9b45a;
+    addBox(g, 9.2, 0.6, 9.2, stone, 0, 0.3, 0);
+    addBox(g, 4.8, 3.0, 4.8, cream, 0, 2.1, 0);
+    for (const px of [-2.1, 2.1]) for (const pz of [-2.1, 2.1]) {
+      addBox(g, 0.34, 3.2, 0.34, red, px, 2.1, pz);
+    }
+    addBox(g, 7.6, 0.45, 7.6, roof, 0, 3.85, 0);
+    addBox(g, 7.9, 0.10, 7.9, cream, 0, 4.05, 0);
+    addBox(g, 3.6, 2.6, 3.6, cream, 0, 5.35, 0);
+    for (const px of [-1.5, 1.5]) for (const pz of [-1.5, 1.5]) {
+      addBox(g, 0.28, 2.8, 0.28, red, px, 5.35, pz);
+    }
+    addBox(g, 6.4, 0.42, 6.4, roof, 0, 6.85, 0);
+    addBox(g, 6.7, 0.10, 6.7, cream, 0, 7.04, 0);
+    addBox(g, 2.6, 2.2, 2.6, cream, 0, 8.15, 0);
+    for (const px of [-1.0, 1.0]) for (const pz of [-1.0, 1.0]) {
+      addBox(g, 0.24, 2.4, 0.24, red, px, 8.15, pz);
+    }
+    addBox(g, 5.2, 0.38, 5.2, roof, 0, 9.45, 0);
+    addBox(g, 5.5, 0.10, 5.5, cream, 0, 9.62, 0);
+    addBox(g, 0.22, 1.7, 0.22, gold, 0, 10.4, 0);
+    group.add(g);
+    colliders.push({ x: pd.x, z: pd.z, r: 5.2 });
+  }
+
+  if (map.pondBridge && map.lake) {
+    const g = new THREE.Group();
+    g.position.set(map.lake.x, 0, map.lake.z);
+    const red = 0xc8463c, deck = 0xd9b45a;
+    for (let i = -2; i <= 2; i++) {
+      const h = 1.2 + (1 - Math.abs(i) / 2) * 0.9;
+      addBox(g, 3.4, 0.18, 2.4, deck, i * 3.1, h, 0);
+      for (const zs of [-1.25, 1.25]) addBox(g, 0.14, 0.9, 0.14, red, i * 3.1, h + 0.6, zs);
+    }
+    for (const zs of [-1.25, 1.25]) {
+      addBox(g, 15.6, 0.12, 0.12, red, 0, 2.65, zs);
+      addBox(g, 15.6, 0.10, 0.10, red, 0, 2.15, zs);
+    }
+    group.add(g);
+  }
+
+  if (map.fuji) {
+    const f = map.fuji;
+    const g = new THREE.Group();
+    g.position.set(f.x, 0, f.z);
+    g.scale.setScalar(f.scale);
+    const base = new THREE.Mesh(new THREE.ConeGeometry(24, 32, 6), basic(0x6f8296));
+    base.position.y = 16;
+    g.add(base);
+    const snow = new THREE.Mesh(new THREE.ConeGeometry(8.5, 11, 6), basic(0xf2f6f8));
+    snow.position.y = 26.5;
+    g.add(snow);
+    group.add(g);
+  }
+
   if (map.torii) {
     const t = map.torii;
     const g = new THREE.Group();
@@ -916,6 +1117,7 @@ export async function buildWorld(scene: THREE.Scene, mapId?: string): Promise<Wo
 
   const tint = map.tint ? new THREE.Color(map.tint) : undefined;
   group.add(instancedStack(pineTex, defs.pine, pines, tint));
+  group.add(instancedStack(sakuraTex, defs.sakura, sakuras, tint));
   group.add(instancedStack(palmTex, defs.palm, palms, tint));
   group.add(instancedStack(rockTex, defs.rock, rocks, tint));
   group.add(instancedStack(lampTex, defs.lamp, lamps, tint));
@@ -926,7 +1128,7 @@ export async function buildWorld(scene: THREE.Scene, mapId?: string): Promise<Wo
   group.add(shadowPatch(shadowTex, shadows, 2.6));
 
   // start on the long bottom straight, facing along the tangent
-  const si = straightestIndex(track);
+  const si = straightestIndex(track, map.overpass ? 46 : 0);
   const ahead = track.length > 300 ? 8 : 3;
   const s0 = track[si], s1 = track[(si + ahead) % track.length];
   const start = { x: s0.x, z: s0.z, heading: Math.atan2(-(s1.x - s0.x), -(s1.z - s0.z)) };
@@ -958,9 +1160,14 @@ export async function buildWorld(scene: THREE.Scene, mapId?: string): Promise<Wo
       c2.fillRect(i * 8, 0, 8, 10);
     }
     c2.fillStyle = '#22252a';
-    c2.font = 'bold 16px monospace';
     c2.textAlign = 'center';
-    c2.fillText('SPRITE DRIFT', 128, 34);
+    if (map.id === 'sakura') {
+      c2.font = 'bold 19px "Noto Sans CJK JP", "Noto Sans JP", sans-serif';
+      c2.fillText('桜サーキット', 128, 34);
+    } else {
+      c2.font = 'bold 16px monospace';
+      c2.fillText('SPRITE DRIFT', 128, 34);
+    }
     const tex = new THREE.CanvasTexture(cv);
     tex.magFilter = THREE.NearestFilter;
     tex.minFilter = THREE.NearestFilter;
@@ -1019,7 +1226,9 @@ export async function buildWorld(scene: THREE.Scene, mapId?: string): Promise<Wo
       return a > b ? 1 : -1;
     };
 
-    const straightLabels = ['SPRITE', 'TURBO', 'DRIFT', '8-BIT', 'PIXEL', 'OIL'];
+    const straightLabels = map.id === 'sakura'
+      ? ['桜', '鈴鹿', '日本', '富士', '速度', '東京']
+      : ['SPRITE', 'TURBO', 'DRIFT', '8-BIT', 'PIXEL', 'OIL'];
     const accents = ['#e0513f', '#2b6d7a', '#b5432f'];
 
     // sponsor boards flank the start straight, clear of the gantry
@@ -1037,9 +1246,28 @@ export async function buildWorld(scene: THREE.Scene, mapId?: string): Promise<Wo
       const z = p.z + nz * side * off;
       // face down the straight toward oncoming cars, angled in toward the road
       const rot = Math.atan2(-dx, -dz) - side * 0.55;
-      const tex = boardTexture(straightLabels[bi % straightLabels.length], accents[bi % accents.length]);
+      const tex = map.id === 'sakura'
+        ? jpBoardTexture(straightLabels[bi % straightLabels.length], accents[bi % accents.length])
+        : boardTexture(straightLabels[bi % straightLabels.length], accents[bi % accents.length]);
       placeBoard(x, z, rot, tex, 3.9, 1.18, 1.05);
       bi++;
+    }
+
+    // vertical kanji banners flanking the Sakura start straight
+    if (map.id === 'sakura') {
+      const banners = ['桜', '鈴鹿'];
+      banners.forEach((label, k) => {
+        const i = (((si + (k === 0 ? -16 : 16)) % n) + n) % n;
+        const p = track[i], q = track[(i + 4) % n];
+        const dx = q.x - p.x, dz = q.z - p.z;
+        const len = Math.hypot(dx, dz) || 1;
+        const nx = dz / len, nz = -dx / len;
+        const side = sideAt(p, nx, nz);
+        const x = p.x + nx * side * (ROAD_HALF + 2.6);
+        const z = p.z + nz * side * (ROAD_HALF + 2.6);
+        const rot = Math.atan2(-dx, -dz) - side * 0.35;
+        placeBoard(x, z, rot, jpBannerTexture(label, k === 0 ? '#c8463c' : '#22252a'), 1.5, 3.4, 1.1);
+      });
     }
 
     // turn boards at the sharpest corners, placed on the outside of the bend
@@ -1076,6 +1304,7 @@ export async function buildWorld(scene: THREE.Scene, mapId?: string): Promise<Wo
     sky: map.sky ?? '#4e7a45',
     minimapPath: track.filter((_, i) => i % 2 === 0),
     track,
+    groundAt,
     update() {
       if (skidDirty) {
         skidTex.needsUpdate = true;
