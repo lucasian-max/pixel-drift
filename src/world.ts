@@ -546,15 +546,15 @@ export async function buildWorld(scene: THREE.Scene, mapId?: string): Promise<Wo
     const dir = t0.x >= t1.x ? t0 : t1;
     bridge = {
       cx: 0, cz: 0, dirx: dir.x, dirz: dir.z,
-      halfW: ROAD_HALF + 0.7, deckHalf: 4.5, ramp: 12.0, height: 3.2,
+      halfW: ROAD_HALF + 0.7, deckHalf: 0, ramp: 14.0, height: 3.4,
     };
   }
   const bridgeHeight = (along: number) => {
     if (!bridge) return 0;
     const a = Math.abs(along);
     if (a >= bridge.ramp) return 0;
-    if (a <= bridge.deckHalf) return bridge.height;
-    return bridge.height * (1 - (a - bridge.deckHalf) / (bridge.ramp - bridge.deckHalf));
+    const t = a / bridge.ramp;
+    return bridge.height * (1 - t * t);
   };
   const groundAt = (x: number, z: number, heading: number) => {
     if (!bridge) return 0;
@@ -957,79 +957,78 @@ export async function buildWorld(scene: THREE.Scene, mapId?: string): Promise<Wo
     g.rotation.y = Math.atan2(bridge.dirx, bridge.dirz);
     const W = bridge.halfW * 2;
     const H = bridge.height;
-    const dh = bridge.deckHalf, rp = bridge.ramp;
+    const rp = bridge.ramp;
+    const segs = 18;
 
-    // deck: flat top with long, gentle ramps
-    const zs = [-rp, -dh, dh, rp];
-    const ys = [0, H, H, 0];
-    const pos: number[] = [];
-    for (let i = 0; i < zs.length - 1; i++) {
-      const z0 = zs[i], z1 = zs[i + 1], y0 = ys[i], y1 = ys[i + 1];
-      pos.push(-W / 2, y0, z0, W / 2, y1, z1, W / 2, y0, z0);
-      pos.push(-W / 2, y0, z0, -W / 2, y1, z1, W / 2, y1, z1);
+    // arched wooden deck
+    const deckMat = new THREE.MeshBasicMaterial({ color: 0x6b4a3a, toneMapped: false });
+    const verts: number[] = [];
+    for (let i = 0; i < segs; i++) {
+      const za = -rp + (2 * rp * i) / segs;
+      const zb = -rp + (2 * rp * (i + 1)) / segs;
+      const ya = bridgeHeight(za), yb = bridgeHeight(zb);
+      verts.push(-W / 2, ya, za, W / 2, yb, zb, W / 2, ya, za);
+      verts.push(-W / 2, ya, za, -W / 2, yb, zb, W / 2, yb, zb);
     }
     const geo = new THREE.BufferGeometry();
-    geo.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
+    geo.setAttribute('position', new THREE.Float32BufferAttribute(verts, 3));
     geo.computeVertexNormals();
-    const deck = new THREE.Mesh(geo, new THREE.MeshBasicMaterial({
-      color: map.palette.asphalt, toneMapped: false,
-    }));
-    g.add(deck);
+    g.add(new THREE.Mesh(geo, deckMat));
 
-    // cream edge bands and a restrained centre dash
-    for (const sx of [-W / 2 + 0.22, W / 2 - 0.22]) {
-      addBox(g, 0.18, 0.025, dh * 2, 0xf2eee1, sx, H + 0.03, 0);
+    // plank seams and cream edge beams following the crown
+    for (let i = 1; i < segs; i++) {
+      const z = -rp + (2 * rp * i) / segs;
+      addBox(g, W - 0.34, 0.020, 0.10, 0x4a3228, 0, bridgeHeight(z) + 0.025, z);
     }
-    for (let k = -3.5; k <= 3.5; k += 1.75) {
-      addBox(g, 0.16, 0.025, 0.9, 0xf2eee1, 0, H + 0.04, k);
+    const beam = (ax: number, ay: number, az: number, bx: number, by: number, bz: number, t: number, color: number) => {
+      const a = new THREE.Vector3(ax, ay, az), b = new THREE.Vector3(bx, by, bz);
+      const d = b.clone().sub(a);
+      const m = new THREE.Mesh(new THREE.BoxGeometry(t, d.length(), t), basic(color));
+      m.position.copy(a).addScaledVector(d, 0.5);
+      m.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), d.clone().normalize());
+      g.add(m);
+    };
+
+    for (const sx of [-W / 2 + 0.12, W / 2 - 0.12]) {
+      for (let i = 0; i < segs; i++) {
+        const za = -rp + (2 * rp * i) / segs;
+        const zb = -rp + (2 * rp * (i + 1)) / segs;
+        const ya = bridgeHeight(za), yb = bridgeHeight(zb);
+        beam(sx, ya + 0.04, za, sx, yb + 0.04, zb, 0.22, 0xf2eee1);        // curb
+        beam(sx, ya + 0.55, za, sx, yb + 0.55, zb, 0.085, 0xb5523f);        // lower rail
+        beam(sx, ya + 1.02, za, sx, yb + 1.02, zb, 0.075, 0xb5523f);        // top rail
+      }
+      for (let i = 0; i <= segs; i++) {
+        const z = -rp + (2 * rp * i) / segs;
+        const y = bridgeHeight(z);
+        addBox(g, 0.13, 0.95, 0.13, 0xb5523f, sx, y + 0.50, z);
+        if (i % 4 === 0) {
+          addBox(g, 0.30, 0.34, 0.30, 0xffe1a0, sx, y + 1.20, z);
+          addBox(g, 0.46, 0.10, 0.46, 0x2b2d33, sx, y + 1.42, z);
+        }
+      }
     }
 
-    // cream edge curbs follow both ramps and the flat deck
-    for (const [z0, z1] of [[-rp, -dh], [-dh, dh], [dh, rp]]) {
-      const y0 = bridgeHeight(z0), y1 = bridgeHeight(z1);
-      for (const sx of [-W / 2 + 0.18, W / 2 - 0.18]) {
-        addBox(g, 0.26, 0.06, Math.abs(z1 - z0), 0xf2eee1, sx, (y0 + y1) / 2 + 0.03, (z0 + z1) / 2);
-      }
-    }
-
-    // slim vermilion railings, posts and two stone supports
-    const red = 0xb5523f, stone = 0xa8adb3, cream = 0xf2eee1;
-    for (const sx of [-W / 2 + 0.08, W / 2 - 0.08]) {
-      for (let z = -dh + 0.9; z <= dh - 0.9; z += 2.4) {
-        addBox(g, 0.12, 0.9, 0.12, red, sx, H + 0.48, z);
-        addBox(g, 0.22, 0.12, 0.22, cream, sx, H + 0.98, z);
-      }
-      addBox(g, 0.10, 0.10, dh * 2 - 0.4, red, sx, H + 0.62, 0);
-      addBox(g, 0.08, 0.08, dh * 2 - 0.4, red, sx, H + 0.98, 0);
-      for (const z of [-dh - 2.4, dh + 2.4]) {
-        const hh = bridgeHeight(z);
-        addBox(g, 0.12, 0.9, 0.12, red, sx, hh + 0.45, z);
-      }
-    }
-    // warm lanterns on the four flat-deck corners
-    for (const sx of [-W / 2 + 0.08, W / 2 - 0.08]) {
-      for (const z of [-dh + 0.9, dh - 0.9]) {
-        addBox(g, 0.30, 0.36, 0.30, 0xffe1a0, sx, H + 1.35, z);
-        addBox(g, 0.48, 0.10, 0.48, 0x2b2d33, sx, H + 1.58, z);
-      }
-    }
-    // stone supports tucked just outside the lower lane
-    for (const sx of [-W / 2 + 0.55, W / 2 - 0.55]) {
-      for (const z of [-5.5, 5.5]) {
-        addBox(g, 0.55, H, 0.55, stone, sx, H / 2, z);
+    // stone piers and a crossbeam tucked under the crown
+    const stone = 0xa8adb3;
+    for (const sx of [-W / 2 + 0.58, W / 2 - 0.58]) {
+      for (const z of [-5.8, 5.8]) {
+        const h = bridgeHeight(z);
+        addBox(g, 0.58, h, 0.58, stone, sx, h / 2, z);
         const wx = bridge.cx + sx * bridge.dirz + z * bridge.dirx;
         const wz = bridge.cz - sx * bridge.dirx + z * bridge.dirz;
         colliders.push({ x: wx, z: wz, r: 0.5 });
       }
     }
-    addBox(g, W - 0.6, 0.28, 0.6, stone, 0, H - 0.35, 0);
-    // small bridge name plaques on the outer rails
-    for (const sx of [-W / 2 - 0.03, W / 2 + 0.03]) {
+    addBox(g, W - 0.7, 0.28, 0.55, stone, 0, H - 0.34, 0);
+
+    // bridge name plaques on the outside faces
+    for (const sx of [-W / 2 - 0.02, W / 2 + 0.02]) {
       const plaque = new THREE.Mesh(
-        new THREE.PlaneGeometry(2.4, 1.1),
+        new THREE.PlaneGeometry(2.2, 0.95),
         new THREE.MeshBasicMaterial({ map: jpBoardTexture('桜橋', '#c8463c'), toneMapped: false }),
       );
-      plaque.position.set(sx, H + 1.35, 0);
+      plaque.position.set(sx, H + 0.72, 0);
       plaque.rotation.y = sx > 0 ? Math.PI / 2 : -Math.PI / 2;
       g.add(plaque);
     }

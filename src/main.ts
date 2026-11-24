@@ -588,15 +588,19 @@ async function boot() {
     speedZoom += (wantZoom - speedZoom) * (1 - Math.exp(-dt * 2.5));
     layout();
 
-    desired.set(overview ? 0 : car.x + car.vx * 0.3, 0, overview ? 0 : car.z + car.vz * 0.3);
+    desired.set(
+      overview ? 0 : car.x + car.vx * 0.3,
+      overview ? 0 : car.groundY * 0.7,
+      overview ? 0 : car.z + car.vz * 0.3,
+    );
     focus.lerp(desired, 1 - Math.exp(-dt * 7));
     const cx = Math.sin(camYaw) * Math.cos(PITCH) * CAM_DIST;
     const cz = Math.cos(camYaw) * Math.cos(PITCH) * CAM_DIST;
     camera.position.set(focus.x + cx, Math.sin(PITCH) * CAM_DIST, focus.z + cz);
-    camera.lookAt(focus.x, 0, focus.z);
+    camera.lookAt(focus.x, focus.y, focus.z);
 
 
-    shadowDummy.position.set(car.x + 0.22, 0.016, car.z + 0.26);
+    shadowDummy.position.set(car.x + 0.22, car.groundY + 0.016, car.z + 0.26);
     shadowDummy.rotation.set(0, car.heading, 0);
     shadowDummy.scale.set(1, 1, 1.3);
     shadowDummy.updateMatrix();

@@ -26,7 +26,9 @@ export class Car {
   onRoad = true;
   onKerb = false;
   group = new THREE.Group();
+  tilt = new THREE.Group();
   model!: THREE.Group;
+  pitch = 0;
   variant = 0;
   driftScore = 0;
   onImpact?: (strength: number) => void;
@@ -60,6 +62,7 @@ export class Car {
   }
 
   async init(world: World) {
+    this.group.add(this.tilt);
     await this.setSkin('car-dirs');
     this.initFx();
     this.x = world.start.x;
@@ -69,10 +72,10 @@ export class Car {
   }
 
   async setSkin(_file: string) {
-    if (this.model) this.group.remove(this.model);
+    if (this.model) this.tilt.remove(this.model);
     this.model = buildCarModel(this.variant);
     this.model.rotation.y = Math.PI;   // the model is built nose toward +Z
-    this.group.add(this.model);
+    this.tilt.add(this.model);
     this.ghostOn = false;
     this.glowOn = false;
   }
@@ -114,6 +117,7 @@ export class Car {
     this.steerAngle = 0;
     this.driftScore = 0;
     this.groundY = 0;
+    this.pitch = 0;
     this.powerTime = 0;
     this.powerCd = 0;
     this.powerCharge = 0;
@@ -124,6 +128,7 @@ export class Car {
   private sync() {
     this.group.position.set(this.x, this.groundY, this.z);
     this.group.rotation.y = this.heading;
+    this.tilt.rotation.x = this.pitch;
   }
 
   update(dt: number, c: CarControls, world: World) {
@@ -202,6 +207,15 @@ export class Car {
 
     const wasPowered = this.powerTime > 0;
     this.groundY = world.groundAt ? world.groundAt(this.x, this.z, this.heading) : 0;
+    if (world.groundAt) {
+      const half = 0.9;
+      const hF = world.groundAt(this.x + fx * half, this.z + fz * half, this.heading);
+      const hB = world.groundAt(this.x - fx * half, this.z - fz * half, this.heading);
+      const targetPitch = Math.atan2(hF - hB, half * 2);
+      this.pitch += (targetPitch - this.pitch) * Math.min(1, dt * 8);
+    } else {
+      this.pitch += (0 - this.pitch) * Math.min(1, dt * 8);
+    }
     this.powerTime = Math.max(0, this.powerTime - dt);
     this.powerCd = Math.max(0, this.powerCd - dt);
     if (wasPowered && this.powerTime <= 0 && power.exitBoost && this.powerCharge > 0) {
