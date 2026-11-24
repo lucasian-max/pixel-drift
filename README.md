@@ -64,7 +64,7 @@ one power on the `F` key; the HUD card shows READY, ACTIVE and the cooldown.
 
 | Car | Power | What it does |
 | --- | --- | --- |
-| **Pearl GT** | Pearl Rush | A clean top-end surge |
+| **Pearl GT** | Pearl Drift | 4s of high-angle, high-score sliding with a pearl aura; exits with a boost from the drift |
 | **Group B** | Thunderclap | Yellow lightning, a glowing shell and a hard launch |
 
 The hero is a pearl-white GT with a twin racing stripe, a roof roundel, framed
@@ -76,6 +76,8 @@ The Group B car is a yellow-and-white rally coupe built from a four-view sheet:
 boxy flares, a six-lamp pod, roof scoop, mudflaps and a tall rear wing.
 
 ![rally car](docs/rally.png)
+
+![Pearl Drift](docs/power-pearl.png)
 
 ![Thunderclap](docs/power-rally.png)
 

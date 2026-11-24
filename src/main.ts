@@ -547,6 +547,7 @@ async function boot() {
         duration: car.power.duration,
         cooldown: car.power.cooldown,
         color: powerColour(car.variant),
+        charge: car.power.exitBoost ? Math.min(1, car.powerCharge / 40) : undefined,
       },
       lapHistory: [...lapHistory],
       warning: warning && now < warningUntil ? warning : undefined,

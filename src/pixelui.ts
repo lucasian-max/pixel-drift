@@ -40,7 +40,7 @@ export interface UiState {
   carPowers?: string[];
   power?: {
     name: string; active: boolean; ready: boolean;
-    cd: number; time: number; duration: number; cooldown: number; color: string;
+    cd: number; time: number; duration: number; cooldown: number; color: string; charge?: number;
   };
   lapHistory?: number[];
   /** transient red notice, e.g. "LAP NOT COUNTED — OFF TRACK" */
@@ -267,14 +267,18 @@ export class PixelUI {
         size: 8, weight: 700, align: 'right',
         color: active ? (darkText ? INK : CREAM) : pw.ready ? ACCENT : DIM,
       });
-      const frac = active
-        ? Math.min(1, pw.time / pw.duration)
-        : 1 - Math.min(1, pw.cd / pw.cooldown);
+      const chargeFrac = active && pw.charge !== undefined ? Math.min(1, pw.charge) : undefined;
+      const frac = chargeFrac !== undefined
+        ? chargeFrac
+        : active
+          ? Math.min(1, pw.time / pw.duration)
+          : 1 - Math.min(1, pw.cd / pw.cooldown);
       c.fillStyle = active ? 'rgba(20,22,26,0.28)' : SEG_OFF;
       c.fillRect(pwX + 6, pwY + pwH - 8, pwW - 12, 3);
       c.fillStyle = active ? (darkText ? INK : CREAM) : pw.color;
       c.fillRect(pwX + 6, pwY + pwH - 8, Math.max(1, Math.round((pwW - 12) * frac)), 3);
-      this.text('F', pwX + 6, pwY + 16, { size: 8, color: active ? (darkText ? INK : CREAM) : DIM });
+      const hint = active && pw.charge !== undefined ? 'SLIDE TO CHARGE' : 'F';
+      this.text(hint, pwX + 6, pwY + 16, { size: 8, color: active ? (darkText ? INK : CREAM) : DIM });
     }
 
     /* ---- track-limit warning ---- */

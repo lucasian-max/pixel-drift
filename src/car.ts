@@ -38,9 +38,13 @@ export class Car {
   private fxBolts!: THREE.Group;
   private fxBoltMat!: THREE.MeshBasicMaterial;
   private fxBoltSegs: THREE.Mesh[] = [];
+  private fxOrbs!: THREE.Group;
+  private fxOrbMat!: THREE.MeshBasicMaterial;
+  private fxOrbMeshes: THREE.Mesh[] = [];
   private fxTimer = 0;
   private ghostOn = false;
   private glowOn = false;
+  powerCharge = 0;
 
   get power(): CarPower {
     return CAR_POWERS[this.variant] ?? CAR_POWERS[0];
@@ -76,6 +80,7 @@ export class Car {
     this.variant = ((v % CAR_VARIANTS) + CAR_VARIANTS) % CAR_VARIANTS;
     this.powerTime = 0;
     this.powerCd = 0;
+    this.powerCharge = 0;
     void this.setSkin('car');
   }
 
@@ -84,6 +89,7 @@ export class Car {
     const p = this.power;
     this.powerTime = p.duration;
     this.powerCd = p.cooldown;
+    this.powerCharge = 0;
     if (p.burst) {
       this.vx += -Math.sin(this.heading) * p.burst;
       this.vz += -Math.cos(this.heading) * p.burst;
@@ -108,6 +114,7 @@ export class Car {
     this.driftScore = 0;
     this.powerTime = 0;
     this.powerCd = 0;
+    this.powerCharge = 0;
     this.setGhost(false);
     this.sync();
   }
@@ -156,7 +163,8 @@ export class Car {
     this.heading += yawRate * dt;
 
     // lateral grip: low grip = the car keeps its old velocity while the nose turns
-    const grip = (c.handbrake ? 2.1 : this.onRoad ? 9.5 : 5.0) * (powered ? power.grip : 1);
+    const gripK = powered ? (power.driftGrip ?? power.grip) : 1;
+    const grip = (c.handbrake ? 2.1 : this.onRoad ? 9.5 : 5.0) * gripK;
     vLat *= Math.exp(-grip * dt);
     if (c.handbrake && Math.abs(vLong) > 4) vLat += -yawRate * 0.55 * dt * Math.abs(vLong);
 
@@ -174,8 +182,12 @@ export class Car {
     this.slip = Math.abs(vLat);
     this.drifting = this.slip > 2.4 && sp > 5;
 
-    if (this.drifting) this.driftScore += this.slip * dt * 12;
-    else this.driftScore = Math.max(0, this.driftScore - dt * 26);
+    if (this.drifting) {
+      this.driftScore += this.slip * dt * 12 * (powered ? (power.driftScore ?? 1) : 1);
+      if (powered && power.driftScore) {
+        this.powerCharge = Math.min(40, this.powerCharge + this.slip * dt * 10);
+      }
+    } else this.driftScore = Math.max(0, this.driftScore - dt * 26);
 
     // skid marks + dust from the rear wheels
     this.skidTimer -= dt;
@@ -186,8 +198,15 @@ export class Car {
       world.addSkid(bx - rx * 0.55, bz - rz * 0.55, this.heading, this.slip / 8);
     }
 
+    const wasPowered = this.powerTime > 0;
     this.powerTime = Math.max(0, this.powerTime - dt);
     this.powerCd = Math.max(0, this.powerCd - dt);
+    if (wasPowered && this.powerTime <= 0 && power.exitBoost && this.powerCharge > 0) {
+      const boost = Math.min(11, this.powerCharge * power.exitBoost * 0.28);
+      this.vx += fx * boost;
+      this.vz += fz * boost;
+    }
+    if (!powered) this.powerCharge = 0;
     this.updateFx(dt);
 
     this.sync();
@@ -258,6 +277,20 @@ export class Car {
     }
     this.fxBolts.visible = false;
     this.group.add(this.fxBolts);
+
+    this.fxOrbMat = new THREE.MeshBasicMaterial({
+      color: p.color, transparent: true, opacity: 0.9,
+      blending: THREE.AdditiveBlending, depthWrite: false, toneMapped: false,
+    });
+    this.fxOrbs = new THREE.Group();
+    for (let i = 0; i < 6; i++) {
+      const orb = new THREE.Mesh(new THREE.IcosahedronGeometry(0.21, 0), this.fxOrbMat);
+      orb.visible = false;
+      this.fxOrbMeshes.push(orb);
+      this.fxOrbs.add(orb);
+    }
+    this.fxOrbs.visible = false;
+    this.group.add(this.fxOrbs);
   }
 
   private updateFx(dt: number) {
@@ -271,6 +304,18 @@ export class Car {
     this.fxRingMat.opacity = on ? 0.34 + Math.sin(t * 16) * 0.10 : 0;
     this.fxRing.scale.setScalar(on ? 1 + Math.sin(t * 9) * 0.10 : 1);
     this.fxBolts.visible = on && !!p.zap;
+    this.fxOrbs.visible = on && !!p.orbs;
+    this.fxOrbMat.color.setHex(p.color);
+    if (this.fxOrbs.visible) {
+      for (let i = 0; i < this.fxOrbMeshes.length; i++) {
+        const a = t * 2.2 + (i / this.fxOrbMeshes.length) * Math.PI * 2;
+        const r = 1.75 + Math.sin(t * 3 + i * 2) * 0.14;
+        const orb = this.fxOrbMeshes[i];
+        orb.position.set(Math.cos(a) * r, 0.86 + Math.sin(t * 4 + i) * 0.22, Math.sin(a) * r);
+        orb.rotation.set(t * 1.7 + i, t * 2.1 + i, 0);
+        orb.visible = true;
+      }
+    }
     this.setGlow(on);
     this.setGhost(on && !!p.ghost);
 

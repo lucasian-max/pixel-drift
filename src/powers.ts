@@ -16,13 +16,22 @@ export interface CarPower {
   ghost?: boolean;
   /** yellow lightning arcs (Group B) */
   zap?: boolean;
+  /** pearl orbs orbiting the car */
+  orbs?: boolean;
+  /** grip multiplier while the power is active (drift powers lower it) */
+  driftGrip?: number;
+  /** drift-score multiplier while active */
+  driftScore?: number;
+  /** conversion from stored drift charge to an exit boost */
+  exitBoost?: number;
 }
 
 export const CAR_POWERS: CarPower[] = [
   {
-    name: 'PEARL RUSH', blurb: 'A clean top-end surge',
-    duration: 3.0, cooldown: 8, color: 0x6fe6d8,
-    speed: 1.18, accel: 1.55, grip: 1.05, steer: 1.0,
+    name: 'PEARL DRIFT', blurb: 'High-angle, high-score sliding with a pearl aura',
+    duration: 4.0, cooldown: 9, color: 0x9ff5e8,
+    speed: 1.0, accel: 1.08, grip: 1.0, steer: 1.38,
+    driftGrip: 0.62, driftScore: 3, exitBoost: 0.85, orbs: true,
   },
   {
     name: 'THUNDERCLAP', blurb: 'Yellow lightning and a hard launch',
