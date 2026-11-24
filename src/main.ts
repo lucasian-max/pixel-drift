@@ -228,6 +228,7 @@ async function boot() {
   car.onImpact = (s: number) => sound.impact(s);
   let running = false;
   let laps = 0;
+  let acc = 0;   // fixed-step carry; declared before begin so skip can clear it
   const begin = () => {
     if (running) return;
     // never carry a queued F/C/V/X/R press or a stored boost into a new run
@@ -239,6 +240,7 @@ async function boot() {
     car.vx = car.vz = 0;
     car.speed = 0;
     car.steerAngle = 0;
+    acc = 0;
     running = true;
     adminPanel = false;
     sound.start();
@@ -326,6 +328,7 @@ async function boot() {
       scene.add(garagePad);
       tweenView(7.4);
       camYaw = 0.6;
+      acc = 0;
       layout();
     } else {
       if (garagePad) {
@@ -369,6 +372,7 @@ async function boot() {
       car.group.position.set(car.x, 0, car.z);
       car.group.rotation.y = car.heading;
       focus.set(car.x, 0, car.z);
+      acc = 0;
       tweenView(14);
       layout();
     }
@@ -599,7 +603,6 @@ async function boot() {
 
   // ---- loop ----------------------------------------------------------------
   let last = performance.now() / 1000;
-  let acc = 0;
   const STEP = 1 / 120;
   let dustTimer = 0;
 
@@ -627,11 +630,11 @@ async function boot() {
     }
 
     if (!input.paused) {
-      acc += dt;
       if (garage) {
         car.group.rotation.y += dt * 0.65;
         car.group.position.set(car.x, 0.24, car.z);
       } else {
+        acc += dt;
         let steps = 0;
         while (acc >= STEP && steps++ < 6) {
           car.update(STEP, controls, world);
