@@ -272,7 +272,7 @@ export class Store {
 
   // Records a finish time; keeps only each user's best (lowest) ms per map.
   // Returns the current top-10 board for that map.
-  submitTime(user, ms, map = DEFAULT_MAP, trace = null, summary = null) {
+  submitTime(user, ms, map = DEFAULT_MAP, trace = null, summary = null, car = null, variant = null) {
     if (!Number.isInteger(ms) || ms < TIME_MIN_MS || ms > TIME_MAX_MS) {
       throw new StoreError(400, 'invalid_ms', `ms must be an integer between ${TIME_MIN_MS} and ${TIME_MAX_MS}`);
     }
@@ -280,7 +280,10 @@ export class Store {
       throw new StoreError(400, 'invalid_map', 'map must match [a-z0-9_-]{1,32}');
     }
     const at = new Date().toISOString();
-    this.db.laps.push({ userId: user.id, username: user.username, ms, at, map, summary: summary ?? null });
+    this.db.laps.push({
+      userId: user.id, username: user.username, ms, at, map,
+      summary: summary ?? null, car, variant,
+    });
     if (this.db.laps.length > 5000) this.db.laps.splice(0, this.db.laps.length - 5000);
 
     const shortTrace = this._shortTrace(trace);
@@ -294,10 +297,12 @@ export class Store {
       best.at = at;
       best.summary = summary ?? null;
       best.trace = shortTrace;
+      best.car = car;
+      best.variant = variant;
     } else {
       this.db.times.push({
         userId: user.id, username: user.username, ms, at, map,
-        summary: summary ?? null, trace: shortTrace,
+        summary: summary ?? null, trace: shortTrace, car, variant,
       });
     }
     this._scheduleSave();
@@ -325,6 +330,7 @@ export class Store {
   stats(mapNames = {}) {
     const players = new Map();
     const maps = new Map();
+    const cars = new Map();
     for (const lap of this.db.laps) {
       let p = players.get(lap.username);
       if (!p) {
@@ -352,6 +358,21 @@ export class Store {
         m.bestUser = lap.username;
       }
       if (!m.lastAt || lap.at > m.lastAt) m.lastAt = lap.at;
+
+      if (lap.car) {
+        let c = cars.get(lap.car);
+        if (!c) {
+          c = { car: lap.car, laps: 0, msSum: 0, bestMs: null, bestUser: null, players: new Set() };
+          cars.set(lap.car, c);
+        }
+        c.laps++;
+        c.msSum += lap.ms;
+        c.players.add(lap.username);
+        if (c.bestMs === null || lap.ms < c.bestMs) {
+          c.bestMs = lap.ms;
+          c.bestUser = lap.username;
+        }
+      }
     }
 
     const mapRows = [...maps.values()]
@@ -366,9 +387,16 @@ export class Store {
       .sort((a, b) => String(b.at).localeCompare(String(a.at)))
       .slice(0, 15)
       .map((l) => ({
-        username: l.username, map: l.map, ms: l.ms, at: l.at,
+        username: l.username, map: l.map, ms: l.ms, at: l.at, car: l.car ?? null,
         avgSpeed: l.summary?.avgSpeed ?? null, pathLength: l.summary?.pathLength ?? null,
       }));
+
+    const carRows = [...cars.values()]
+      .map((c) => ({
+        car: c.car, laps: c.laps, players: c.players.size,
+        bestMs: c.bestMs, bestUser: c.bestUser, avgMs: Math.round(c.msSum / c.laps),
+      }))
+      .sort((a, b) => b.laps - a.laps || a.bestMs - b.bestMs);
 
     const playerRows = [...players.values()].sort((a, b) => a.bestMs - b.bestMs);
     let bestLap = null;
@@ -384,6 +412,7 @@ export class Store {
       } : null,
       players: playerRows,
       maps: mapRows,
+      cars: carRows,
       recent,
     };
   }

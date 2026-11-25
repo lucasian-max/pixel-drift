@@ -726,7 +726,8 @@ async function boot() {
         try { localStorage.setItem(bestKey, String(bestTime)); } catch { /* private mode */ }
       }
       const trace = lapTrace.slice();
-      void account.submitLap(ms, trace, mapId).then((r) => {
+      const info = lapInfo();
+      void account.submitLap(ms, trace, mapId, { car: info.carName, variant: info.variant }).then((r) => {
         if (!account.user) warn('SIGN IN TO SAVE LAPS', 2.2);
         else if (!r.ok) warn(r.error ?? 'LAP NOT SAVED');
         else if (r.rank) note(`LAP SAVED · RANK ${r.rank}`);

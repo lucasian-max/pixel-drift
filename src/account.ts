@@ -127,8 +127,13 @@ export const account = {
 
   /** Post a lap time with its replay trace for one map. Silent no-op when
       signed out or out of range; the board (`times`) refreshes from the
-      POST response. */
-  async submitLap(ms: number, trace: LapTracePoint[], map?: string): Promise<SubmitResult> {
+      POST response. `meta` tags the car for the data desk. */
+  async submitLap(
+    ms: number,
+    trace: LapTracePoint[],
+    map?: string,
+    meta?: { car: string; variant: number },
+  ): Promise<SubmitResult> {
     if (!this.user) return { ok: false, error: 'sign in to save times' };
     if (!Number.isInteger(ms) || ms < MS_MIN || ms > MS_MAX) {
       return { ok: false, error: 'lap time out of range' };
@@ -137,7 +142,7 @@ export const account = {
     const name = this.user.username;
     const previousBest = this.times.find((t) => t.username === name)?.ms;
     const r = await request<{ times?: TimeEntry[]; error?: string; reason?: string }>(
-      '/api/times', 'POST', { ms, trace, map: lapMap },
+      '/api/times', 'POST', { ms, trace, map: lapMap, car: meta?.car, variant: meta?.variant },
     );
     if (!r.ok) {
       if (r.status === 401) this.user = null;   // session expired mid-race

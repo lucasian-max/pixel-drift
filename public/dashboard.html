@@ -258,20 +258,38 @@ function render(stats, boards) {
       </div>`;
   }).join('');
 
+  const cars = stats.cars || [];
+  const carCard = `
+    <div class="panel" style="grid-column: 1 / -1">
+      <h2>CARS · PREFERENCE</h2>
+      ${cars.length ? `<table>
+        <tr><th>CAR</th><th class="r">LAPS</th><th class="r">DRIVERS</th><th class="r">BEST</th><th class="r">AVG</th></tr>
+        ${cars.map((c) => `<tr>
+          <td>${esc(String(c.car).toUpperCase())}</td>
+          <td class="r">${c.laps}</td>
+          <td class="r">${c.players}</td>
+          <td class="r">${fmt(c.bestMs)}</td>
+          <td class="r muted">${fmt(c.avgMs)}</td>
+        </tr>`).join('')}
+      </table>` : `<div class="muted">NO CAR DATA YET · LAPS FROM NOW ON ARE TAGGED WITH THE CAR</div>`}
+      <div class="note">Counts come from laps submitted after car tagging was added; older laps are unlabelled.</div>
+    </div>`;
+
   const recent = `
     <div class="panel" style="grid-column: 1 / -1">
       <h2>RECENT LAPS</h2>
       <table>
-        <tr><th>WHEN</th><th>PLAYER</th><th>CIRCUIT</th><th class="r">TIME</th><th class="r">AVG</th></tr>
+        <tr><th>WHEN</th><th>PLAYER</th><th>CIRCUIT</th><th>CAR</th><th class="r">TIME</th><th class="r">AVG</th></tr>
         ${stats.recent.map((l) => `
           <tr>
             <td class="muted">${esc(ago(l.at).toUpperCase())}</td>
             <td>${esc(l.username.toUpperCase())}</td>
             <td>${esc(mapName(stats, l.map))}</td>
+            <td>${esc(l.car ? String(l.car).toUpperCase() : '—')}</td>
             <td class="r">${fmt(l.ms)}</td>
             <td class="r muted">${l.avgSpeed ? l.avgSpeed + ' U/S' : '—'}</td>
           </tr>`).join('')}
-        ${stats.recent.length === 0 ? '<tr><td colspan="5" class="muted">NO LAPS YET</td></tr>' : ''}
+        ${stats.recent.length === 0 ? '<tr><td colspan="6" class="muted">NO LAPS YET</td></tr>' : ''}
       </table>
     </div>`;
 
@@ -286,7 +304,7 @@ function render(stats, boards) {
       </div>
     </div>`;
 
-  app.innerHTML = kpis + `<div class="grid">${mapCards}${recent}${antiCheat}
+  app.innerHTML = kpis + `<div class="grid">${mapCards}${carCard}${recent}${antiCheat}
     <div class="panel" id="runs" style="grid-column: 1 / -1"><h2>RECORDED RUNS · THIS BROWSER</h2>
       <div class="muted">READING LOCAL INDEXEDDB…</div></div>
     </div>`;

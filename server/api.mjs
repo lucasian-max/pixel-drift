@@ -165,8 +165,14 @@ async function handle(req, res, pathname) {
       console.log(`[anticheat] reject ${user.username} ${map} ${body.ms}ms: ${verdict.reason}`);
       return send(res, 422, { error: 'invalid_trace', reason: verdict.reason });
     }
+    const car = typeof body.car === 'string' && body.car.trim()
+      ? body.car.trim().slice(0, 32)
+      : null;
+    const variant = Number.isInteger(body.variant) && body.variant >= 0 && body.variant <= 9
+      ? body.variant
+      : null;
     return send(res, 200, {
-      times: store.submitTime(user, body.ms, map, body.trace, verdict.summary),
+      times: store.submitTime(user, body.ms, map, body.trace, verdict.summary, car, variant),
     });
   }
 
