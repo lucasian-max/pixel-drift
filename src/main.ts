@@ -290,7 +290,10 @@ async function boot() {
     car.steerAngle = 0;
     acc = 0;
     running = true;
-    chase = true;   // the default view rides behind the car
+    /* the default view rides behind the car: start the lock already behind it, otherwise
+       a look left over from the title or the studio angle swings in over the first second */
+    chase = true;
+    camYaw = car.heading;
     setGantryBanner(true);
     adminPanel = false;
     recorder.beginLap({ ...lapInfo(), launch: true });
@@ -425,6 +428,7 @@ async function boot() {
       car.group.position.set(car.x, 0, car.z);
       car.group.rotation.y = car.heading;
       focus.set(car.x, 0, car.z);
+      camYaw = car.heading;   // leave the studio angle: back to behind the car
       acc = 0;
       tweenView(14);
       layout();

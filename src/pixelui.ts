@@ -301,7 +301,10 @@ export class PixelUI {
       this.text(pw.name, pwX + 6, pwY + 4, {
         size: 8, weight: 700, color: active ? (darkText ? INK : CREAM) : CREAM,
       });
-      const status = active ? 'ACTIVE' : pw.ready ? 'READY' : `${Math.ceil(pw.cd)}s`;
+      /* while the aim disc is open the power is mid-use: "READY / PRESS F" would be
+         telling the player to fire the thing they are already placing */
+      const status = state.aiming ? 'AIMING'
+        : active ? 'ACTIVE' : pw.ready ? 'READY' : `${Math.ceil(pw.cd)}s`;
       this.text(status, pwX + pwW - 6, pwY + 4, {
         size: 8, weight: 700, align: 'right',
         color: active ? (darkText ? INK : CREAM) : pw.ready ? ACCENT : DIM,
@@ -316,9 +319,11 @@ export class PixelUI {
       c.fillRect(pwX + 6, pwY + pwH - 8, pwW - 12, 3);
       c.fillStyle = active ? (darkText ? INK : CREAM) : pw.color;
       c.fillRect(pwX + 6, pwY + pwH - 8, Math.max(1, Math.round((pwW - 12) * frac)), 3);
-      const hint = active
-        ? (pw.charge !== undefined ? 'SLIDE TO CHARGE' : 'F')
-        : 'PRESS F';
+      const hint = state.aiming
+        ? 'CLICK TO PLACE'
+        : active
+          ? (pw.charge !== undefined ? 'SLIDE TO CHARGE' : 'F')
+          : 'PRESS F';
       this.text(hint, pwX + 6, pwY + 16, { size: 8, color: active ? (darkText ? INK : CREAM) : DIM });
     }
 
@@ -601,8 +606,12 @@ export class PixelUI {
     this.text(state.power?.name ?? '', cx, by + 27, { size: 8, color: ACCENT, align: 'center', spacing: 1 });
     this.text('F ACTIVATES IN RACE', cx, by + 40, { size: 8, color: DIM, align: 'center', spacing: 1 });
 
-    this.bCarPrev.x = cx - 92; this.bCarPrev.y = by + 6;
-    this.bCarNext.x = cx + 68; this.bCarNext.y = by + 6;
+    /* the arrows sit outside the measured name, like the title chooser: a fixed offset
+       put them on top of longer names (DUNE RUNNER is 155px at 16px, not 106) */
+    this.font(16, 700);
+    const nmW = Math.ceil(c.measureText(nm).width);
+    this.bCarPrev.x = Math.round(cx - nmW / 2 - 34); this.bCarPrev.y = by + 6;
+    this.bCarNext.x = Math.round(cx + nmW / 2 + 10); this.bCarNext.y = by + 6;
     for (const [b, dir] of [[this.bCarPrev, -1], [this.bCarNext, 1]] as [Button, number][]) {
       pxRect(c, b.x, b.y, b.w, b.h, SLAB);
       pxBorder(c, b.x, b.y, b.w, b.h, 'rgba(242,238,225,0.55)');
