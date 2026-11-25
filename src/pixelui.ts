@@ -265,7 +265,7 @@ export class PixelUI {
     this.text('BEST', tx + 10, ty + 31, { size: 8, color: INKD });
     this.text(fmt(state.bestTime), tx + tw - 8, ty + 31, { size: 8, color: INK, align: 'right' });
 
-    const dw = 88, dh = 38, dx = this.w - dw - 8, dy = 8;
+    const dw = 88, dh = 38, dx = this.w - dw - 8, dy = 34;
     const drifting = car.drifting;
     pxRect(c, dx, dy, dw, dh, drifting ? ACCENT : SLAB);
     pxBorder(c, dx, dy, dw, dh, drifting
@@ -284,9 +284,18 @@ export class PixelUI {
       c.fillRect(dx + 6, dy + 30, Math.max(1, Math.round(bw * slipFrac)), 3);
     }
 
+    /* the banner and the key chips share the top edge: the chips are right
+       aligned and may not reach back over the banner, so they measure against
+       its right edge before deciding how much they can say */
+    const bannerW = Math.min(180, this.w - 230);
+    const bannerRight = Math.round((this.w - bannerW) / 2) + bannerW + 10;
+
     const pw = state.power;
     if (pw) {
-      const pwW = 148, pwH = 32, pwX = this.w - pwW - 8, pwY = 52;
+      /* top banner, centred: the right edge used to stack five boxes — drift,
+         power, menu, cam, sound — so nothing on that side could breathe */
+      const pwW = bannerW, pwH = 34;
+      const pwX = Math.round((this.w - pwW) / 2), pwY = 8;
       const active = pw.active;
       const darkText = active && pw.color === '#ffe14a';
       pxRect(c, pwX, pwY, pwW, pwH, active ? pw.color : SLAB);
@@ -324,21 +333,30 @@ export class PixelUI {
       this.font(8, 700);
       const bw = Math.ceil(c.measureText('M MENU').width) + 22;
       const bh = 18;
-      const bx = this.w - bw - 8, by = 86;
-      pxRect(c, bx, by, bw, bh, CREAM);
-      pxBorder(c, bx, by, bw, bh, (time * 2) % 1 < 0.55 ? INK : 'rgba(21,24,26,0.30)');
-      this.text('M MENU', bx + bw / 2, by + 5, { size: 8, weight: 700, color: INK, align: 'center' });
+      const bx = this.w - bw - 8, by = 8;
+      pxRect(c, bx, by, bw, bh, SLAB);
+      pxBorder(c, bx, by, bw, bh, LINE);
+      this.text('M MENU', bx + bw / 2, by + 5, { size: 8, weight: 700, color: CREAM, align: 'center' });
       this.bMenu.x = bx; this.bMenu.y = by; this.bMenu.w = bw; this.bMenu.h = bh;
       this.buttons.push(this.bMenu);
 
       const unlocked = state.camLocked === false;
       const camInk = unlocked ? 'T RELOCK CAM' : 'T UNLOCK CAM';
-      const keys = state.atLine ? `C CAR   ${camInk}` : camInk;
       // measure with the weight that gets drawn: bold text is wider, and a
       // regular-weight measure used to run the label out of its own box
       this.font(8, unlocked ? 700 : 400);
-      const kw = Math.ceil(c.measureText(keys).width) + 12;
-      const kx = Math.max(8, bx - kw - 6), ky = 89;
+      /* longest label that still stops short of the banner: the car key first,
+         then the full cam label, then the bare key at 4:3 widths */
+      const room = bx - 6 - bannerRight;
+      const candidates = state.atLine ? [`C CAR   ${camInk}`, camInk, 'T CAM'] : [camInk, 'T CAM'];
+      let keys = candidates[candidates.length - 1];
+      let kw = 0;
+      for (const cand of candidates) {
+        const wid = Math.ceil(c.measureText(cand).width) + 12;
+        if (wid <= room) { keys = cand; kw = wid; break; }
+      }
+      if (kw === 0) kw = Math.ceil(c.measureText(keys).width) + 12;
+      const kx = Math.max(8, bx - kw - 6), ky = 11;
       pxRect(c, kx, ky, kw, 13, unlocked ? ACCENT : SLAB);
       pxBorder(c, kx, ky, kw, 13, unlocked ? CREAM : LINE);
       this.text(keys, kx + 6, ky + 3, {
@@ -347,19 +365,19 @@ export class PixelUI {
       });
     }
 
-    this.drawMuteChip(state, 110);
+    this.drawMuteChip(state, 66, 'left');
 
-    if (state.warning) this.drawToast(state.warning, 58);
+    if (state.warning) this.drawToast(state.warning, 78);
     else if (state.offTrack && (time * 2) % 1 < 0.7) {
-      this.drawToast('OFF TRACK', 58);
+      this.drawToast('OFF TRACK', 78);
     } else if (state.notice) {
-      this.drawNotice(state.notice, 58);
+      this.drawNotice(state.notice, 78);
     }
 
     if (time < this.bestUntil) {
       const bbw = 118, bbh = 22;
       const bx = Math.round(this.w / 2 - bbw / 2);
-      const by = 10;
+      const by = 50;
       pxRect(c, bx, by, bbw, bbh, ACCENT);
       pxBorder(c, bx, by, bbw, bbh, (time * 10) % 2 < 1 ? 'rgba(242,238,225,1)' : 'rgba(242,238,225,0.3)');
       this.text('NEW BEST', this.w / 2, by + 3, { size: 16, weight: 700, color: CREAM, align: 'center' });
@@ -417,8 +435,16 @@ export class PixelUI {
       pxBorder(c, hx, hy, hw, 14, (time * 3) % 1 < 0.5 ? INK : 'rgba(21,24,26,0.35)');
       this.text(msg, this.w / 2, hy + 3, { size: 8, weight: 700, color: INK, align: 'center' });
     } else if (state.laps === 0) {
-      const msg = 'WASD DRIVE   SPACE DRIFT   F POWER   R RESET';
+      /* the strip has to clear the minimap on one side and the speedo on the
+         other; at 4:3 the full line ran under the speedo, so drop keys from the
+         end until it fits between them */
+      const parts = ['WASD DRIVE', 'SPACE DRIFT', 'F POWER', 'R RESET'];
       this.font(8);
+      let msg = parts.join('   ');
+      while (parts.length > 1 && Math.ceil(c.measureText(msg).width) + 16 > this.w - 286) {
+        parts.pop();
+        msg = parts.join('   ');
+      }
       const hw = Math.ceil(c.measureText(msg).width) + 16;
       const hx = Math.round(this.w / 2 - hw / 2), hy = this.h - 18;
       pxRect(c, hx, hy, hw, 14, SLAB);
@@ -676,17 +702,17 @@ export class PixelUI {
     if (state.powerInfo) this.drawPowerInfo(state);
   }
 
-  private drawMuteChip(state: UiState, y: number) {
+  private drawMuteChip(state: UiState, y: number, side: 'left' | 'right' = 'right') {
     const c = this.ctx;
     const muted = state.muted === true;
     const label = muted ? 'MUTED' : 'SOUND ON';
     const w = Math.max(this.measure('SOUND ON', 8, 400), this.measure('MUTED', 8, 700)) + 12;
     const b = this.bMute;
-    b.label = label; b.w = w; b.x = this.w - 8 - w; b.y = y;
-    pxRect(c, b.x, b.y, b.w, b.h, muted ? ACCENT : SLAB);
-    pxBorder(c, b.x, b.y, b.w, b.h, muted ? CREAM : LINE);
+    b.label = label; b.w = w; b.x = side === 'left' ? 8 : this.w - 8 - w; b.y = y;
+    pxRect(c, b.x, b.y, b.w, b.h, muted ? INK : CREAM);
+    pxBorder(c, b.x, b.y, b.w, b.h, muted ? 'rgba(242,238,225,0.4)' : INK);
     this.text(label, b.x + b.w / 2, b.y + 4, {
-      size: 8, weight: muted ? 700 : 400, color: muted ? CREAM : HINT, align: 'center',
+      size: 8, weight: muted ? 400 : 700, color: muted ? CREAM : INK, align: 'center',
     });
     this.buttons.push(b);
   }
