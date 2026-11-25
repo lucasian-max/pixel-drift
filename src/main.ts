@@ -157,7 +157,7 @@ async function boot() {
 
   const wantedMap = params.get('map');
   const mapId = MAPS.some((m) => m.id === wantedMap) ? wantedMap! : 'coast';
-  void account.refresh(mapId);   // session + this map's leaderboard; the UI reads the store live
+  const sessionReady = account.refresh(mapId);   // session + this map's leaderboard
   const world = await buildWorld(scene, mapId);
   scene.background = new THREE.Color(world.sky);
   const mapIndex = Math.max(0, MAPS.findIndex((m) => m.id === mapId));
@@ -177,6 +177,14 @@ async function boot() {
     start: world.start,
     track: world.track,
   }, { fps: params.get('rec') === '120' ? 120 : 60 });
+  recorder.onEpisode = (ep) => {
+    // automatic dataset upload for signed-in players; guests stay local
+    if (account.user) void recorder.uploadEpisode(ep).catch(() => { /* retry later */ });
+  };
+  void sessionReady.then(() => {
+    if (account.user) void recorder.uploadPending().catch(() => { /* offline */ });
+  });
+
   const driver = params.has('demo') ? 'autopilot' : 'human';
   const lapInfo = () => ({
     carName: CAR_NAMES[car.variant] ?? `CAR ${car.variant + 1}`,

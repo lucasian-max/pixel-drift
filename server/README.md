@@ -134,11 +134,36 @@ the local 60 Hz recorder runs from the admin's own browser, and any uploaded
 run files. It uses the same admin cookie; non-admins get a gate. The in-game
 admin panel has **DASHBOARD** and **UPLOAD RUNS** buttons.
 
-Uploads are **explicit**: `POST /api/runs` stores the recording under
-`server/data/runs/<user>/` and appends `server/data/runs/manifest.jsonl`.
-Only the admin panel button (or a friend choosing to export/call upload) sends
-data; nothing uploads silently. A file is capped at 8 MB compressed / 32 MB
+Signed-in players' runs upload automatically when an episode ends (and any
+pending local episodes on the next session), to `POST /api/runs`, which stores
+them under `server/data/runs/<user>/` and appends
+`server/data/runs/manifest.jsonl`. Guests stay local. The title screen carries
+a one-line disclosure. A file is capped at 8 MB compressed / 32 MB
 decompressed. The raw files are decompressed JSONL.
+
+## Hugging Face sync
+
+`tools/hf_sync.py` uploads new run files to a **private** dataset
+(`raw/<player>/...`), defaulting to `<hf-user>/pixel-drift-runs`. Configure a
+write token and run it:
+
+```bash
+echo 'hf_...' > server/data/hf-token && chmod 600 server/data/hf-token
+server/.venv/bin/python tools/hf_sync.py
+```
+
+Then install the timer so new runs sync every minute:
+
+```bash
+ln -sf "$PWD/deploy/pixel-drift-hf-sync.service" ~/.config/systemd/user/
+ln -sf "$PWD/deploy/pixel-drift-hf-sync.timer" ~/.config/systemd/user/
+systemctl --user daemon-reload
+systemctl --user enable --now pixel-drift-hf-sync.timer
+```
+
+State is kept in `server/data/runs/.hf-uploaded.json`; only new files are
+committed. Uploaded paths include `README.md` (dataset card) and
+`raw/<player>/<file>.jsonl`. The repo is forced private.
 
 Merge uploads before training:
 

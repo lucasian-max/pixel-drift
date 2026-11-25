@@ -33,14 +33,32 @@ launch from the grid, impact/power/reset events, player, input device and
 off-track time. Nothing about it is shown in the HUD. Developer keys: `V`
 toggles recording, `X` downloads all stored laps as JSONL; both only log to the
 console. Add `?rec=120` for 120 Hz samples.
+
+Signed-in runs upload automatically to the game server; the title screen
+discloses that runs are shared to a private training set. Guests' runs stay in
+their browser. The server syncs new files to a **private Hugging Face dataset**
+every minute once a token is configured (see below).
 `tools/dataset/convert_runs.py` turns that into Parquet + NPZ with
 track-relative observations, episode metadata, normalisation stats and a
 train/val split; `tools/dataset/train_bc.py` is a ridge and MLP behaviour-
-cloning baseline. The admin panel can explicitly **UPLOAD RUNS** to
-`server/data/runs/` for aggregation; merge them with
-`tools/dataset/merge_runs.py` before converting. See
+cloning baseline. The admin panel can also **UPLOAD RUNS** manually; merge
+uploads with `tools/dataset/merge_runs.py` before converting. See
 [`tools/dataset/README.md`](tools/dataset/README.md) for the schema, storage,
 why Parquet (LeRobot-style), and training notes.
+
+Private Hugging Face sync:
+
+```bash
+echo 'hf_...' > server/data/hf-token && chmod 600 server/data/hf-token
+server/.venv/bin/python tools/hf_sync.py      # creates <you>/pixel-drift-runs privately
+ln -sf "$PWD/deploy/pixel-drift-hf-sync.service" ~/.config/systemd/user/
+ln -sf "$PWD/deploy/pixel-drift-hf-sync.timer" ~/.config/systemd/user/
+systemctl --user daemon-reload
+systemctl --user enable --now pixel-drift-hf-sync.timer
+```
+
+Runs land under `raw/<player>/` in the private dataset. Override the repo with
+`HF_DATASET=you/other-name` or `server/data/hf-dataset`.
 
 ## Online rooms — archived
 

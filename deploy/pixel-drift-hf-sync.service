@@ -1,0 +1,8 @@
+[Unit]
+Description=Pixel Drift Hugging Face run sync
+After=network-online.target
+
+[Service]
+Type=oneshot
+WorkingDirectory=/home/lucasian/Work/sprite-drift
+ExecStart=/home/lucasian/Work/sprite-drift/server/.venv/bin/python /home/lucasian/Work/sprite-drift/tools/hf_sync.py

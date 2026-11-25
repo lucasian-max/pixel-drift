@@ -99,9 +99,11 @@ the standing launch; it is marked `launch: true`. Events (`impact`, `power`,
 stats include off-track seconds, impacts, power uses and reset count. Record at
 120 Hz with `?rec=120` if you need physics-step fidelity.
 
-Run files are browser-local until the admin uses **UPLOAD RUNS** (or a player
-exports with `X`). Uploads are stored under `server/data/runs/<player>/` and
-indexed in `manifest.jsonl`; nothing is uploaded silently.
+Signed-in runs upload automatically when an episode ends; guests stay local.
+Files are stored under `server/data/runs/<player>/` and indexed in
+`manifest.jsonl`. A private Hugging Face sync (`tools/hf_sync.py`) pushes new
+files to `raw/<player>/` in `<you>/pixel-drift-runs` every minute once
+`server/data/hf-token` exists. The title screen discloses the sharing.
 
 ### Observation (`o`, 19 floats, 60 Hz)
 

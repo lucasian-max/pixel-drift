@@ -91,6 +91,7 @@ interface Episode {
   createdAt: string;
   lapMs: number | null;
   complete: boolean;
+  uploaded?: boolean;
   events: EpisodeEvent[];
   stats: EpisodeStats | null;
   /** flat obs and act arrays, OBS_FIELDS.length / ACT_FIELDS.length per step */
@@ -171,6 +172,8 @@ function clearStore(db: IDBDatabase | null, store: string): Promise<void> {
 export class Recorder {
   on = true;
   fps = RUN_FPS;
+  /** called after an episode is stored, for automatic uploads */
+  onEpisode?: (ep: Episode) => void;
 
   private map: RunMap;
   private db: IDBDatabase | null = null;
@@ -305,6 +308,7 @@ export class Recorder {
     if (complete) this.sessionLaps++;
     if (complete && lapMs) this.lastLapMs = lapMs;
     void put(this.db, STORE_RUNS, ep);
+    this.onEpisode?.(ep);
   }
 
   /** Advance the sampler. Call once per physics step with the applied controls. */
@@ -357,14 +361,21 @@ export class Recorder {
 
   /** Everything recorded on this device, as one JSONL string. */
   async exportJsonl(): Promise<string> {
+    return this.buildJsonl(await this.collectEpisodes());
+  }
+
+  private async collectEpisodes(): Promise<Episode[]> {
     await this.ready;
     const stored = await readAll<Episode>(this.db, STORE_RUNS);
     const byId = new Map<string, Episode>();
     for (const ep of stored) byId.set(ep.id, ep);
     for (const ep of this.completed) byId.set(ep.id, ep);
     if (this.current) byId.set(this.current.id, { ...this.current, complete: false });
-    const episodes = [...byId.values()].sort((a, b) => a.createdAt.localeCompare(b.createdAt));
+    return [...byId.values()].sort((a, b) => a.createdAt.localeCompare(b.createdAt));
+  }
 
+  private async buildJsonl(episodes: Episode[]): Promise<string> {
+    await this.ready;
     const tracks = await readAll<{
       id: string; name: string; roadHalf: number; start: RunMap['start']; points: number[][];
     }>(this.db, STORE_TRACKS);
@@ -434,6 +445,53 @@ export class Recorder {
     return lines.join('\n') + '\n';
   }
 
+  private async postRun(jsonl: string): Promise<{ episodes?: number; bytes?: number }> {
+    let body: BodyInit = jsonl;
+    let type = 'application/x-ndjson';
+    try {
+      if (typeof CompressionStream !== 'undefined') {
+        const stream = new Blob([jsonl]).stream().pipeThrough(new CompressionStream('gzip'));
+        body = await new Response(stream).blob();
+        type = 'application/gzip';
+      }
+    } catch {
+      /* send plain JSONL */
+    }
+    const res = await fetch('/api/runs', {
+      method: 'POST',
+      credentials: 'same-origin',
+      headers: { 'Content-Type': type },
+      body,
+    });
+    if (!res.ok) throw new Error(`upload failed (${res.status})`);
+    return await res.json() as { episodes?: number; bytes?: number };
+  }
+
+  /** Upload one finished episode (automatic path). */
+  async uploadEpisode(ep: Episode): Promise<{ episodes: number; bytes: number }> {
+    if (ep.uploaded) return { episodes: 0, bytes: 0 };
+    const jsonl = await this.buildJsonl([ep]);
+    const out = await this.postRun(jsonl);
+    ep.uploaded = true;
+    await put(this.db, STORE_RUNS, ep);
+    return { episodes: out.episodes ?? 1, bytes: out.bytes ?? jsonl.length };
+  }
+
+  /** Retry any saved episode that has not reached the server yet. */
+  async uploadPending(): Promise<{ episodes: number }> {
+    const episodes = (await this.collectEpisodes()).filter((ep) => !ep.uploaded && ep.complete !== false);
+    let sent = 0;
+    for (const ep of episodes) {
+      try {
+        await this.uploadEpisode(ep);
+        sent++;
+      } catch {
+        /* keep it queued for next time */
+      }
+    }
+    return { episodes: sent };
+  }
+
   /** Export and hand the file to the browser. Returns the number of laps. */
   async download(): Promise<number> {
     const jsonl = await this.exportJsonl();
@@ -453,28 +511,15 @@ export class Recorder {
 
   /** Send every locally stored episode to the API as gzipped JSONL. */
   async upload(): Promise<{ episodes: number; bytes: number }> {
-    const jsonl = await this.exportJsonl();
-    const episodes = new Set(jsonl.match(/"kind":"episode"/g) ?? []).size;
-    let body: BodyInit = jsonl;
-    let type = 'application/x-ndjson';
-    try {
-      if (typeof CompressionStream !== 'undefined') {
-        const stream = new Blob([jsonl]).stream().pipeThrough(new CompressionStream('gzip'));
-        body = await new Response(stream).blob();
-        type = 'application/gzip';
-      }
-    } catch {
-      /* send plain JSONL */
+    const episodes = (await this.collectEpisodes()).filter((ep) => !ep.uploaded && ep.complete !== false);
+    if (episodes.length === 0) return { episodes: 0, bytes: 0 };
+    const jsonl = await this.buildJsonl(episodes);
+    const out = await this.postRun(jsonl);
+    for (const ep of episodes) {
+      ep.uploaded = true;
+      await put(this.db, STORE_RUNS, ep);
     }
-    const res = await fetch('/api/runs', {
-      method: 'POST',
-      credentials: 'same-origin',
-      headers: { 'Content-Type': type },
-      body,
-    });
-    if (!res.ok) throw new Error(`upload failed (${res.status})`);
-    const out = await res.json() as { episodes?: number; bytes?: number };
-    return { episodes: out.episodes ?? episodes, bytes: out.bytes ?? jsonl.length };
+    return { episodes: out.episodes ?? episodes.length, bytes: out.bytes ?? jsonl.length };
   }
 
   async clear(): Promise<void> {

@@ -3,3 +3,6 @@ server/data/
 
 # generated stack atlases
 art/build/
+
+# local HF sync venv and secrets
+server/.venv/

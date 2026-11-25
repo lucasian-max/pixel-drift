@@ -1,0 +1,11 @@
+[Unit]
+Description=Sync Pixel Drift runs to Hugging Face every minute
+
+[Timer]
+OnBootSec=45s
+OnUnitActiveSec=60s
+Persistent=true
+Unit=pixel-drift-hf-sync.service
+
+[Install]
+WantedBy=timers.target
