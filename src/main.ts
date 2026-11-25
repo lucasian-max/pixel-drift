@@ -175,6 +175,51 @@ async function boot() {
   car.setVariant(Number.isFinite(savedCar) ? savedCar : 0);
   scene.add(car.group);
 
+  // ---- WORMHOLE aim mode: ring + marker ground visuals ----------------------
+  const aimRing = new THREE.Mesh(
+    new THREE.TorusGeometry(13.85, 0.16, 5, 72),
+    new THREE.MeshBasicMaterial({
+      color: 0xb05cff, transparent: true, opacity: 0.34,
+      blending: THREE.AdditiveBlending, depthWrite: false, toneMapped: false,
+    }),
+  );
+  aimRing.rotation.x = -Math.PI / 2;
+  aimRing.position.y = 0.05;
+  aimRing.renderOrder = 3;
+  aimRing.visible = false;
+  scene.add(aimRing);
+  const aimMarker = new THREE.Mesh(
+    new THREE.TorusGeometry(0.95, 0.14, 5, 28),
+    new THREE.MeshBasicMaterial({
+      color: 0xb05cff, transparent: true, opacity: 0.95,
+      blending: THREE.AdditiveBlending, depthWrite: false, toneMapped: false,
+    }),
+  );
+  aimMarker.rotation.x = -Math.PI / 2;
+  aimMarker.position.y = 0.06;
+  aimMarker.renderOrder = 3;
+  aimMarker.visible = false;
+  scene.add(aimMarker);
+  const aimRay = new THREE.Raycaster();
+  const aimPlane = new THREE.Plane(new THREE.Vector3(0, 1, 0), 0);
+  const aimNdc = new THREE.Vector2();
+  const aimPoint = new THREE.Vector3();
+  const aimAt = (cx: number, cy: number) => {
+    const r = gameCanvas.getBoundingClientRect();
+    if (!r.width || !r.height) return;
+    aimNdc.set(((cx - r.left) / r.width) * 2 - 1, -(((cy - r.top) / r.height) * 2 - 1));
+    aimRay.setFromCamera(aimNdc, camera);
+    aimRay.ray.intersectPlane(aimPlane, aimPoint);
+  };
+  /** the aimed point, clamped to the power's blink radius around the car */
+  const clampedAim = () => {
+    const r = car.power.blink ?? 14;
+    const dx = aimPoint.x - car.x, dz = aimPoint.z - car.z;
+    const d = Math.hypot(dx, dz);
+    if (d <= r || d === 0) return { x: aimPoint.x, z: aimPoint.z };
+    return { x: car.x + (dx / d) * r, z: car.z + (dz / d) * r };
+  };
+
   // ---- run recorder (imitation-learning dataset) ---------------------------
   const recorder = new Recorder({
     id: mapId,
@@ -492,6 +537,11 @@ async function boot() {
     if (loginForm.isOpen()) return;   // the form handles its own keys
     /* session keys are single-shot: key auto-repeat would storm them */
     const fresh = !e.repeat;
+    if (car.aiming && fresh) {
+      if (e.code === 'Enter') { placeWormhole(); return; }
+      if (e.code === 'Escape') { car.cancelAim(); input.paused = false; return; }
+      return;   // while the wrap is open, other session keys wait
+    }
     if (fresh && e.code === 'KeyM') { backToTitle(); return; }
     if (fresh && e.code === 'KeyC' && !started && !input.paused) { switchCarAtLine(); return; }
     if (fresh && e.code === 'KeyT' && running && !garage && !input.paused) { chase = true; return; }
@@ -510,14 +560,36 @@ async function boot() {
     }
   });
 
-  // drag to orbit
+  /** confirm an aimed WORMHOLE placement and stamp the lap trace */
+  const placeWormhole = () => {
+    if (!car.aiming) return;
+    const a = clampedAim();
+    if (car.confirmAim(world, a.x, a.z)) {
+      recorder.markPower();
+      recorder.noteEvent('power');
+      lapTrace.push({
+        x: +car.x.toFixed(2), z: +car.z.toFixed(2),
+        t: Math.round(lapTime * 1000), e: 'blink',
+      });
+    }
+  };
+
+  // drag to orbit (or click to place while the wrap is open)
   let dragging = false, lastX = 0;
   gameCanvas.addEventListener('pointerdown', (e) => {
+    if (car.aiming) {
+      if (ui.hit(e.clientX, e.clientY) === 'menu') { car.cancelAim(); backToTitle(); return; }
+      aimAt(e.clientX, e.clientY);
+      placeWormhole();
+      e.stopPropagation();
+      return;
+    }
     dragging = true; lastX = e.clientX;
     gameCanvas.setPointerCapture(e.pointerId);
   });
   gameCanvas.addEventListener('pointerup', () => { dragging = false; });
   gameCanvas.addEventListener('pointermove', (e) => {
+    if (car.aiming) { aimAt(e.clientX, e.clientY); return; }
     if (!dragging) return;
     chase = false;   // a drag is manual orbit
     camYaw -= (e.clientX - lastX) * 0.008;
@@ -749,7 +821,18 @@ async function boot() {
       if (garage) {
         car.group.rotation.y += dt * 0.65;
         car.group.position.set(car.x, 0.24, car.z);
+      } else if (car.aiming) {
+        /* the wrap is open: the sim freezes while the ring tracks the pointer */
+        input.forget('KeyF', 'KeyV', 'KeyX', 'KeyR');
+        aimRing.visible = true;
+        aimMarker.visible = true;
+        aimRing.position.set(car.x, 0.05, car.z);
+        (aimRing.material as THREE.MeshBasicMaterial).color.setHex(car.power.color);
+        (aimMarker.material as THREE.MeshBasicMaterial).color.setHex(car.power.color);
+        const a = clampedAim();
+        aimMarker.position.set(a.x, 0.06, a.z);
       } else {
+        aimRing.visible = aimMarker.visible = false;
         acc += dt;
         let steps = 0;
         while (acc >= STEP && steps++ < 6) {
@@ -763,7 +846,8 @@ async function boot() {
           });
         }
         if (input.consumeKey('KeyF') && running) {
-          if (car.activatePower(world)) {
+          const fired = car.activatePower(world);
+          if (fired && !car.power.aim) {
             recorder.markPower();
             recorder.noteEvent('power');
           }
@@ -801,7 +885,7 @@ async function boot() {
       resetTrace();
       lapTrace.push({ x: car.x, z: car.z, t: 0 });
     }
-    if (started) {
+    if (started && !car.aiming) {
       lapTime += dt;
       recorder.beginLap(lapInfo());
     }
@@ -895,6 +979,7 @@ async function boot() {
       paused: input.paused, throttle: controls.throttle, laps,
       atLine: running && !started,
       camLocked: chase,
+      aiming: car.aiming,
       maps: MAPS.map((m) => ({ id: m.id, name: m.name })),
       carNames: CAR_NAMES,
       carPowers: CAR_POWERS.map((p) => p.name),

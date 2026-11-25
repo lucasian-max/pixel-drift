@@ -37,6 +37,8 @@ export interface UiState {
   atLine?: boolean;
   /** chase camera lock state: false means the player orbited away */
   camLocked?: boolean;
+  /** WORMHOLE aim mode: the sim is frozen, the player is placing the car */
+  aiming?: boolean;
   maps?: { id: string; name: string }[];
   mapIndex?: number;
   mapName?: string;
@@ -409,8 +411,16 @@ export class PixelUI {
       c.fillRect(segX + i * (segw + gap), segY, segw, 5);
     }
 
-    /* ---- first-lap hints ---- */
-    if (state.laps === 0) {
+    /* ---- wormhole aim prompt / first-lap hints ---- */
+    if (state.aiming) {
+      const msg = 'AIM · CLICK TO PLACE · ESC CANCELS';
+      this.font(8, 700);
+      const hw = Math.ceil(c.measureText(msg).width) + 16;
+      const hx = Math.round(this.w / 2 - hw / 2), hy = this.h - 18;
+      pxRect(c, hx, hy, hw, 14, CREAM);
+      pxBorder(c, hx, hy, hw, 14, (time * 3) % 1 < 0.5 ? INK : 'rgba(21,24,26,0.35)');
+      this.text(msg, this.w / 2, hy + 3, { size: 8, weight: 700, color: INK, align: 'center' });
+    } else if (state.laps === 0) {
       const msg = 'WASD DRIVE   SPACE DRIFT   F POWER   R RESET';
       this.font(8);
       const hw = Math.ceil(c.measureText(msg).width) + 16;

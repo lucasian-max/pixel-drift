@@ -5,7 +5,7 @@
 
 export interface User { id: string; username: string; role?: 'admin' | 'player' }
 export interface TimeEntry { rank: number; username: string; ms: number; at: string }
-export interface LapTracePoint { x: number; z: number; t: number }
+export interface LapTracePoint { x: number; z: number; t: number; e?: string }
 
 export interface AccountResult { ok: boolean; error?: string }
 export interface SubmitResult { ok: boolean; rank?: number; improved?: boolean; error?: string }

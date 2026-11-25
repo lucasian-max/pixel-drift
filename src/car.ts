@@ -49,6 +49,8 @@ export class Car {
   private ghostOn = false;
   private glowOn = false;
   powerCharge = 0;
+  /** WORMHOLE aim mode: the sim is frozen and main is placing the car */
+  aiming = false;
   private wormRings: THREE.Group[] = [];
   private wormMats: THREE.MeshBasicMaterial[] = [];
   private wormLife: number[] = [];
@@ -90,6 +92,7 @@ export class Car {
     this.powerTime = 0;
     this.powerCd = 0;
     this.powerCharge = 0;
+    this.aiming = false;
     this.clearWormFx();
     void this.setSkin('car');
   }
@@ -97,6 +100,10 @@ export class Car {
   activatePower(world?: World): boolean {
     if (this.powerCd > 0) return false;
     const p = this.power;
+    if (p.aim && world) {
+      this.aiming = true;   // the wrap opens: freeze and aim a placement
+      return true;
+    }
     this.powerTime = p.duration;
     this.powerCd = p.cooldown;
     this.powerCharge = 0;
@@ -112,6 +119,33 @@ export class Car {
       this.collide(world, false);                 // never arrive inside a wall
       this.fxFlash = 0.38;                        // arrival ground-ring flash
     }
+    return true;
+  }
+
+  /** Place the car at the aimed point, clamped inside the blink radius. */
+  confirmAim(world: World, x: number, z: number): boolean {
+    if (!this.aiming) return false;
+    const p = this.power;
+    let dx = x - this.x, dz = z - this.z;
+    const d = Math.hypot(dx, dz);
+    const r = p.blink ?? 14;
+    if (d > r) { dx *= r / d; dz *= r / d; }
+    this.aiming = false;
+    this.dropWormRing(world, this.x, this.z);     // the sand bursts where we left
+    this.x += dx;
+    this.z += dz;
+    this.collide(world, false);                   // never arrive inside a wall
+    this.fxFlash = 0.38;                          // arrival ground-ring flash
+    this.powerTime = p.duration;
+    this.powerCd = p.cooldown;
+    this.powerCharge = 0;
+    return true;
+  }
+
+  /** Close the wrap without spending the cooldown. */
+  cancelAim(): boolean {
+    if (!this.aiming) return false;
+    this.aiming = false;
     return true;
   }
 
@@ -136,6 +170,7 @@ export class Car {
     this.powerTime = 0;
     this.powerCd = 0;
     this.powerCharge = 0;
+    this.aiming = false;
     this.setGhost(false);
     this.clearWormFx();
     this.sync();

@@ -18,6 +18,8 @@ export interface CarPower {
   zap?: boolean;
   /** forward blink distance in metres, applied on activation (WORMHOLE) */
   blink?: number;
+  /** freeze the game and aim a placement anywhere inside the blink radius */
+  aim?: boolean;
   /** pearl orbs orbiting the car */
   orbs?: boolean;
   /** grip multiplier while the power is active (drift powers lower it) */
@@ -49,11 +51,11 @@ export const CAR_POWERS: CarPower[] = [
   },
   {
     name: 'WORMHOLE',
-    blurb: 'Tear a shortcut: blink ahead through obstacles and bends, carrying your speed.',
-    effect: 'BLINK 14 m · 0.5 s PHASE',
+    blurb: 'Tear open the ground: freeze time and re-place the car anywhere within reach.',
+    effect: 'PLACE ≤ 14 m · 0.5 s PHASE',
     duration: 0.5, cooldown: 9, color: 0xb05cff,
     speed: 1.0, accel: 1.0, grip: 1.0, steer: 1.0,
-    blink: 14, ghost: true,
+    blink: 14, aim: true, ghost: true,
   },
 ];
 
