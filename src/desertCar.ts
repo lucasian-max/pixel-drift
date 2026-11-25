@@ -240,7 +240,7 @@ export function buildDesertCar(): THREE.Group {
 
   // ---------- Flares: the car's strongest read — chunky orange arches ----------
   const flare = (zc: number, side: 1 | -1) => {
-    const ro = 0.475, ri = 0.400, cy = 0.35, y0 = 0.16;
+    const ro = 0.50, ri = 0.415, cy = 0.35, y0 = 0.10;
     const pts: V2[] = [[zc + ro, y0], [zc + ro, cy]];
     for (let i = 1; i <= 16; i++) {
       const a = (i / 16) * Math.PI;
@@ -254,7 +254,7 @@ export function buildDesertCar(): THREE.Group {
     pts.push([zc + ri, y0]);
 
     const shape = new THREE.Shape(pts.map(([z, y]) => new THREE.Vector2(side > 0 ? -z : z, y)));
-    const geo = new THREE.ExtrudeGeometry(shape, { depth: 0.065, bevelEnabled: false });
+    const geo = new THREE.ExtrudeGeometry(shape, { depth: 0.08, bevelEnabled: false });
     const m = new THREE.Mesh(geo, M.orange);
     m.rotation.y = (side * Math.PI) / 2;
     m.position.x = side * 0.985;
