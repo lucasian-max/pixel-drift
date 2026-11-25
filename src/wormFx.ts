@@ -127,10 +127,8 @@ export function createWormAimRing(radius = 14): WormAimRing {
   halo.position.y = 0.065;
   halo.renderOrder = 4;
   marker.add(halo);
-  // a short chevron inside the ring shows the heading the car keeps on landing
-  // (the group already faces forward: line the head up with local +z)
-  // bright arrow inside the ring plus dark shadow pairs beyond it: a 1-frame read
-  // bright arrow inside the ring: the landing frame (pre-rotated flat on -z ground)
+  // the landing frame: a bright chevron showing the heading the car keeps on
+  // landing, plus dark wing pairs beyond it for a 1-frame read
   const arrow = new THREE.ShapeGeometry(new THREE.Shape([
     new THREE.Vector2(0.36, 0),
     new THREE.Vector2(-0.20, 0.26),
@@ -235,7 +233,7 @@ export class WormDustBurst {
   update(dt: number) {
     if (this.life <= 0) return;
     this.life -= dt;
-    const k = Math.max(0, this.life) / this.max;      // 1 → 0
+    const k = Math.max(0, this.life) / this.max;
     this.mat.opacity = 0.85 * k;
     const s = 1 + (1 - k) * 1.6;
     for (const p of this.parts) {
