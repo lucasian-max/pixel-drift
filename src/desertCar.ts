@@ -302,7 +302,9 @@ export function buildDesertCar(): THREE.Group {
     box(0.10, 0.05, 0.02, M.amber, s * 0.28, 0.60, -2.30);
   }
   box(0.30, 0.10, 0.02, M.white, 0, 0.44, -2.31);  // plate
-  outline(box(1.34, 0.055, 0.15, M.ink, 0, 0.795, -2.18), 1.05); // ducktail
+  outline(box(1.34, 0.055, 0.16, M.ink, 0, 0.905, -2.19), 1.05); // ducktail
+  box(0.06, 0.14, 0.10, M.ink, 0.56, 0.83, -2.18); // ducktail riser
+  box(0.06, 0.14, 0.10, M.ink, -0.56, 0.83, -2.18); // ducktail riser
   const exhaust = new THREE.Mesh(new THREE.CylinderGeometry(0.05, 0.05, 0.14, 10), M.ink);
   exhaust.rotation.x = Math.PI / 2;
   exhaust.position.set(0.54, 0.22, -2.32);
