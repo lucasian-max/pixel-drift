@@ -17,3 +17,7 @@ tmp-s5/
 tmp-s6/
 tmp-s7/
 tmp-*/
+
+# hill-climb render outputs (tools/hill-shots.mjs, regenerated each step)
+shots/hill/
+tmp/hill-profile-*/

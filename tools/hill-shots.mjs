@@ -13,8 +13,8 @@ import path from 'node:path';
 const ROOT = path.resolve(new URL('..', import.meta.url).pathname);
 process.chdir(ROOT);
 
-const BASE = 'http://127.0.0.1:5201';
-const PORT = 9228;
+const BASE = 'http://127.0.0.1:5205';
+const PORT = 9238;
 const CDP = `http://127.0.0.1:${PORT}`;
 const OUT = 'shots/hill';
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
@@ -96,7 +96,7 @@ async function open(url) {
 
 async function capture(prefix, view) {
   killBrowser();
-  const c = await open(`${BASE}/scripts/car-preview.html?view=${view}&zoom=1&variant=2`);
+  const c = await open(`${BASE}/scripts/car-preview.html?view=${view}&variant=${process.env.HILL_VARIANT ?? 2}&zoom=1`);
   await sleep(600);
   if (!await until(c, 'window.carReady === true', 24)) throw new Error('carReady never set');
   const frames = await evaluate(c, `new Promise((res) => {

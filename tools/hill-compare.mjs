@@ -1,11 +1,13 @@
 #!/usr/bin/env node
-// Paste two hill-shots renders into one composite: top row = A (side | iso), bottom row = B (side | iso).
-//   node tools/hill-compare.mjs <aPrefix> <bPrefix> <outPng> [labelA] [labelB]
+// Paste two hill-shots renders into one composite: top row = A (viewA | viewB), bottom row = B (same pair).
+//   node tools/hill-compare.mjs <aPrefix> <bPrefix> <outPng> [labelA] [labelB] [viewA] [viewB]
+// Views default to "side rearq"; crops keep only the horizontal band the car occupies
+// so the composite costs one image view.
 import { spawnSync } from 'node:child_process';
 import path from 'node:path';
 
-const [a, b, out, la = a, lb = b] = process.argv.slice(2);
-if (!out) throw new Error('usage: node tools/hill-compare.mjs <a> <b> <out.png> [labelA] [labelB]');
+const [a, b, out, la = a, lb = b, va = 'side', vb = 'rearq'] = process.argv.slice(2);
+if (!out) throw new Error('usage: node tools/hill-compare.mjs <a> <b> <out.png> [labelA] [labelB] [viewA] [viewB]');
 const dir = 'shots/hill';
 const f = (p, v) => path.join(dir, `${p}-${v}.png`);
 
@@ -14,11 +16,17 @@ const run = (args) => {
   if (r.status !== 0) { process.stderr.write(String(r.stderr)); process.exit(r.status ?? 1); }
 };
 
+// half-scale each render, crop to the car band, paste side by side
+const half = (file, v) => {
+  const o = `${dir}/_${path.basename(file).replace(/\.png$/, '')}-${v}.png`;
+  run([file, '-resize', '50%', '-crop', '640x300+0+75', '+repage', o]);
+  return o;
+};
+
 const row = (p) => {
-  run([f(p, 'side'), '-crop', '1280x470+0+130', '+repage',
-    f(p, 'iso'), '-crop', '1280x470+0+130', '+repage',
-    '+append', '-resize', '50%', `${dir}/_${p}.png`]);
-  return `${dir}/_${p}.png`;
+  const o = `${dir}/_${p}.png`;
+  run([half(f(p, va), va), half(f(p, vb), vb), '+append', o]);
+  return o;
 };
 
 const ra = row(a), rb = row(b);
@@ -28,8 +36,8 @@ run([out,
   '-background', '#1b1b1b', '-gravity', 'NorthWest', '-splice', '0x22',
   '-pointsize', '18', '-fill', '#ffd76a',
   '-annotate', '+6+4', `A  ${la}`,
-  '-annotate', '+646+4', 'A  iso',
+  '-annotate', '+646+4', `A  ${vb}`,
   '-annotate', `+6+${h / 2 + 26}`, `B  ${lb}`,
-  '-annotate', `+646+${h / 2 + 26}`, 'B  iso',
+  '-annotate', `+646+${h / 2 + 26}`, `B  ${vb}`,
   out]);
 console.log(out, `${1280}x${h + 22}`);
