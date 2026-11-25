@@ -11,8 +11,7 @@
     "assets": "node scripts/gen-assets.mjs",
     "track": "node scripts/gen-track.mjs",
     "api": "node server/api.mjs",
-    "test": "node --test server/anticheat.test.mjs && node scripts/car-stats.check.mjs",
-    "lint:comments": "node scripts/comment-ratchet.mjs"
+    "test": "node --test server/anticheat.test.mjs && node scripts/car-stats.check.mjs"
   },
   "dependencies": {
     "three": "^0.187.0"
