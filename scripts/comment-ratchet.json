@@ -1,13 +1,13 @@
 {
-  "total": 564,
+  "total": 566,
   "perFile": {
     "src/account.ts": 14,
     "src/car.ts": 37,
     "src/carModel.ts": 37,
-    "src/desertCar.ts": 56,
+    "src/desertCar.ts": 55,
     "src/input.ts": 4,
-    "src/main.ts": 48,
-    "src/pixelui.ts": 7,
+    "src/main.ts": 49,
+    "src/pixelui.ts": 9,
     "src/powers.ts": 14,
     "src/rallyCar.ts": 57,
     "src/recorder.ts": 28,
