@@ -318,17 +318,19 @@ export class PixelUI {
       this.bMenu.x = bx; this.bMenu.y = by; this.bMenu.w = bw; this.bMenu.h = bh;
       this.buttons.push(this.bMenu);
 
-      const camInk = state.camLocked === false ? 'T RELOCK CAM' : 'T CAM';
+      const unlocked = state.camLocked === false;
+      const camInk = unlocked ? 'T RELOCK CAM' : 'T UNLOCK CAM';
       const keys = state.atLine ? `C CAR   ${camInk}` : camInk;
-      this.font(8);
+      // measure with the weight that gets drawn: bold text is wider, and a
+      // regular-weight measure used to run the label out of its own box
+      this.font(8, unlocked ? 700 : 400);
       const kw = Math.ceil(c.measureText(keys).width) + 12;
-      const kx = bx - kw - 6, ky = 89;
-      pxRect(c, kx, ky, kw, 13, SLAB);
-      pxBorder(c, kx, ky, kw, 13, LINE);
-      const urgent = state.camLocked === false;
+      const kx = Math.max(8, bx - kw - 6), ky = 89;
+      pxRect(c, kx, ky, kw, 13, unlocked ? ACCENT : SLAB);
+      pxBorder(c, kx, ky, kw, 13, unlocked ? CREAM : LINE);
       this.text(keys, kx + 6, ky + 3, {
-        size: 8, weight: urgent ? 700 : 400,
-        color: urgent && (time * 2) % 1 < 0.6 ? CREAM : HINT,
+        size: 8, weight: unlocked ? 700 : 400,
+        color: unlocked ? CREAM : HINT,
       });
     }
 

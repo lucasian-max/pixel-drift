@@ -519,7 +519,13 @@ async function boot() {
     }
     if (fresh && e.code === 'KeyM') { backToTitle(); return; }
     if (fresh && e.code === 'KeyC' && !started && !input.paused) { switchCarAtLine(); return; }
-    if (fresh && e.code === 'KeyT' && running && !garage && !input.paused) { chase = true; return; }
+    if (fresh && e.code === 'KeyT' && running && !garage && !input.paused) {
+      // T is the camera switch both ways: free the view, or lock it back behind
+      // the car on the spot (a re-lock that swings in over a second reads broken)
+      chase = !chase;
+      if (chase) camYaw = car.heading;
+      return;
+    }
     if (!running && garage) {
       if (e.code === 'Enter') { setGarage(false); return; }
       if (e.code === 'ArrowUp') { cycleCar(1); return; }
