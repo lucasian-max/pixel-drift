@@ -222,9 +222,9 @@ export function buildDesertCar(): THREE.Group {
 
   // ---------- Flank livery: burnt-orange band, cream pinstripe, rugged details ----------
   for (const s of [1, -1] as const) {
-    const band: V2[] = [[1.72, 0.40], [1.72, 0.68], [-1.95, 0.68], [-1.95, 0.40]];
+    const band: V2[] = [[1.72, 0.44], [1.72, 0.63], [-1.95, 0.63], [-1.95, 0.44]];
     sidePanel(band, s, 0.958, M.dOrange);
-    const stripe: V2[] = [[1.72, 0.685], [1.72, 0.728], [-1.95, 0.728], [-1.95, 0.685]];
+    const stripe: V2[] = [[1.72, 0.638], [1.72, 0.672], [-1.95, 0.672], [-1.95, 0.638]];
     sidePanel(stripe, s, 0.960, M.dCream);
     box(0.012, 0.32, 0.010, M.dInk, s * 0.961, 0.730, 0.42);  // door seam
     box(0.020, 0.030, 0.14, M.ink, s * 0.964, 0.780, 0.05);   // door handle
