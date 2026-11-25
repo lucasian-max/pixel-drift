@@ -170,10 +170,10 @@ async function boot() {
   };
   setGantryBanner(false);
   const car = await new Car().init(world);
-  const savedCar = Number(params.get('car')
-    ?? localStorage.getItem('pixel-drift:car')
-    ?? localStorage.getItem('sprite-drift:car') ?? 0);
-  car.setVariant(Number.isFinite(savedCar) ? savedCar : 0);
+  // PEARL GT is always the car you start on; ?car=N is for previews and probes.
+  // (The last car you cycled to is deliberately not restored across reloads.)
+  const entryCar = Number(params.get('car') ?? 0);
+  car.setVariant(Number.isFinite(entryCar) ? entryCar : 0);
   scene.add(car.group);
   const aimUI = createWormAimRing(14);
   scene.add(aimUI.group);
@@ -301,7 +301,6 @@ async function boot() {
 
   const cycleCar = (delta: number) => {
     car.setVariant(car.variant + delta);
-    localStorage.setItem('pixel-drift:car', String(car.variant));
   };
 
   let garage = false;
