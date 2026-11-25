@@ -3,6 +3,7 @@
 // Size: ~4.6 L × 2.05 W × 0.95 H.
 import * as THREE from 'three';
 import { buildRallyCar } from './rallyCar';
+import { buildDesertCar } from './desertCar';
 
 type V2 = [number, number];
 
@@ -109,13 +110,15 @@ const PALETTES = [
   { body: 0xf1e4bc, a: 0x1fa59a, b: 0xc2287e },
 ];
 
-// one extra slot for the sheet-built rally car
+// one extra slot each for the sheet-built rally car and desert buggy
 const RALLY_VARIANT = PALETTES.length;
-export const CAR_VARIANTS = PALETTES.length + 1;
-export const CAR_NAMES = ['PEARL GT', 'GROUP B'];
+const DESERT_VARIANT = RALLY_VARIANT + 1;
+export const CAR_VARIANTS = PALETTES.length + 2;
+export const CAR_NAMES = ['PEARL GT', 'GROUP B', 'DUNE RUNNER'];
 
 export function buildCarModel(variant = 0): THREE.Group {
   if (variant === RALLY_VARIANT) return buildRallyCar();
+  if (variant === DESERT_VARIANT) return buildDesertCar();
   const pal = PALETTES[((variant % PALETTES.length) + PALETTES.length) % PALETTES.length];
   const car = new THREE.Group();
   car.name = 'car';

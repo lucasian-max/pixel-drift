@@ -49,6 +49,10 @@ export class Car {
   private ghostOn = false;
   private glowOn = false;
   powerCharge = 0;
+  private wormRings: THREE.Group[] = [];
+  private wormMats: THREE.MeshBasicMaterial[] = [];
+  private wormLife: number[] = [];
+  private fxFlash = 0;
 
   get power(): CarPower {
     return CAR_POWERS[this.variant] ?? CAR_POWERS[0];
@@ -86,10 +90,11 @@ export class Car {
     this.powerTime = 0;
     this.powerCd = 0;
     this.powerCharge = 0;
+    this.clearWormFx();
     void this.setSkin('car');
   }
 
-  activatePower(): boolean {
+  activatePower(world?: World): boolean {
     if (this.powerCd > 0) return false;
     const p = this.power;
     this.powerTime = p.duration;
@@ -98,6 +103,14 @@ export class Car {
     if (p.burst) {
       this.vx += -Math.sin(this.heading) * p.burst;
       this.vz += -Math.cos(this.heading) * p.burst;
+    }
+    if (p.blink && world) {
+      const fx = -Math.sin(this.heading), fz = -Math.cos(this.heading);
+      this.dropWormRing(world, this.x, this.z);   // departure portal stays behind
+      this.x += fx * p.blink;
+      this.z += fz * p.blink;
+      this.collide(world, false);                 // never arrive inside a wall
+      this.fxFlash = 0.38;                        // arrival ground-ring flash
     }
     return true;
   }
@@ -124,6 +137,7 @@ export class Car {
     this.powerCd = 0;
     this.powerCharge = 0;
     this.setGhost(false);
+    this.clearWormFx();
     this.sync();
   }
 
@@ -317,11 +331,25 @@ export class Car {
     const p = this.power;
     const on = this.powerTime > 0;
     const t = performance.now() * 0.001;
+    const flash = Math.max(0, this.fxFlash) / 0.38;
+    this.fxFlash = Math.max(0, this.fxFlash - dt);
     this.fxLight.color.setHex(p.color);
-    this.fxLight.intensity = on ? 3.0 + Math.sin(t * 34) * 1.3 : 0;
+    this.fxLight.intensity = (on ? 3.0 + Math.sin(t * 34) * 1.3 : 0) + 5.0 * flash;
     this.fxRingMat.color.setHex(p.color);
-    this.fxRingMat.opacity = on ? 0.34 + Math.sin(t * 16) * 0.10 : 0;
-    this.fxRing.scale.setScalar(on ? 1 + Math.sin(t * 9) * 0.10 : 1);
+    const pulse = on ? 0.34 + Math.sin(t * 16) * 0.10 : 0;
+    this.fxRingMat.opacity = flash > 0 ? Math.max(pulse, 0.95 * flash) : pulse;
+    this.fxRing.scale.setScalar(
+      flash > 0 ? 0.5 + (1 - flash) * 1.5 : on ? 1 + Math.sin(t * 9) * 0.10 : 1,
+    );
+    for (let i = 0; i < this.wormRings.length; i++) {
+      if (this.wormLife[i] <= 0) continue;
+      this.wormLife[i] -= dt;
+      const k = Math.max(0, this.wormLife[i]) / 0.55;
+      const ring = this.wormRings[i];
+      ring.visible = this.wormLife[i] > 0;
+      ring.scale.setScalar(0.72 + (1 - k) * 0.55);
+      this.wormMats[i].opacity = Math.min(0.95, k * 1.6);
+    }
     this.fxBolts.visible = on && !!p.zap;
     this.fxOrbs.visible = on && !!p.orbs;
     this.fxOrbMat.color.setHex(p.color);
@@ -407,6 +435,47 @@ export class Car {
         mat.needsUpdate = true;
       }
     });
+  }
+
+  /** Park a violet portal mouth on the ground where the wormhole opened. */
+  private dropWormRing(world: World, x: number, z: number) {
+    if (this.wormRings.length === 0) {
+      for (let i = 0; i < 3; i++) {
+        const mat = new THREE.MeshBasicMaterial({
+          color: this.power.color, transparent: true, opacity: 0,
+          blending: THREE.AdditiveBlending, depthWrite: false, toneMapped: false,
+        });
+        const ring = new THREE.Group();
+        ring.visible = false;
+        ring.renderOrder = 3;
+        const outer = new THREE.Mesh(new THREE.TorusGeometry(1.85, 0.16, 5, 26), mat);
+        outer.rotation.x = -Math.PI / 2;
+        const inner = new THREE.Mesh(new THREE.TorusGeometry(1.15, 0.10, 4, 20), mat);
+        inner.rotation.x = -Math.PI / 2;
+        ring.add(outer, inner);
+        this.wormRings.push(ring);
+        this.wormMats.push(mat);
+        this.wormLife.push(0);
+        world.group.add(ring);
+      }
+    }
+    let s = 0;
+    for (let i = 1; i < this.wormRings.length; i++) {
+      if (this.wormLife[i] < this.wormLife[s]) s = i;
+    }
+    this.wormMats[s].color.setHex(this.power.color);
+    this.wormMats[s].opacity = 0.95;
+    const ring = this.wormRings[s];
+    ring.position.set(x, 0.05, z);
+    ring.scale.setScalar(0.72);
+    ring.visible = true;
+    this.wormLife[s] = 0.55;
+  }
+
+  private clearWormFx() {
+    this.fxFlash = 0;
+    for (let i = 0; i < this.wormRings.length; i++) this.wormLife[i] = 0;
+    for (const r of this.wormRings) r.visible = false;
   }
 
   private collide(world: World, ghost = false) {

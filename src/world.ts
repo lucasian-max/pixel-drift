@@ -1320,6 +1320,39 @@ export async function buildWorld(scene: THREE.Scene, mapId?: string): Promise<Wo
     beam.position.set(0, 5.2, 0);
     g.add(beam);
 
+    // banner: cream field, black chequer band, hanging under the beam
+    const cv = document.createElement('canvas');
+    cv.width = 256; cv.height = 48;
+    const c2 = cv.getContext('2d')!;
+    c2.fillStyle = '#f2eee1'; c2.fillRect(0, 0, 256, 48);
+    for (let i = 0; i < 32; i++) {
+      c2.fillStyle = i % 2 === 0 ? '#22252a' : '#f2eee1';
+      c2.fillRect(i * 8, 0, 8, 10);
+    }
+    c2.fillStyle = '#22252a';
+    c2.textAlign = 'center';
+    if (map.id === 'sakura') {
+      c2.font = 'bold 19px "Noto Sans CJK JP", "Noto Sans JP", sans-serif';
+      c2.fillText('桜サーキット', 128, 34);
+    } else {
+      c2.font = 'bold 16px monospace';
+      c2.fillText('PIXEL DRIFT', 128, 34);
+    }
+    const tex = new THREE.CanvasTexture(cv);
+    tex.magFilter = THREE.NearestFilter;
+    tex.minFilter = THREE.NearestFilter;
+    tex.colorSpace = THREE.SRGBColorSpace;
+    const bannerGeo = new THREE.PlaneGeometry(span - 0.6, 0.95);
+    for (const zside of [0.19, -0.19]) {
+      const banner = new THREE.Mesh(bannerGeo, new THREE.MeshBasicMaterial({
+        map: tex, side: THREE.DoubleSide, toneMapped: false,
+      }));
+      banner.position.set(0, 4.6, zside);
+      banner.rotation.y = zside > 0 ? 0 : Math.PI;
+      banner.name = 'gantryBanner';
+      g.add(banner);
+    }
+
     g.position.set(start.x, 0, start.z);
     g.rotation.y = start.heading;
     group.add(g);

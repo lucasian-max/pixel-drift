@@ -162,6 +162,12 @@ async function boot() {
   scene.background = new THREE.Color(world.sky);
   const mapIndex = Math.max(0, MAPS.findIndex((m) => m.id === mapId));
   const overview = params.has('overview');
+  // the gantry banner would fight the title lockup on the start screen;
+  // it is shown again the moment a run begins
+  const setGantryBanner = (on: boolean) => {
+    world.group.traverse((o) => { if (o.name === 'gantryBanner') o.visible = on; });
+  };
+  setGantryBanner(false);
   const car = await new Car().init(world);
   const savedCar = Number(params.get('car')
     ?? localStorage.getItem('pixel-drift:car')
@@ -257,6 +263,7 @@ async function boot() {
     car.steerAngle = 0;
     acc = 0;
     running = true;
+    setGantryBanner(true);
     adminPanel = false;
     recorder.beginLap({ ...lapInfo(), launch: true });
     sound.start();
@@ -699,7 +706,7 @@ async function boot() {
           });
         }
         if (input.consumeKey('KeyF') && running) {
-          if (car.activatePower()) {
+          if (car.activatePower(world)) {
             recorder.markPower();
             recorder.noteEvent('power');
           }

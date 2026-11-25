@@ -16,6 +16,8 @@ export interface CarPower {
   ghost?: boolean;
   /** yellow lightning arcs (Group B) */
   zap?: boolean;
+  /** forward blink distance in metres, applied on activation (WORMHOLE) */
+  blink?: number;
   /** pearl orbs orbiting the car */
   orbs?: boolean;
   /** grip multiplier while the power is active (drift powers lower it) */
@@ -44,6 +46,14 @@ export const CAR_POWERS: CarPower[] = [
     duration: 3.5, cooldown: 7, color: 0xffe14a,
     speed: 1.5, accel: 2.6, grip: 1.18, steer: 1.05, burst: 2.4,
     zap: true,
+  },
+  {
+    name: 'WORMHOLE',
+    blurb: 'Tear a shortcut: blink ahead through obstacles and bends, carrying your speed.',
+    effect: 'BLINK 14 m · 0.5 s PHASE',
+    duration: 0.5, cooldown: 9, color: 0xb05cff,
+    speed: 1.0, accel: 1.0, grip: 1.0, steer: 1.0,
+    blink: 14, ghost: true,
   },
 ];
 
