@@ -1,10 +1,10 @@
 {
-  "total": 562,
+  "total": 564,
   "perFile": {
     "src/account.ts": 14,
     "src/car.ts": 37,
     "src/carModel.ts": 37,
-    "src/desertCar.ts": 54,
+    "src/desertCar.ts": 56,
     "src/input.ts": 4,
     "src/main.ts": 48,
     "src/pixelui.ts": 7,
