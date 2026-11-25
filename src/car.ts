@@ -134,11 +134,23 @@ export class Car {
     const d = Math.hypot(dx, dz);
     const r = p.blink ?? 14;
     if (d > r) { dx *= r / d; dz *= r / d; }
+    const ox = this.x, oz = this.z;
     this.aiming = false;
     this.dropWormRing(world, this.x, this.z);     // the sand bursts where we left
     this.x += dx;
     this.z += dz;
     this.collide(world, false);                   // never arrive inside a wall
+    // a push-out can cross the promised radius; the trace must never carry
+    // a longer placement, so land on the circle and nudge out once more
+    let px = this.x - ox, pz = this.z - oz;
+    let pd = Math.hypot(px, pz);
+    if (pd > r) {
+      this.x = ox + (px / pd) * r;
+      this.z = oz + (pz / pd) * r;
+      this.collide(world, false);
+      px = this.x - ox; pz = this.z - oz;
+      pd = Math.hypot(px, pz);
+    }
     this.fxFlash = 0.38;                          // arrival ground-ring flash
     this.powerTime = p.duration;
     this.powerCd = p.cooldown;

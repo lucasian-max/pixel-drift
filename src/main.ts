@@ -825,6 +825,12 @@ async function boot() {
           if (fired && !car.power.aim) {
             recorder.markPower();
             recorder.noteEvent('power');
+            // WORMHOLE lands the car instantly: mark the placement frame so
+            // the server can tell an aimed placement from a forged teleport
+            if (started && car.power.blink) {
+              lapTrace.push({ x: +car.x.toFixed(2), z: +car.z.toFixed(2), t: Math.round(lapTime * 1000), e: 'blink' });
+              if (lapTrace.length > 600) lapTrace.splice(1, 1);
+            }
           }
         }
         if (input.consumeKey('KeyV')) {
