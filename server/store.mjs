@@ -77,9 +77,6 @@ export class Store {
     this._load();
     fs.mkdirSync(path.dirname(this.dataPath), { recursive: true });
   }
-
-  // ---- persistence ---------------------------------------------------------
-
   _load() {
     let raw;
     try {
@@ -160,9 +157,6 @@ export class Store {
     }
     this.flush();
   }
-
-  // ---- users ---------------------------------------------------------------
-
   _roleFor(username) {
     return this.admins.has(username) ? ROLE_ADMIN : ROLE_PLAYER;
   }
@@ -236,9 +230,6 @@ export class Store {
     if (!verifyPassword(password, user.salt, user.hash)) return null;
     return this._publicUser(user);
   }
-
-  // ---- sessions --------------------------------------------------------------
-
   createSession(userId) {
     const token = crypto.randomBytes(32).toString('hex');
     this.sessions.set(token, { userId, expires: Date.now() + SESSION_TTL_MS });
@@ -267,9 +258,6 @@ export class Store {
   destroySession(token) {
     if (typeof token === 'string' && this.sessions.delete(token)) this._scheduleSave();
   }
-
-  // ---- leaderboard -----------------------------------------------------------
-
   // Records a finish time; keeps only each user's best (lowest) ms per map.
   // Returns the current top-10 board for that map.
   submitTime(user, ms, map = DEFAULT_MAP, trace = null, summary = null, car = null, variant = null) {

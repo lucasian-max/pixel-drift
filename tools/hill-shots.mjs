@@ -13,8 +13,8 @@ import path from 'node:path';
 const ROOT = path.resolve(new URL('..', import.meta.url).pathname);
 process.chdir(ROOT);
 
-const BASE = 'http://127.0.0.1:5201';
-const PORT = 9228;
+const BASE = 'http://127.0.0.1:5205';
+const PORT = 9238;
 const CDP = `http://127.0.0.1:${PORT}`;
 const OUT = 'shots/hill';
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
@@ -65,6 +65,10 @@ async function open(url) {
   await sleep(800);
   const prof = `${ROOT}/tmp/hill-profile-${PORT}`;
   spawnSync('bash', ['-c', `rm -rf ${prof}`]);
+  // The agent runtime exports its own LD_LIBRARY_PATH; chromium then loads a libstdc++
+  // without GLIBCXX_3.4.30 and dies before the debug port opens. Drop it for the browser.
+  const env = { ...process.env };
+  delete env.LD_LIBRARY_PATH;
   const child = spawn('xvfb-run', ['-a', '-s', '-screen 0 1280x720x24', 'chromium',
     '--no-sandbox', '--disable-dev-shm-usage', '--disable-extensions',
     '--disable-background-timer-throttling', '--disable-renderer-backgrounding',
@@ -72,7 +76,7 @@ async function open(url) {
     '--ozone-platform=x11', '--use-gl=angle', '--use-angle=swiftshader', '--enable-unsafe-swiftshader',
     `--remote-debugging-port=${PORT}`, `--user-data-dir=${prof}`,
     '--window-size=1280,720', 'about:blank'],
-  { detached: true, stdio: 'ignore' });
+  { detached: true, stdio: 'ignore', env });
   child.unref();
   let pages = [];
   for (let i = 0; i < 80; i++) {
@@ -96,7 +100,7 @@ async function open(url) {
 
 async function capture(prefix, view) {
   killBrowser();
-  const c = await open(`${BASE}/scripts/car-preview.html?view=${view}&zoom=1&variant=2`);
+  const c = await open(`${BASE}/scripts/car-preview.html?view=${view}&variant=${process.env.HILL_VARIANT ?? 2}&zoom=1`);
   await sleep(600);
   if (!await until(c, 'window.carReady === true', 24)) throw new Error('carReady never set');
   const frames = await evaluate(c, `new Promise((res) => {

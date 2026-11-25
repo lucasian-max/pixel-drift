@@ -32,9 +32,7 @@ import { fileURLToPath } from 'node:url';
 const here = path.dirname(fileURLToPath(import.meta.url));
 const TRACK_FILE = path.join(here, 'track-data.json');
 
-// ---- powered physics ---------------------------------------------------------
-//
-// src/car.ts: the car accelerates up to 30 units/s on the road (21.25 on
+// src/car.ts: the car accelerates up to 30 units/s on the road (18.6 on
 // grass, at the 0.62 surface factor) and is hard-clamped at 32 x the speed
 // multiplier. src/powers.ts: THUNDERCLAP is the fastest power at 1.5x, so the
 // fastest the game can move the car is 32 x 1.5 = 48 units/s. Drift slip,
@@ -155,8 +153,6 @@ export function validateLap(mapId, ms, trace) {
   // enough samples to describe a lap (short synthetic laps get some slack)
   const minSamples = ms < 5000 ? 5 : ms < 15000 ? 10 : 16;
   if (trace.length < minSamples) return fail('lap trace too short');
-
-  // ---- shape and clock ------------------------------------------------------
   let prev = null;
   let marks = 0;
   for (const p of trace) {
@@ -181,8 +177,6 @@ export function validateLap(mapId, ms, trace) {
   if (fromLine(first) > START_SLACK || fromLine(last) > START_SLACK) {
     return fail('lap does not start and finish at the line');
   }
-
-  // ---- per-segment physics --------------------------------------------------
   // A mark is WORMHOLE's aimed placement frame: the car lands anywhere in
   // BLINK_MAX of the previous sample, any direction, then keeps rolling. The
   // frame is the whole event, so its displacement is the jump and the radius

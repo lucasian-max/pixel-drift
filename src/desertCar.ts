@@ -31,14 +31,14 @@ const BODY: Section[] = [
   S(-2.25, 0.24, 0.32, 0.88, 0.68, 0.80, 0.74),
 ];
 
-// Greenhouse sunk into the deck: upright screen, long wagon roof tapering to the tail.
+// Greenhouse sunk into the deck: raked screen, roof narrowed above the belt, wagon tail.
 const CABIN: Section[] = [
   S(0.92, 0.76, 0.78, 0.80, 0.82, 0.74, 0.80),
-  S(0.68, 0.79, 0.81, 0.83, 0.88, 0.68, 1.19),
-  S(0.18, 0.81, 0.83, 0.85, 1.08, 0.64, 1.30),
-  S(-0.72, 0.81, 0.83, 0.85, 1.08, 0.64, 1.30),
-  S(-1.62, 0.81, 0.83, 0.85, 1.08, 0.64, 1.30),
-  S(-1.95, 0.80, 0.82, 0.83, 0.99, 0.68, 1.12),
+  S(0.56, 0.79, 0.81, 0.83, 0.90, 0.68, 1.15),
+  S(-0.14, 0.81, 0.83, 0.85, 0.98, 0.58, 1.30),
+  S(-0.72, 0.81, 0.83, 0.85, 0.98, 0.58, 1.30),
+  S(-1.62, 0.81, 0.83, 0.85, 0.98, 0.58, 1.30),
+  S(-1.95, 0.80, 0.82, 0.83, 0.99, 0.62, 1.12),
   S(-2.16, 0.78, 0.80, 0.79, 0.86, 0.73, 0.86),
 ];
 
@@ -202,16 +202,17 @@ export function buildDesertCar(): THREE.Group {
   car.add(outline(cabin, 1.022));
 
   for (const s of [1, -1] as const) {
-    // pillars keep the sand tone: a white A-pillar read as cream wire against the dark glass,
-    // and at 360p a light roof cage loses the tall raid greenhouse it frames
-    beam(new THREE.Vector3(s * 0.80, 0.74, 0.90), new THREE.Vector3(s * 0.64, 1.24, 0.68), 0.065, M.sand); // A-pillar
-    beam(new THREE.Vector3(s * 0.64, 1.27, 0.18), new THREE.Vector3(s * 0.64, 1.27, -1.35), 0.055, M.sand); // roof rail
-    beam(new THREE.Vector3(s * 0.64, 1.27, -1.62), new THREE.Vector3(s * 0.77, 0.80, -2.10), 0.070, M.sand); // C-pillar
+    // One frame: A post -> rail -> C post, all landing on y 1.30, uniform 0.075 width.
+    // Proud of the glass by ~0.03 so the posts read at 360p without going chunky.
+    beam(new THREE.Vector3(s * 0.86, 0.86, 0.90), new THREE.Vector3(s * 0.60, 1.30, -0.04), 0.075, M.sand); // A-pillar
+    beam(new THREE.Vector3(s * 0.88, 0.86, -0.34), new THREE.Vector3(s * 0.60, 1.30, -0.34), 0.075, M.sand); // B-pillar
+    beam(new THREE.Vector3(s * 0.60, 1.30, -0.04), new THREE.Vector3(s * 0.60, 1.30, -1.62), 0.060, M.sand); // roof rail
+    beam(new THREE.Vector3(s * 0.60, 1.30, -1.62), new THREE.Vector3(s * 0.88, 0.86, -2.02), 0.075, M.sand); // C-pillar
     box(0.018, 0.024, 2.86, M.dInk, s * 0.842, 0.755, -0.56); // window sill trim
   }
-  outline(box(1.24, 0.030, 1.86, M.sand, 0, 1.300, -0.675), 1.012); // roof panel
+  outline(box(1.12, 0.030, 1.54, M.sand, 0, 1.300, -0.8325), 1.012); // roof panel
   for (const s of [1, -1] as const) {
-    box(0.016, 0.020, 1.87, M.dInk, s * 0.612, 1.296, -0.675); // rain gutter
+    box(0.016, 0.020, 1.55, M.dInk, s * 0.552, 1.296, -0.8325); // rain gutter
   }
 
   // ---------- Bonnet: plain sand, one dark vent (no stripes — desert differs from the garage) ----------

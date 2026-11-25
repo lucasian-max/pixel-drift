@@ -1,23 +1,21 @@
 import type { Car } from './car';
 import type { TimeEntry, User } from './account';
 
-/* ------------------------------------------------------------ palette ----- */
 const CREAM = '#f2eee1';
 const INK = '#14161a';
 const ACCENT = '#e0513f';
 
 const DIM = 'rgba(242,238,225,0.55)';
-const INKD = 'rgba(20,22,26,0.55)';          // ink labels on cream cards
-const SLAB = 'rgba(43,43,51,0.88)';           // asphalt glass panels
-const LINE = 'rgba(242,238,225,0.22)';        // quiet cream border
-const SEG_OFF = 'rgba(242,238,225,0.14)';     // unlit speed segment
-const SEG_RED_OFF = 'rgba(224,81,63,0.22)';   // unlit redline segment
-const RULE = 'rgba(20,22,26,0.18)';           // ruled line on cream
-const SHADOW = 'rgba(8,10,12,0.8)';          // hard offset block
+const INKD = 'rgba(20,22,26,0.55)';
+const SLAB = 'rgba(43,43,51,0.88)';
+const LINE = 'rgba(242,238,225,0.22)';
+const SEG_OFF = 'rgba(242,238,225,0.14)';
+const SEG_RED_OFF = 'rgba(224,81,63,0.22)';
+const RULE = 'rgba(20,22,26,0.18)';
+const SHADOW = 'rgba(8,10,12,0.8)';
 const HINT = 'rgba(242,238,225,0.58)';
 const ASPHALT = '#2b2b33';
 
-/** live view of the account store (src/account.ts) */
 export interface AccountView {
   user: User | null;
   times: TimeEntry[];
@@ -55,21 +53,13 @@ export interface UiState {
   powerDuration?: number;
   powerCooldown?: number;
   lapHistory?: number[];
-  /** signed-in account is an admin (server role) */
   admin?: boolean;
-  /** admin moderation overlay is open on the title */
   adminPanel?: boolean;
-  /** clear-board button is in its second, confirming click */
   adminConfirm?: boolean;
-  /** upload status line in the admin panel */
   adminUpload?: string;
-  /** transient red notice, e.g. "LAP NOT COUNTED — OFF TRACK" */
   warning?: string;
-  /** transient cream confirmation, e.g. "LAP SAVED · RANK 2" */
   notice?: string;
-  /** currently outside the clean corridor */
   offTrack?: boolean;
-  /** force the NEW BEST banner for a couple of seconds (also auto-detected) */
   bestFlash?: boolean;
   account?: AccountView;
 }
@@ -82,7 +72,6 @@ const fmt = (t: number) => {
   return `${m}:${s.toString().padStart(2, '0')}.${cs.toString().padStart(2, '0')}`;
 };
 
-/** leaderboard times arrive from the server as integer milliseconds */
 const fmtMs = (ms: number) => {
   if (!isFinite(ms) || ms <= 0) return '--:--.--';
   const m = Math.floor(ms / 60000);
@@ -91,13 +80,11 @@ const fmtMs = (ms: number) => {
   return `${m}:${s.toString().padStart(2, '0')}.${cs.toString().padStart(2, '0')}`;
 };
 
-/** flat rect with 1px clipped corners */
 function pxRect(c: CanvasRenderingContext2D, x: number, y: number, w: number, h: number, fill: string) {
   c.fillStyle = fill;
   c.fillRect(x + 1, y, w - 2, h);
   c.fillRect(x, y + 1, w, h - 2);
 }
-/** 1px border that respects the clipped corners */
 function pxBorder(c: CanvasRenderingContext2D, x: number, y: number, w: number, h: number, col: string) {
   c.fillStyle = col;
   c.fillRect(x + 1, y, w - 2, 1);
@@ -106,7 +93,6 @@ function pxBorder(c: CanvasRenderingContext2D, x: number, y: number, w: number, 
   c.fillRect(x + w - 1, y + 1, 1, h - 2);
 }
 
-/** every clickable thing on the canvas */
 export type HitId = 'prev-map' | 'next-map' | 'prev-car' | 'next-car' | 'solo' | 'login' | 'logout'
   | 'power-info' | 'garage' | 'garage-back' | 'menu'
   | 'admin' | 'admin-close' | 'admin-clear' | 'admin-dashboard' | 'admin-upload' | `admin-del-${number}`;
@@ -118,12 +104,10 @@ export class PixelUI {
   private w = 576;
   private h = 360;
 
-  /* minimap: track normalized to [-0.5, 0.5], computed once */
   private mapPts: Float32Array;
   private mapCX = 0; private mapCZ = 0; private mapExt = 1;
   private tickX = 0; private tickZ = 0; private tickNX = 0; private tickNZ = 0;
 
-  /* persistent buttons (no per-frame allocation) */
   private bPrev: Button = { id: 'prev-map', x: 0, y: 0, w: 24, h: 24, label: '<' };
   private bNext: Button = { id: 'next-map', x: 0, y: 0, w: 24, h: 24, label: '>' };
   private bCarPrev: Button = { id: 'prev-car', x: 0, y: 0, w: 24, h: 24, label: '<' };
@@ -142,7 +126,6 @@ export class PixelUI {
   private bAdminClose: Button = { id: 'admin-close', x: 0, y: 0, w: 58, h: 16, label: 'CLOSE' };
   private buttons: Button[] = [];
 
-  /* NEW BEST banner bookkeeping */
   private lastBest = -1;
   private bestUntil = -1;
 
@@ -166,7 +149,6 @@ export class PixelUI {
       this.mapPts[i * 2 + 1] = (track[i].z - this.mapCZ) / this.mapExt;
     }
 
-    /* start-line tick: nearest point to the actual start, perpendicular to the track */
     const sp = start ?? track[0];
     let si = 0, sbd = Infinity;
     for (let i = 0; i < track.length; i++) {
@@ -207,7 +189,6 @@ export class PixelUI {
     c.letterSpacing = '0px';
   }
 
-  /** Convert a pointer event to internal pixels and return the button under it. */
   hit(clientX: number, clientY: number): HitId | null {
     const r = this.canvas.getBoundingClientRect();
     if (!r.width || !r.height) return null;
@@ -218,8 +199,6 @@ export class PixelUI {
     }
     return null;
   }
-
-  /* --------------------------------------------------------------- draw --- */
 
   draw(state: UiState, time: number) {
     const c = this.ctx;
@@ -242,7 +221,7 @@ export class PixelUI {
     const kmh = Math.round(Math.abs(car.speed) * 3.6);
     const gear = car.speed < -0.5 ? 'R' : Math.min(6, 1 + Math.floor(kmh / 22)).toString();
 
-    /* NEW BEST: auto-detected from bestTime drops, or forced via bestFlash */
+    // NEW BEST: auto-detected from bestTime drops, or forced via bestFlash.
     const best = state.bestTime;
     if (this.lastBest < 0) this.lastBest = best;
     else {
@@ -253,15 +232,14 @@ export class PixelUI {
     }
     if (state.bestFlash) this.bestUntil = Math.max(this.bestUntil, time + 2.6);
 
-    /* ---- rally timecard (top-left) ---- */
     const tx = 8, ty = 16, tw = 136, th = 46;
     pxRect(c, tx, ty, tw, th, CREAM);
-    c.fillStyle = ACCENT;                       // red spine
+    c.fillStyle = ACCENT;
     c.fillRect(tx, ty + 3, 3, th - 6);
     const lapLabel = 'LAP ' + Math.min(99, state.laps + 1).toString().padStart(2, '0');
     this.font(8, 700);
     const lapW = Math.ceil(c.measureText(lapLabel).width) + 14;
-    pxRect(c, tx + 2, ty - 9, lapW, 11, ACCENT);  // clipboard tab
+    pxRect(c, tx + 2, ty - 9, lapW, 11, ACCENT);
     this.text(lapLabel, tx + 2 + lapW / 2, ty - 7, { size: 8, weight: 700, color: CREAM, align: 'center' });
     this.text('TIME', tx + 10, ty + 7, { size: 8, color: INKD });
     this.text(fmt(state.lapTime), tx + tw - 8, ty + 4, { size: 16, weight: 700, color: INK, align: 'right' });
@@ -270,7 +248,6 @@ export class PixelUI {
     this.text('BEST', tx + 10, ty + 31, { size: 8, color: INKD });
     this.text(fmt(state.bestTime), tx + tw - 8, ty + 31, { size: 8, color: INK, align: 'right' });
 
-    /* ---- drift card (top-right) ---- */
     const dw = 88, dh = 38, dx = this.w - dw - 8, dy = 8;
     const drifting = car.drifting;
     pxRect(c, dx, dy, dw, dh, drifting ? ACCENT : SLAB);
@@ -290,7 +267,6 @@ export class PixelUI {
       c.fillRect(dx + 6, dy + 30, Math.max(1, Math.round(bw * slipFrac)), 3);
     }
 
-    /* ---- superpower card (under the drift card) ---- */
     const pw = state.power;
     if (pw) {
       const pwW = 148, pwH = 32, pwX = this.w - pwW - 8, pwY = 52;
@@ -327,7 +303,6 @@ export class PixelUI {
       this.text(hint, pwX + 6, pwY + 16, { size: 8, color: active ? (darkText ? INK : CREAM) : DIM });
     }
 
-    /* ---- session controls: solid M MENU button + C/T companion chip ---- */
     {
       this.font(8, 700);
       const bw = Math.ceil(c.measureText('M MENU').width) + 22;
@@ -353,7 +328,6 @@ export class PixelUI {
       });
     }
 
-    /* ---- track-limit warning ---- */
     if (state.warning) this.drawToast(state.warning, 58);
     else if (state.offTrack && (time * 2) % 1 < 0.7) {
       this.drawToast('OFF TRACK', 58);
@@ -361,7 +335,6 @@ export class PixelUI {
       this.drawNotice(state.notice, 58);
     }
 
-    /* ---- NEW BEST banner ---- */
     if (time < this.bestUntil) {
       const bbw = 118, bbh = 22;
       const bx = Math.round(this.w / 2 - bbw / 2);
@@ -378,7 +351,6 @@ export class PixelUI {
       }
     }
 
-    /* ---- minimap + stage name chip (bottom-left) ---- */
     const ms = 96, mx = 8, my = this.h - ms - 26;
     pxRect(c, mx, my, ms, ms, SLAB);
     pxBorder(c, mx, my, ms, ms, LINE);
@@ -389,7 +361,6 @@ export class PixelUI {
     pxRect(c, mx, my + ms + 6, nw, 14, CREAM);
     this.text(stage, mx + nw / 2, my + ms + 8, { size: 8, weight: 700, color: INK, align: "center" });
 
-    /* ---- dashboard (bottom-right): big digits, gear, 14-seg bar ---- */
     const sw = 150, sh = 82, sx = this.w - sw - 8, sy = this.h - sh - 8;
     pxRect(c, sx, sy, sw, sh, SLAB);
     pxBorder(c, sx, sy, sw, sh, LINE);
@@ -416,7 +387,6 @@ export class PixelUI {
       c.fillRect(segX + i * (segw + gap), segY, segw, 5);
     }
 
-    /* ---- tunnel aim prompt / first-lap hints ---- */
     if (state.aiming) {
       const msg = 'AIM · CLICK TO PLACE · ESC CANCELS';
       this.font(8, 700);
@@ -435,7 +405,6 @@ export class PixelUI {
       this.text(msg, this.w / 2, hy + 3, { size: 8, color: 'rgba(242,238,225,0.8)', align: 'center' });
     }
 
-    /* ---- pause ---- */
     if (state.paused) {
       c.fillStyle = 'rgba(10,12,16,0.68)';
       c.fillRect(0, 0, this.w, this.h);
@@ -449,7 +418,6 @@ export class PixelUI {
     }
   }
 
-  /** Admin moderation overlay: delete individual cheated times or wipe a board. */
   private drawAdminPanel(time: number, state: UiState) {
     const c = this.ctx;
     this.buttons.length = 0;
@@ -542,7 +510,6 @@ export class PixelUI {
     this.buttons.push(this.bAdminUpload);
   }
 
-  /** Power description modal; also used from the garage. */
   private drawPowerInfo(state: UiState) {
     const c = this.ctx;
     this.buttons.length = 0;
@@ -591,7 +558,6 @@ export class PixelUI {
     this.buttons.push(this.bInfo);
   }
 
-  /** Full-screen car turntable; the car itself is rendered in the world behind. */
   private drawGarage(time: number, state: UiState) {
     const c = this.ctx;
     this.buttons.length = 0;
@@ -633,7 +599,6 @@ export class PixelUI {
     if (state.powerInfo) this.drawPowerInfo(state);
   }
 
-  /** success confirmation: dark on cream, centred */
   private drawNotice(text: string, y: number) {
     const c = this.ctx;
     this.font(8, 700);
@@ -644,7 +609,6 @@ export class PixelUI {
     this.text(text, this.w / 2, y + 4, { size: 8, weight: 700, color: INK, align: 'center' });
   }
 
-  /** transient warning: cream on red, centred */
   private drawToast(text: string, y: number) {
     const c = this.ctx;
     this.font(8, 700);
@@ -655,11 +619,9 @@ export class PixelUI {
     this.text(text, this.w / 2, y + 4, { size: 8, weight: 700, color: CREAM, align: 'center' });
   }
 
-  /* ----------------------------------------------------------- minimap --- */
   private drawMap(car: Car, x: number, y: number, size: number) {
     const c = this.ctx;
 
-    // fit the whole circuit, with a margin, from its own bounds
     let minX = 1e9, maxX = -1e9, minZ = 1e9, maxZ = -1e9;
     for (let i = 0; i < this.mapPts.length; i += 2) {
       minX = Math.min(minX, this.mapPts[i]); maxX = Math.max(maxX, this.mapPts[i]);
@@ -673,7 +635,6 @@ export class PixelUI {
     const px = (v: number) => ox + v * sc;
     const pz = (v: number) => oz + v * sc;
 
-    // road: dark casing then a bright line, 1px, no glow
     const path = () => {
       c.beginPath();
       for (let i = 0; i < this.mapPts.length; i += 2) {
@@ -693,7 +654,6 @@ export class PixelUI {
     c.lineWidth = 2;
     c.stroke();
 
-    // start line tick
     if (this.tickX || this.tickZ) {
       c.strokeStyle = 'rgba(242,238,225,0.55)';
       c.lineWidth = 1;
@@ -703,7 +663,7 @@ export class PixelUI {
       c.stroke();
     }
 
-    // car: a filled wedge pointing where it faces
+    // A filled wedge pointing where the car faces.
     const cx = px((car.x - this.mapCX) / this.mapExt);
     const cz = pz((car.z - this.mapCZ) / this.mapExt);
     const fx = -Math.sin(car.heading), fz = -Math.cos(car.heading);
@@ -721,28 +681,23 @@ export class PixelUI {
     c.stroke();
   }
 
-  /* ------------------------------------------------------------- title --- */
-
   private drawTitle(time: number, state: UiState) {
     const c = this.ctx;
     const { w, h } = this;
-    this.buttons.length = 0;   // rebuilt every frame
+    this.buttons.length = 0;
     c.fillStyle = 'rgba(12,14,18,0.72)';
     c.fillRect(0, 0, w, h);
 
-    /* the motif: scrolling chequered timing strips framing the screen */
     this.checkerEdge(0, time, -1);
     this.checkerEdge(h - 16, time, 1);
 
     const cx = Math.round(w / 2);
 
-    /* lockup with hard offset shadow blocks */
     this.text('PIXEL', cx + 3, 61, { size: 48, weight: 700, color: SHADOW, align: 'center' });
     this.text('PIXEL', cx, 58, { size: 48, weight: 700, color: CREAM, align: 'center' });
     this.text('DRIFT', cx + 3, 113, { size: 48, weight: 700, color: SHADOW, align: 'center' });
     this.text('DRIFT', cx, 110, { size: 48, weight: 700, color: ACCENT, align: 'center' });
 
-    /* car chooser */
     const carNames = state.carNames ?? ['CAR'];
     const ci = ((state.car.variant % carNames.length) + carNames.length) % carNames.length;
     const carName = (carNames[ci] ?? 'CAR').toUpperCase();
@@ -765,7 +720,6 @@ export class PixelUI {
     arrowButton(this.bCarPrev, -1);
     arrowButton(this.bCarNext, 1);
 
-    /* track chooser */
     const maps = state.maps ?? [{ id: 'x', name: state.mapName ?? 'Pixel Drift' }];
     const mi = Math.max(0, Math.min(maps.length - 1, state.mapIndex ?? 0));
     const name = (maps[mi]?.name ?? 'Pixel Drift').toUpperCase();
@@ -783,7 +737,6 @@ export class PixelUI {
     arrowButton(this.bPrev, -1);
     arrowButton(this.bNext, 1);
 
-    /* power info + garage */
     this.bInfo.label = 'POWER INFO';
     this.bInfo.x = Math.round(cx - 74);
     this.bInfo.y = 238;
@@ -796,7 +749,6 @@ export class PixelUI {
       this.buttons.push(b);
     }
 
-    /* PLAY button: chunky arcade key with an offset block */
     this.bSolo.label = 'PLAY';
     this.bSolo.w = 104;
     this.bSolo.x = Math.round(cx - 52);
@@ -816,7 +768,6 @@ export class PixelUI {
     };
     key(this.bSolo, ACCENT);
 
-    /* ---- account line under PLAY ---- */
     const acct = state.account;
     let blinkY = 296;
     if (acct) {
@@ -857,10 +808,8 @@ export class PixelUI {
       }
     }
 
-    /* ---- leaderboard column (right edge) ---- */
     if (acct && w >= 560) {
       const lx = w - 176;
-      /* the board is per track, so the header names the track it belongs to */
       this.text('LEADERBOARD', w - 8, 48, { size: 8, weight: 700, color: CREAM, align: 'right', spacing: 2 });
       let track = (state.mapName ?? '').toUpperCase();
       this.font(8, 700);
@@ -888,7 +837,6 @@ export class PixelUI {
       }
     }
 
-    /* hard blink, attract-mode style */
     const on = (time % 1.2) < 0.85;
     this.text('OR PRESS SPACE', cx, blinkY, { size: 8, color: on ? CREAM : 'rgba(242,238,225,0.15)', align: 'center', spacing: 1 });
 
@@ -898,7 +846,7 @@ export class PixelUI {
     if (state.powerInfo) this.drawPowerInfo(state);
   }
 
-  /** chunky 8x9 pixel arrow (font glyphs read thin at this size) */
+  // Font glyphs read thin at this size, so arrows are drawn by hand.
   private pixelArrow(x: number, y: number, dir: number) {
     const c = this.ctx;
     c.fillStyle = CREAM;
@@ -910,7 +858,7 @@ export class PixelUI {
     }
   }
 
-  /** two-row, 8px-cell chequered strip; pattern crawls in whole cells (crisp edges) */
+  // Crawls in whole cells so the chequer stays crisp.
   private checkerEdge(y: number, time: number, dir: number) {
     const c = this.ctx;
     const cell = 8, rows = 2;

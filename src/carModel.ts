@@ -328,10 +328,10 @@ export function buildCarModel(variant = 0): THREE.Group {
     mount.position.set(side * WHEEL_X, WHEEL_R, z);
     if (side < 0) mount.rotation.y = Math.PI;
     const spin = makeWheel();
-    spin.name = name; // rotate spin.rotation.x to roll
+    spin.name = name;
     mount.add(spin);
     car.add(mount);
-    wheels.push(spin);
+    wheels.push(spin); // car.ts rolls them on rotation.x while driving
   }
   car.userData.wheels = wheels;
   car.userData.frontMounts = car.children.filter((c) => c.name === 'wheelFLMount' || c.name === 'wheelFRMount');
