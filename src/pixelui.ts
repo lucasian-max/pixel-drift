@@ -35,6 +35,8 @@ export interface UiState {
   atLine?: boolean;
   /** chase camera lock state: false means the player orbited away */
   camLocked?: boolean;
+  /** sound off: the chip reads MUTED so a silent game never looks broken */
+  muted?: boolean;
   /** TUNNEL aim mode: the sim is frozen, the player is placing the car */
   aiming?: boolean;
   maps?: { id: string; name: string }[];
@@ -98,7 +100,7 @@ function pxBorder(c: CanvasRenderingContext2D, x: number, y: number, w: number, 
 }
 
 export type HitId = 'prev-map' | 'next-map' | 'prev-car' | 'next-car' | 'solo' | 'login' | 'logout'
-  | 'power-info' | 'garage' | 'garage-back' | 'menu'
+  | 'power-info' | 'garage' | 'garage-back' | 'menu' | 'mute'
   | 'admin' | 'admin-close' | 'admin-clear' | 'admin-dashboard' | 'admin-upload' | `admin-del-${number}`;
 
 interface Button { id: HitId; x: number; y: number; w: number; h: number; label: string }
@@ -121,6 +123,7 @@ export class PixelUI {
   private bGarageBack: Button = { id: 'garage-back', x: 0, y: 0, w: 48, h: 14, label: 'BACK' };
   private bSolo: Button = { id: 'solo', x: 0, y: 0, w: 148, h: 28, label: 'SOLO' };
   private bMenu: Button = { id: 'menu', x: 0, y: 0, w: 66, h: 18, label: 'M MENU' };
+  private bMute: Button = { id: 'mute', x: 0, y: 0, w: 60, h: 14, label: 'SOUND ON' };
   private bLogin: Button = { id: 'login', x: 0, y: 0, w: 72, h: 14, label: 'SIGN IN' };
   private bLogout: Button = { id: 'logout', x: 0, y: 0, w: 72, h: 14, label: 'SIGN OUT' };
   private bAdmin: Button = { id: 'admin', x: 0, y: 0, w: 62, h: 14, label: 'ADMIN' };
@@ -344,6 +347,8 @@ export class PixelUI {
       });
     }
 
+    this.drawMuteChip(state, 110);
+
     if (state.warning) this.drawToast(state.warning, 58);
     else if (state.offTrack && (time * 2) % 1 < 0.7) {
       this.drawToast('OFF TRACK', 58);
@@ -430,7 +435,7 @@ export class PixelUI {
         c.fillRect(this.w / 2 - strip / 2 + i * cell, this.h / 2 - 24, cell, cell);
       }
       this.text('PAUSED', this.w / 2, this.h / 2 - 12, { size: 24, weight: 700, align: 'center' });
-      this.text('P TO RESUME', this.w / 2, this.h / 2 + 18, { size: 8, color: DIM, align: 'center' });
+      this.text('ESC OR P TO RESUME', this.w / 2, this.h / 2 + 18, { size: 8, color: DIM, align: 'center' });
     }
   }
 
@@ -676,6 +681,21 @@ export class PixelUI {
     if (state.powerInfo) this.drawPowerInfo(state);
   }
 
+  private drawMuteChip(state: UiState, y: number) {
+    const c = this.ctx;
+    const muted = state.muted === true;
+    const label = muted ? 'MUTED' : 'SOUND ON';
+    const w = Math.max(this.measure('SOUND ON', 8, 400), this.measure('MUTED', 8, 700)) + 12;
+    const b = this.bMute;
+    b.label = label; b.w = w; b.x = this.w - 8 - w; b.y = y;
+    pxRect(c, b.x, b.y, b.w, b.h, muted ? ACCENT : SLAB);
+    pxBorder(c, b.x, b.y, b.w, b.h, muted ? CREAM : LINE);
+    this.text(label, b.x + b.w / 2, b.y + 4, {
+      size: 8, weight: muted ? 700 : 400, color: muted ? CREAM : HINT, align: 'center',
+    });
+    this.buttons.push(b);
+  }
+
   private drawNotice(text: string, y: number) {
     const c = this.ctx;
     this.font(8, 700);
@@ -825,6 +845,7 @@ export class PixelUI {
       this.text(b.label, b.x + b.w / 2, b.y + 2, { size: 8, color: CREAM, align: 'center' });
       this.buttons.push(b);
     }
+    this.drawMuteChip(state, 238);
 
     this.bSolo.label = 'PLAY';
     this.bSolo.w = 104;

@@ -17,7 +17,6 @@ export class Input {
       if (!this.keys.has(e.code)) this.onAnyKey?.();
       this.keys.add(e.code);
       if (e.code === 'KeyR') this.resetPressed = true;
-      if (e.code === 'KeyP' || e.code === 'Escape') this.paused = !this.paused;
     });
     addEventListener('keyup', (e) => this.keys.delete(e.code));
     addEventListener('blur', () => this.keys.clear());

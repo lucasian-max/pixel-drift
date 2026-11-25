@@ -275,6 +275,7 @@ async function boot() {
     // never carry a queued F/C/V/X/R press or a stored boost into a new run
     input.forget('KeyF', 'KeyC', 'KeyV', 'KeyX', 'KeyR');
     input.consumeReset();
+    input.paused = false;
     car.powerTime = 0;
     car.powerCd = 0;
     car.powerCharge = 0;
@@ -434,6 +435,7 @@ async function boot() {
     else if (a === 'prev-car') cycleCar(-1);
     else if (a === 'next-car') cycleCar(1);
     else if (a === 'power-info') powerInfo = !powerInfo;
+    else if (a === 'mute') sound.toggleMute();
     else if (a === 'garage') setGarage(true);
     else if (a === 'garage-back') setGarage(false);
     else if (a === 'login') loginForm.open();
@@ -502,8 +504,9 @@ async function boot() {
     if (loginForm.isOpen()) return;
     const hit = ui.hit(e.clientX, e.clientY);
     if (!hit) return;
-    if (running) {                 // mid-race only the M MENU button is wired
+    if (running) {                 // mid-race only the menu and the mute chip are wired
       if (hit === 'menu') backToTitle();
+      else if (hit === 'mute') sound.toggleMute();
       return;
     }
     ui.onAction?.(hit);   // only the PLAY button starts a race
@@ -512,9 +515,15 @@ async function boot() {
     if (loginForm.isOpen()) return;   // the form handles its own keys
     /* session keys are single-shot: key auto-repeat would storm them */
     const fresh = !e.repeat;
+    /* pause is handled here rather than in Input so a held key cannot toggle it on
+       every repeat and the wrap is checked before the state flips: Esc closes the
+       wrap, P pauses it, and a pause already on outranks the wrap either way */
+    if (fresh && (e.code === 'Escape' || e.code === 'KeyP')) {
+      if (e.code === 'Escape' && car.aiming && !input.paused) { car.cancelAim(); return; }
+      if (running || input.paused) { input.paused = !input.paused; return; }
+    }
     if (car.aiming && fresh) {
       if (e.code === 'Enter') { placeWormhole(); return; }
-      if (e.code === 'Escape') { car.cancelAim(); input.paused = false; return; }
       return;   // while the wrap is open, other session keys wait
     }
     if (fresh && e.code === 'KeyM') { backToTitle(); return; }
@@ -863,7 +872,7 @@ async function boot() {
       resetTrace();
       lapTrace.push({ x: car.x, z: car.z, t: 0 });
     }
-    if (started && !car.aiming) {
+    if (started && !car.aiming && !input.paused) {
       lapTime += dt;
       recorder.beginLap(lapInfo());
     }
@@ -956,6 +965,7 @@ async function boot() {
       paused: input.paused, throttle: controls.throttle, laps,
       atLine: running && !started,
       camLocked: chase,
+      muted: sound.muted,
       aiming: car.aiming,
       maps: MAPS.map((m) => ({ id: m.id, name: m.name })),
       carNames: CAR_NAMES,

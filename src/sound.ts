@@ -24,7 +24,7 @@ export class Sound {
     const ctx = new AC();
     this.ctx = ctx;
     this.master = ctx.createGain();
-    this.master.gain.value = 0.55;
+    this.master.gain.value = this.muted ? 0 : 0.55;
     this.master.connect(ctx.destination);
 
     // engine
@@ -93,11 +93,15 @@ export class Sound {
 
     // N mutes (M returns to the menu); a held key would toggle it back and forth
     addEventListener('keydown', (e) => {
-      if (e.code === 'KeyN' && !e.repeat) {
-        this.muted = !this.muted;
-        this.master.gain.setTargetAtTime(this.muted ? 0 : 0.55, ctx.currentTime, 0.05);
-      }
+      if (e.code === 'KeyN' && !e.repeat) this.toggleMute();
     });
+  }
+
+  toggleMute() {
+    this.muted = !this.muted;
+    const ctx = this.ctx;
+    if (ctx) this.master.gain.setTargetAtTime(this.muted ? 0 : 0.55, ctx.currentTime, 0.05);
+    return this.muted;
   }
 
   /** one-shot thud + gravel burst, strength 0..1 */
