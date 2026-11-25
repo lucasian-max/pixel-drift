@@ -589,8 +589,8 @@ export class PixelUI {
     const ci = ((state.car.variant % names.length) + names.length) % names.length;
     const nm = (names[ci] ?? 'CAR').toUpperCase();
 
-    /* three stacked tiers — the name with its arrows, POWER · CLASS, then the key
-       hint — with the corner buttons in the bottom tier. The old single band put
+    /* two tiers — the name with its arrows, then POWER · CLASS — with the corner
+       buttons in the bottom tier. The old single band put
        the POWER line at by+27, straight through the 24px arrow boxes, so the tag
        was painted over and the class name was cut in half. Ratings shrink, then
        the name drops a size, before either is dropped, so 4:3 keeps every axis,
@@ -643,11 +643,6 @@ export class PixelUI {
     const lineX = Math.max(leftEdge, Math.round(cx - lineW / 2));
     this.text(pwName, lineX, by + 34, { size: 8, color: ACCENT, spacing: 1 });
     if (showTag) this.text(tag, lineX + pwW, by + 34, { size: 8, color: DIM, spacing: 1 });
-
-    const hint = 'F ACTIVATES IN RACE';
-    if (leftEdge + this.measure(hint, 8, 400, 1) <= w - 164) {
-      this.text(hint, leftEdge, by + 46, { size: 8, color: DIM, spacing: 1 });
-    }
 
     this.bInfo.label = 'POWER INFO';
     this.bInfo.x = w - 156;
