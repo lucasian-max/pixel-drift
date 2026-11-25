@@ -2,7 +2,7 @@
 // Paste two hill-shots renders into one composite: top row = A (viewA | viewB), bottom row = B (same pair).
 //   node tools/hill-compare.mjs <aPrefix> <bPrefix> <outPng> [labelA] [labelB] [viewA] [viewB]
 // Views default to "side rearq"; crops keep only the horizontal band the car occupies
-// so the composite costs one image view.
+// so the whole comparison fits in one picture.
 import { spawnSync } from 'node:child_process';
 import path from 'node:path';
 
@@ -11,8 +11,8 @@ if (!out) throw new Error('usage: node tools/hill-compare.mjs <a> <b> <out.png> 
 const dir = 'shots/hill';
 const f = (p, v) => path.join(dir, `${p}-${v}.png`);
 
-// magick inherits LD_LIBRARY_PATH from the agent runtime, whose libstdc++ lacks
-// GLIBCXX_3.4.30 and kills ImageMagick before it draws anything. Drop it.
+// an inherited LD_LIBRARY_PATH can point at an older bundled libstdc++ (no
+// GLIBCXX_3.4.30), which kills ImageMagick before it draws anything. Drop it.
 const ENV = { ...process.env };
 delete ENV.LD_LIBRARY_PATH;
 

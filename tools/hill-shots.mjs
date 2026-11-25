@@ -65,8 +65,8 @@ async function open(url) {
   await sleep(800);
   const prof = `${ROOT}/tmp/hill-profile-${PORT}`;
   spawnSync('bash', ['-c', `rm -rf ${prof}`]);
-  // The agent runtime exports its own LD_LIBRARY_PATH; chromium then loads a libstdc++
-  // without GLIBCXX_3.4.30 and dies before the debug port opens. Drop it for the browser.
+  // an inherited LD_LIBRARY_PATH can make chromium load the wrong libstdc++,
+  // dying on a missing GLIBCXX_3.4.30 before the debug port opens. Drop it.
   const env = { ...process.env };
   delete env.LD_LIBRARY_PATH;
   const child = spawn('xvfb-run', ['-a', '-s', '-screen 0 1280x720x24', 'chromium',

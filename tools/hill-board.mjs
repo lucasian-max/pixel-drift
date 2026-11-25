@@ -7,8 +7,8 @@ import path from 'node:path';
 const [out, label, ...specs] = process.argv.slice(2);
 if (!out || !label || !specs.length) throw new Error('usage: node tools/hill-board.mjs <out.png> <label> <prefix:view> ...');
 const dir = 'shots/hill';
-// magick inherits LD_LIBRARY_PATH from the agent runtime, whose libstdc++ lacks
-// GLIBCXX_3.4.30 and kills ImageMagick before it draws anything. Drop it.
+// an inherited LD_LIBRARY_PATH can point at an older bundled libstdc++ (no
+// GLIBCXX_3.4.30), which kills ImageMagick before it draws anything. Drop it.
 const ENV = { ...process.env };
 delete ENV.LD_LIBRARY_PATH;
 const run = (args) => {

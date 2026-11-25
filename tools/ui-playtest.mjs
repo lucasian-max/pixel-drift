@@ -390,8 +390,8 @@ async function open(spec) {
   await sleep(1200);
   const profile = `${process.env.HOME}/tmp/ui-playtest-profile-9228-${process.pid}-${Date.now()}`;
   spawnSync('bash', ['-c', `rm -rf ${profile}`]);
-  // the agent runtime's own LD_LIBRARY_PATH points at a bundled libstdc++, which chromium
-  // then loads in place of the system one and dies on a missing GLIBCXX_3.4.30
+  // an inherited LD_LIBRARY_PATH can point at a bundled libstdc++ that chromium
+  // loads in place of the system one, dying on a missing GLIBCXX_3.4.30
   const env = { ...process.env };
   for (const v of ['LD_LIBRARY_PATH', 'LD_PRELOAD', 'PYTHONPATH']) delete env[v];
   const child = spawn('xvfb-run', ['-a', '-s', '-screen 0 1280x720x24', 'chromium',

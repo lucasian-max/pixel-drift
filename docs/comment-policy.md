@@ -1,7 +1,7 @@
-# Comment policy — the 2024 purge and the ratchet
+# Comment policy — the cleanup and the ratchet
 
 This repo keeps comments that pay rent and deletes the rest. This record
-explains the categories used in the purge (PR "Comment purge"), so future
+explains the categories used in the cleanup (#4), so future
 comments can be judged by the same rules, and introduces the
 [`npm run lint:comments`](../package.json) ratchet that keeps the count from
 creeping back up.
