@@ -93,10 +93,10 @@ export function createWormAimRing(radius = 14): WormAimRing {
   for (let i = 0; i < 4; i++) {
     const span = 0.34;                                   // radians of arc per chevron
     const arc = new THREE.ShapeGeometry(new THREE.Shape([
-      new THREE.Vector2(radius * 0.55, 0),
-      new THREE.Vector2(radius * 0.86, 0),
-      new THREE.Vector2(radius * 0.86, radius * 0.17),
-      new THREE.Vector2(radius * 0.55, radius * 0.22),
+      new THREE.Vector2(radius * 0.52, 0),              // tip: points at the rim's forward sector
+      new THREE.Vector2(radius * 0.88, 0.30),
+      new THREE.Vector2(radius * 0.72, 0),
+      new THREE.Vector2(radius * 0.88, -0.30),
     ]));
     arc.rotateX(-Math.PI / 2);
     arc.rotateY(-Math.PI / 2 - (i - 1.5) * 0.5 + Math.PI / 2);
@@ -169,10 +169,10 @@ export function createWormAimRing(radius = 14): WormAimRing {
       marker.position.set(x, 0, z);
     },
     marker(x, z) {
-      const ox = -bed.position.x, oz = -bed.position.z;
-      const d = Math.hypot(x + ox, z + oz);
+      const dx = x - bed.position.x, dz = z - bed.position.z;
+      const d = Math.hypot(dx, dz);
       const k = d > radius ? radius / d : 1;
-      marker.position.set(bed.position.x - ox * k, 0.07, bed.position.z - oz * k);
+      marker.position.set(bed.position.x + dx * k, 0.07, bed.position.z + dz * k);
     },
     show(on) { group.visible = on; },
     dispose() {
