@@ -218,6 +218,9 @@ async function boot() {
   const tweenView = (to: number) => { viewTween = { from: viewHeight, to, t: 0 }; };
   let speedZoom = 1;
   let camYaw = 0;
+  /* chase lock: on, the camera keeps settling behind the car. Armed on every
+     begin(); Q/E or a drag is manual orbit and switches it off; T re-locks. */
+  let chase = false;
   const focus = new THREE.Vector3(car.x, 0, car.z);
   const desired = new THREE.Vector3();
 
@@ -263,6 +266,7 @@ async function boot() {
     car.steerAngle = 0;
     acc = 0;
     running = true;
+    chase = true;   // the default view rides behind the car
     setGantryBanner(true);
     adminPanel = false;
     recorder.beginLap({ ...lapInfo(), launch: true });
@@ -481,6 +485,11 @@ async function boot() {
   });
   addEventListener('keydown', (e) => {
     if (loginForm.isOpen()) return;   // the form handles its own keys
+    /* session keys are single-shot: key auto-repeat would storm them */
+    const fresh = !e.repeat;
+    if (fresh && e.code === 'KeyM') { backToTitle(); return; }
+    if (fresh && e.code === 'KeyC' && !started && !input.paused) { switchCarAtLine(); return; }
+    if (fresh && e.code === 'KeyT' && running && !garage && !input.paused) { chase = true; return; }
     if (!running && garage) {
       if (e.code === 'Enter') { setGarage(false); return; }
       if (e.code === 'ArrowUp') { cycleCar(1); return; }
@@ -505,6 +514,7 @@ async function boot() {
   gameCanvas.addEventListener('pointerup', () => { dragging = false; });
   gameCanvas.addEventListener('pointermove', (e) => {
     if (!dragging) return;
+    chase = false;   // a drag is manual orbit
     camYaw -= (e.clientX - lastX) * 0.008;
     lastX = e.clientX;
   });
@@ -620,6 +630,37 @@ async function boot() {
     prevU = ((nearest - startIdx + track.length) % track.length) / track.length;
   };
 
+  /* C before the lap timer starts: swap cars without leaving the map. The
+     open launch episode is closed and reopened so a recording never labels
+     one car as another. */
+  const switchCarAtLine = () => {
+    if (running && !started) {
+      recorder.noteEvent('car', { x: car.x, z: car.z });
+      recorder.endLap(0, false);
+    }
+    cycleCar(1);
+    if (running && !started) recorder.beginLap({ ...lapInfo(), launch: true });
+  };
+
+  /* M at any time: abandon the run mid-lap or not and go back to the title. */
+  const backToTitle = () => {
+    if (garage) setGarage(false);
+    if (!running && !started) return;   // already parked on the title
+    recorder.noteEvent('menu');
+    recorder.endLap(0, false);           // the lap in progress is a partial
+    resetRaceLocal();
+    running = false;
+    setGantryBanner(false);             // the title lockup owns the gantry again
+    adminPanel = false;
+    input.paused = false;
+    input.look = 0;                     // a held look key would drag the title view
+    chase = false;
+    acc = 0;
+    input.forget('KeyF', 'KeyC', 'KeyV', 'KeyX', 'KeyR');
+    tweenView(overview ? 96 : 14);
+    void account.refresh(mapId);        // fresh board, like boot
+  };
+
   const autopilot = () => {
     const n = track.length;
     const ahead = 40 + Math.round(Math.abs(car.speed) * 2.2);
@@ -673,6 +714,17 @@ async function boot() {
 
     const controls = !running ? { throttle: 0, steer: 0, handbrake: false }
       : params.has('demo') ? autopilot() : input.read();
+    /* chase lock: settle camYaw behind the car (car forward is
+       (-sin h, -cos h), so the camera yaw matches the heading), shortest way
+       round; Q/E takes over as manual look and drops the lock */
+    if (chase && input.look !== 0) chase = false;
+    if (chase && running && !garage && !overview) {
+      let d = car.heading - camYaw;
+      d = Math.atan2(Math.sin(d), Math.cos(d));
+      // soft when parked, tighter the faster the car goes
+      const rate = 1.7 + 3.1 * Math.min(1, Math.abs(car.speed) / 24);
+      camYaw += d * (1 - Math.exp(-dt * rate));
+    }
     camYaw += input.look * dt * 1.8;
     if (input.zoom !== 0) {
       viewTween = null;   // the wheel wins over the garage transition
@@ -836,6 +888,7 @@ async function boot() {
     ui.draw({
       car, lapTime: started ? lapTime : 0, bestTime, started: running,
       paused: input.paused, throttle: controls.throttle, laps,
+      atLine: running && !started,
       maps: MAPS.map((m) => ({ id: m.id, name: m.name })),
       carNames: CAR_NAMES,
       carPowers: CAR_POWERS.map((p) => p.name),
@@ -877,6 +930,8 @@ async function boot() {
     get laps() { return laps; },
     get lapTime() { return lapTime; },
     get started() { return started; },
+    get running() { return running; },
+    get chase() { return chase; },
     get trace() { return lapTrace; },
     get lastTrace() { return lastTrace; },
     get warning() { return warning; },

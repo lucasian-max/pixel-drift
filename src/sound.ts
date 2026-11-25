@@ -91,8 +91,9 @@ export class Sound {
     this.musicGain.connect(this.master);
     this.musicNext = ctx.currentTime + 0.2;
 
+    // N mutes (M returns to the menu); a held key would toggle it back and forth
     addEventListener('keydown', (e) => {
-      if (e.code === 'KeyM') {
+      if (e.code === 'KeyN' && !e.repeat) {
         this.muted = !this.muted;
         this.master.gain.setTargetAtTime(this.muted ? 0 : 0.55, ctx.currentTime, 0.05);
       }

@@ -33,6 +33,8 @@ export interface UiState {
   paused: boolean;
   throttle: number;
   laps: number;
+  /** parked on the line before the lap timer starts: C may swap cars */
+  atLine?: boolean;
   maps?: { id: string; name: string }[];
   mapIndex?: number;
   mapName?: string;
@@ -313,6 +315,18 @@ export class PixelUI {
         ? (pw.charge !== undefined ? 'SLIDE TO CHARGE' : 'F')
         : 'PRESS F';
       this.text(hint, pwX + 6, pwY + 16, { size: 8, color: active ? (darkText ? INK : CREAM) : DIM });
+    }
+
+    /* ---- session keys chip (under the power card) ---- */
+    /* C is only listed while it works, i.e. parked on the line */
+    {
+      const keys = state.atLine ? 'C CAR   M MENU   T CAM' : 'M MENU   T CAM';
+      this.font(8);
+      const kw = Math.ceil(c.measureText(keys).width) + 12;
+      const kx = this.w - kw - 8, ky = 88;
+      pxRect(c, kx, ky, kw, 13, SLAB);
+      pxBorder(c, kx, ky, kw, 13, LINE);
+      this.text(keys, kx + 6, ky + 3, { size: 8, color: HINT });
     }
 
     /* ---- track-limit warning ---- */
@@ -842,7 +856,7 @@ export class PixelUI {
     const on = (time % 1.2) < 0.85;
     this.text('OR PRESS SPACE', cx, blinkY, { size: 8, color: on ? CREAM : 'rgba(242,238,225,0.15)', align: 'center', spacing: 1 });
 
-    this.text('WASD DRIVE   SPACE DRIFT   F POWER   Q E LOOK   R RESET   M MUTE', cx, h - 26, {
+    this.text('WASD DRIVE   SPACE DRIFT   F POWER   Q E LOOK   R RESET   N MUTE', cx, h - 26, {
       size: 8, color: HINT, align: 'center',
     });
     if (state.powerInfo) this.drawPowerInfo(state);
