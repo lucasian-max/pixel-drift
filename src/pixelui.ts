@@ -31,6 +31,12 @@ export interface UiState {
   paused: boolean;
   throttle: number;
   laps: number;
+  /** parked on the line before the lap timer starts: C may swap cars */
+  atLine?: boolean;
+  /** chase camera lock state: false means the player orbited away */
+  camLocked?: boolean;
+  /** TUNNEL aim mode: the sim is frozen, the player is placing the car */
+  aiming?: boolean;
   maps?: { id: string; name: string }[];
   mapIndex?: number;
   mapName?: string;
@@ -88,7 +94,7 @@ function pxBorder(c: CanvasRenderingContext2D, x: number, y: number, w: number, 
 }
 
 export type HitId = 'prev-map' | 'next-map' | 'prev-car' | 'next-car' | 'solo' | 'login' | 'logout'
-  | 'power-info' | 'garage' | 'garage-back'
+  | 'power-info' | 'garage' | 'garage-back' | 'menu'
   | 'admin' | 'admin-close' | 'admin-clear' | 'admin-dashboard' | 'admin-upload' | `admin-del-${number}`;
 
 interface Button { id: HitId; x: number; y: number; w: number; h: number; label: string }
@@ -110,6 +116,7 @@ export class PixelUI {
   private bGarage: Button = { id: 'garage', x: 0, y: 0, w: 64, h: 12, label: 'VIEW CAR' };
   private bGarageBack: Button = { id: 'garage-back', x: 0, y: 0, w: 48, h: 14, label: 'BACK' };
   private bSolo: Button = { id: 'solo', x: 0, y: 0, w: 148, h: 28, label: 'SOLO' };
+  private bMenu: Button = { id: 'menu', x: 0, y: 0, w: 66, h: 18, label: 'M MENU' };
   private bLogin: Button = { id: 'login', x: 0, y: 0, w: 72, h: 14, label: 'SIGN IN' };
   private bLogout: Button = { id: 'logout', x: 0, y: 0, w: 72, h: 14, label: 'SIGN OUT' };
   private bAdmin: Button = { id: 'admin', x: 0, y: 0, w: 62, h: 14, label: 'ADMIN' };
@@ -291,6 +298,31 @@ export class PixelUI {
       this.text(hint, pwX + 6, pwY + 16, { size: 8, color: active ? (darkText ? INK : CREAM) : DIM });
     }
 
+    {
+      this.font(8, 700);
+      const bw = Math.ceil(c.measureText('M MENU').width) + 22;
+      const bh = 18;
+      const bx = this.w - bw - 8, by = 86;
+      pxRect(c, bx, by, bw, bh, CREAM);
+      pxBorder(c, bx, by, bw, bh, (time * 2) % 1 < 0.55 ? INK : 'rgba(21,24,26,0.30)');
+      this.text('M MENU', bx + bw / 2, by + 5, { size: 8, weight: 700, color: INK, align: 'center' });
+      this.bMenu.x = bx; this.bMenu.y = by; this.bMenu.w = bw; this.bMenu.h = bh;
+      this.buttons.push(this.bMenu);
+
+      const camInk = state.camLocked === false ? 'T RELOCK CAM' : 'T CAM';
+      const keys = state.atLine ? `C CAR   ${camInk}` : camInk;
+      this.font(8);
+      const kw = Math.ceil(c.measureText(keys).width) + 12;
+      const kx = bx - kw - 6, ky = 89;
+      pxRect(c, kx, ky, kw, 13, SLAB);
+      pxBorder(c, kx, ky, kw, 13, LINE);
+      const urgent = state.camLocked === false;
+      this.text(keys, kx + 6, ky + 3, {
+        size: 8, weight: urgent ? 700 : 400,
+        color: urgent && (time * 2) % 1 < 0.6 ? CREAM : HINT,
+      });
+    }
+
     if (state.warning) this.drawToast(state.warning, 58);
     else if (state.offTrack && (time * 2) % 1 < 0.7) {
       this.drawToast('OFF TRACK', 58);
@@ -350,7 +382,15 @@ export class PixelUI {
       c.fillRect(segX + i * (segw + gap), segY, segw, 5);
     }
 
-    if (state.laps === 0) {
+    if (state.aiming) {
+      const msg = 'AIM · CLICK TO PLACE · ESC CANCELS';
+      this.font(8, 700);
+      const hw = Math.ceil(c.measureText(msg).width) + 16;
+      const hx = Math.round(this.w / 2 - hw / 2), hy = this.h - 18;
+      pxRect(c, hx, hy, hw, 14, CREAM);
+      pxBorder(c, hx, hy, hw, 14, (time * 3) % 1 < 0.5 ? INK : 'rgba(21,24,26,0.35)');
+      this.text(msg, this.w / 2, hy + 3, { size: 8, weight: 700, color: INK, align: 'center' });
+    } else if (state.laps === 0) {
       const msg = 'WASD DRIVE   SPACE DRIFT   F POWER   R RESET';
       this.font(8);
       const hw = Math.ceil(c.measureText(msg).width) + 16;
@@ -791,7 +831,7 @@ export class PixelUI {
     const on = (time % 1.2) < 0.85;
     this.text('OR PRESS SPACE', cx, blinkY, { size: 8, color: on ? CREAM : 'rgba(242,238,225,0.15)', align: 'center', spacing: 1 });
 
-    this.text('WASD DRIVE   SPACE DRIFT   F POWER   Q E LOOK   R RESET   M MUTE', cx, h - 26, {
+    this.text('WASD DRIVE   SPACE DRIFT   F POWER   Q E LOOK   R RESET   N MUTE', cx, h - 26, {
       size: 8, color: HINT, align: 'center',
     });
     if (state.powerInfo) this.drawPowerInfo(state);

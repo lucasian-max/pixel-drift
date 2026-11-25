@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import { buildWorld, MAPS } from './world';
+import { createWormAimRing } from './wormFx';
 import { Car } from './car';
 import { CAR_NAMES } from './carModel';
 import { CAR_POWERS, powerColour } from './powers';
@@ -175,6 +176,29 @@ async function boot() {
   car.setVariant(Number.isFinite(savedCar) ? savedCar : 0);
   scene.add(car.group);
 
+  // ---- TUNNEL aim mode: the desert aim disc (bed + forward chevrons + marker)
+  const aimUI = createWormAimRing(14);
+  scene.add(aimUI.group);
+  const aimRay = new THREE.Raycaster();
+  const aimPlane = new THREE.Plane(new THREE.Vector3(0, 1, 0), 0);
+  const aimNdc = new THREE.Vector2();
+  const aimPoint = new THREE.Vector3();
+  const aimAt = (cx: number, cy: number) => {
+    const r = gameCanvas.getBoundingClientRect();
+    if (!r.width || !r.height) return;
+    aimNdc.set(((cx - r.left) / r.width) * 2 - 1, -(((cy - r.top) / r.height) * 2 - 1));
+    aimRay.setFromCamera(aimNdc, camera);
+    aimRay.ray.intersectPlane(aimPlane, aimPoint);
+  };
+  /** the aimed point, clamped to the power's blink radius around the car */
+  const clampedAim = () => {
+    const r = car.power.blink ?? 14;
+    const dx = aimPoint.x - car.x, dz = aimPoint.z - car.z;
+    const d = Math.hypot(dx, dz);
+    if (d <= r || d === 0) return { x: aimPoint.x, z: aimPoint.z };
+    return { x: car.x + (dx / d) * r, z: car.z + (dz / d) * r };
+  };
+
   // ---- run recorder (imitation-learning dataset) ---------------------------
   const recorder = new Recorder({
     id: mapId,
@@ -218,6 +242,9 @@ async function boot() {
   const tweenView = (to: number) => { viewTween = { from: viewHeight, to, t: 0 }; };
   let speedZoom = 1;
   let camYaw = 0;
+  /* chase lock: on, the camera keeps settling behind the car. Armed on every
+     begin(); Q/E or a drag is manual orbit and switches it off; T re-locks. */
+  let chase = false;
   const focus = new THREE.Vector3(car.x, 0, car.z);
   const desired = new THREE.Vector3();
 
@@ -263,6 +290,7 @@ async function boot() {
     car.steerAngle = 0;
     acc = 0;
     running = true;
+    chase = true;   // the default view rides behind the car
     setGantryBanner(true);
     adminPanel = false;
     recorder.beginLap({ ...lapInfo(), launch: true });
@@ -475,12 +503,27 @@ async function boot() {
   });
 
   addEventListener('pointerdown', (e) => {
-    if (running || loginForm.isOpen()) return;
+    if (loginForm.isOpen()) return;
     const hit = ui.hit(e.clientX, e.clientY);
-    if (hit) ui.onAction?.(hit);   // only the PLAY button starts a race
+    if (!hit) return;
+    if (running) {                 // mid-race only the M MENU button is wired
+      if (hit === 'menu') backToTitle();
+      return;
+    }
+    ui.onAction?.(hit);   // only the PLAY button starts a race
   });
   addEventListener('keydown', (e) => {
     if (loginForm.isOpen()) return;   // the form handles its own keys
+    /* session keys are single-shot: key auto-repeat would storm them */
+    const fresh = !e.repeat;
+    if (car.aiming && fresh) {
+      if (e.code === 'Enter') { placeWormhole(); return; }
+      if (e.code === 'Escape') { car.cancelAim(); input.paused = false; return; }
+      return;   // while the wrap is open, other session keys wait
+    }
+    if (fresh && e.code === 'KeyM') { backToTitle(); return; }
+    if (fresh && e.code === 'KeyC' && !started && !input.paused) { switchCarAtLine(); return; }
+    if (fresh && e.code === 'KeyT' && running && !garage && !input.paused) { chase = true; return; }
     if (!running && garage) {
       if (e.code === 'Enter') { setGarage(false); return; }
       if (e.code === 'ArrowUp') { cycleCar(1); return; }
@@ -496,15 +539,38 @@ async function boot() {
     }
   });
 
-  // drag to orbit
+  /** confirm an aimed TUNNEL placement and stamp the lap trace */
+  const placeWormhole = () => {
+    if (!car.aiming) return;
+    const a = clampedAim();
+    if (car.confirmAim(world, a.x, a.z)) {
+      recorder.markPower();
+      recorder.noteEvent('power');
+      lapTrace.push({
+        x: +car.x.toFixed(2), z: +car.z.toFixed(2),
+        t: Math.round(lapTime * 1000), e: 'blink',
+      });
+    }
+  };
+
+  // drag to orbit (or click to place while the wrap is open)
   let dragging = false, lastX = 0;
   gameCanvas.addEventListener('pointerdown', (e) => {
+    if (car.aiming) {
+      if (ui.hit(e.clientX, e.clientY) === 'menu') { car.cancelAim(); backToTitle(); return; }
+      aimAt(e.clientX, e.clientY);
+      placeWormhole();
+      e.stopPropagation();
+      return;
+    }
     dragging = true; lastX = e.clientX;
     gameCanvas.setPointerCapture(e.pointerId);
   });
   gameCanvas.addEventListener('pointerup', () => { dragging = false; });
   gameCanvas.addEventListener('pointermove', (e) => {
+    if (car.aiming) { aimAt(e.clientX, e.clientY); return; }
     if (!dragging) return;
+    chase = false;   // a drag is manual orbit
     camYaw -= (e.clientX - lastX) * 0.008;
     lastX = e.clientX;
   });
@@ -620,6 +686,37 @@ async function boot() {
     prevU = ((nearest - startIdx + track.length) % track.length) / track.length;
   };
 
+  /* C before the lap timer starts: swap cars without leaving the map. The
+     open launch episode is closed and reopened so a recording never labels
+     one car as another. */
+  const switchCarAtLine = () => {
+    if (running && !started) {
+      recorder.noteEvent('car', { x: car.x, z: car.z });
+      recorder.endLap(0, false);
+    }
+    cycleCar(1);
+    if (running && !started) recorder.beginLap({ ...lapInfo(), launch: true });
+  };
+
+  /* M at any time: abandon the run mid-lap or not and go back to the title. */
+  const backToTitle = () => {
+    if (garage) setGarage(false);
+    if (!running && !started) return;   // already parked on the title
+    recorder.noteEvent('menu');
+    recorder.endLap(0, false);           // the lap in progress is a partial
+    resetRaceLocal();
+    running = false;
+    setGantryBanner(false);             // the title lockup owns the gantry again
+    adminPanel = false;
+    input.paused = false;
+    input.look = 0;                     // a held look key would drag the title view
+    chase = false;
+    acc = 0;
+    input.forget('KeyF', 'KeyC', 'KeyV', 'KeyX', 'KeyR');
+    tweenView(overview ? 96 : 14);
+    void account.refresh(mapId);        // fresh board, like boot
+  };
+
   const autopilot = () => {
     const n = track.length;
     const ahead = 40 + Math.round(Math.abs(car.speed) * 2.2);
@@ -673,6 +770,17 @@ async function boot() {
 
     const controls = !running ? { throttle: 0, steer: 0, handbrake: false }
       : params.has('demo') ? autopilot() : input.read();
+    /* chase lock: settle camYaw behind the car (car forward is
+       (-sin h, -cos h), so the camera yaw matches the heading), shortest way
+       round; Q/E takes over as manual look and drops the lock */
+    if (chase && input.look !== 0) chase = false;
+    if (chase && running && !garage && !overview) {
+      let d = car.heading - camYaw;
+      d = Math.atan2(Math.sin(d), Math.cos(d));
+      // soft when parked, tighter the faster the car goes
+      const rate = 1.7 + 3.1 * Math.min(1, Math.abs(car.speed) / 24);
+      camYaw += d * (1 - Math.exp(-dt * rate));
+    }
     camYaw += input.look * dt * 1.8;
     if (input.zoom !== 0) {
       viewTween = null;   // the wheel wins over the garage transition
@@ -692,7 +800,14 @@ async function boot() {
       if (garage) {
         car.group.rotation.y += dt * 0.65;
         car.group.position.set(car.x, 0.24, car.z);
+      } else if (car.aiming) {
+        /* the wrap is open: the sim freezes while the aim disc tracks the pointer */
+        input.forget('KeyF', 'KeyV', 'KeyX', 'KeyR');
+        aimUI.place(car.x, car.z, car.heading);
+        aimUI.marker(aimPoint.x, aimPoint.z);
+        aimUI.show(true);
       } else {
+        aimUI.show(false);
         acc += dt;
         let steps = 0;
         while (acc >= STEP && steps++ < 6) {
@@ -706,9 +821,16 @@ async function boot() {
           });
         }
         if (input.consumeKey('KeyF') && running) {
-          if (car.activatePower(world)) {
+          const fired = car.activatePower(world);
+          if (fired && !car.power.aim) {
             recorder.markPower();
             recorder.noteEvent('power');
+            // WORMHOLE lands the car instantly: mark the placement frame so
+            // the server can tell an aimed placement from a forged teleport
+            if (started && car.power.blink) {
+              lapTrace.push({ x: +car.x.toFixed(2), z: +car.z.toFixed(2), t: Math.round(lapTime * 1000), e: 'blink' });
+              if (lapTrace.length > 600) lapTrace.splice(1, 1);
+            }
           }
         }
         if (input.consumeKey('KeyV')) {
@@ -744,7 +866,7 @@ async function boot() {
       resetTrace();
       lapTrace.push({ x: car.x, z: car.z, t: 0 });
     }
-    if (started) {
+    if (started && !car.aiming) {
       lapTime += dt;
       recorder.beginLap(lapInfo());
     }
@@ -836,6 +958,9 @@ async function boot() {
     ui.draw({
       car, lapTime: started ? lapTime : 0, bestTime, started: running,
       paused: input.paused, throttle: controls.throttle, laps,
+      atLine: running && !started,
+      camLocked: chase,
+      aiming: car.aiming,
       maps: MAPS.map((m) => ({ id: m.id, name: m.name })),
       carNames: CAR_NAMES,
       carPowers: CAR_POWERS.map((p) => p.name),
@@ -877,6 +1002,8 @@ async function boot() {
     get laps() { return laps; },
     get lapTime() { return lapTime; },
     get started() { return started; },
+    get running() { return running; },
+    get chase() { return chase; },
     get trace() { return lapTrace; },
     get lastTrace() { return lastTrace; },
     get warning() { return warning; },

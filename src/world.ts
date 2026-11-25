@@ -857,8 +857,7 @@ export async function buildWorld(scene: THREE.Scene, mapId?: string): Promise<Wo
         const rx = side * (-1.9 + row * 1.2);
         addBox(g, 1.25, 0.45, 12.6, seatColours[(row + k) % 3], rx, 0.55 + row * 0.46, 0);
       }
-
-      group.add(g);
+      addBox(g, 0.40, 1.35, 13.6, 0x2b2d33, side * 3.0, 0.68, 0);
       addBox(g, 0.14, 0.70, 7.0, 0xe0513f, side * -3.0, 1.45, 0);
       addBox(g, 0.10, 0.18, 13.4, 0xf2eee1, side * 3.0, 1.40, 0);
       group.add(g);

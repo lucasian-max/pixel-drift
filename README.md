@@ -17,14 +17,20 @@ npm run dev      # http://127.0.0.1:5180
 | Drive | WASD / arrows |
 | Handbrake drift | Space |
 | Superpower | F |
-| Look around | Q / E or drag |
+| Look around (manual orbit) | Q / E or drag |
+| Re-lock the chase camera | T |
 | Zoom | mouse wheel |
 | Pick car / circuit on the title | Up/Down, Left/Right |
+| Swap car at the start line | C (before the lap timer starts) |
+| Back to the title, mid-run too | M |
 | View the car turntable | VIEW CAR on the title |
 | Read the selected power | POWER INFO on the title |
 | Reset | R |
 | Pause | P or Esc |
-| Mute | M |
+| Mute | N |
+
+The race camera sits behind the car and follows it around corners. Q/E,
+dragging or the wheel make it manual; T re-locks the chase.
 
 ## Record runs for an AI model
 
