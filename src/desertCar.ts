@@ -37,9 +37,9 @@ const CABIN: Section[] = [
   S(0.68, 0.79, 0.81, 0.83, 0.88, 0.68, 1.19),
   S(0.18, 0.81, 0.83, 0.85, 1.08, 0.64, 1.30),
   S(-0.72, 0.81, 0.83, 0.85, 1.08, 0.64, 1.30),
-  S(-1.35, 0.81, 0.83, 0.85, 1.08, 0.64, 1.30),
-  S(-1.82, 0.80, 0.82, 0.83, 0.98, 0.70, 1.06),
-  S(-2.10, 0.78, 0.80, 0.79, 0.84, 0.74, 0.82),
+  S(-1.62, 0.81, 0.83, 0.85, 1.08, 0.64, 1.30),
+  S(-1.95, 0.80, 0.82, 0.83, 0.99, 0.68, 1.12),
+  S(-2.16, 0.78, 0.80, 0.79, 0.86, 0.73, 0.86),
 ];
 
 const WHEEL_R = 0.35;
@@ -108,12 +108,12 @@ function loft(secs: Section[], matFor: (j: number) => number): THREE.BufferGeome
 }
 
 const SAND = 0xead5a6;
-const ORANGE = 0xd4642a;
+const ORANGE = 0xe2621f;
 const WHITE = 0xede6d8;
 const INK = 0x15181a;
 const GLASS = 0x1f2a2b;
 const TYRE = 0x141416;
-const GOLD = 0xb8892c;
+const GOLD = 0x8f6510;
 const AMBER = 0xf2a63a;
 const CREAM = 0xf2eee1;
 
@@ -137,7 +137,7 @@ export function buildDesertCar(): THREE.Group {
     ink: lam(INK),
     glass: lam(GLASS),
     tyre: lam(TYRE),
-    gold: lam(GOLD),
+    gold: lam(GOLD, { emissive: 0x1c1000 }),
     amber: lam(AMBER, { emissive: 0x402000 }),
     lamp: lam(0xf7f2d8, { emissive: 0x1a1204 }),
     band: lam(0xf2eee1),
@@ -206,12 +206,12 @@ export function buildDesertCar(): THREE.Group {
     // and at 360p a light roof cage loses the tall raid greenhouse it frames
     beam(new THREE.Vector3(s * 0.80, 0.74, 0.90), new THREE.Vector3(s * 0.64, 1.24, 0.68), 0.065, M.sand); // A-pillar
     beam(new THREE.Vector3(s * 0.64, 1.27, 0.18), new THREE.Vector3(s * 0.64, 1.27, -1.35), 0.055, M.sand); // roof rail
-    beam(new THREE.Vector3(s * 0.64, 1.27, -1.35), new THREE.Vector3(s * 0.76, 0.80, -2.06), 0.070, M.sand); // C-pillar
+    beam(new THREE.Vector3(s * 0.64, 1.27, -1.62), new THREE.Vector3(s * 0.77, 0.80, -2.10), 0.070, M.sand); // C-pillar
     box(0.018, 0.024, 2.86, M.dInk, s * 0.842, 0.755, -0.56); // window sill trim
   }
-  outline(box(1.24, 0.030, 1.58, M.sand, 0, 1.300, -0.585), 1.012); // roof panel
+  outline(box(1.24, 0.030, 1.86, M.sand, 0, 1.300, -0.675), 1.012); // roof panel
   for (const s of [1, -1] as const) {
-    box(0.016, 0.020, 1.60, M.dInk, s * 0.612, 1.296, -0.585); // rain gutter
+    box(0.016, 0.020, 1.87, M.dInk, s * 0.612, 1.296, -0.675); // rain gutter
   }
 
   // ---------- Bonnet: plain sand, one dark vent (no stripes — desert differs from the garage) ----------
@@ -222,16 +222,16 @@ export function buildDesertCar(): THREE.Group {
 
   // ---------- Flank livery: burnt-orange band, cream pinstripe, rugged details ----------
   for (const s of [1, -1] as const) {
-    const band: V2[] = [[1.72, 0.22], [1.72, 0.56], [-1.95, 0.56], [-1.95, 0.22]];
+    const band: V2[] = [[1.72, 0.44], [1.72, 0.63], [-1.95, 0.63], [-1.95, 0.44]];
     sidePanel(band, s, 0.958, M.dOrange);
-    const stripe: V2[] = [[1.72, 0.565], [1.72, 0.608], [-1.95, 0.608], [-1.95, 0.565]];
+    const stripe: V2[] = [[1.72, 0.638], [1.72, 0.672], [-1.95, 0.672], [-1.95, 0.638]];
     sidePanel(stripe, s, 0.960, M.dCream);
     box(0.012, 0.32, 0.010, M.dInk, s * 0.961, 0.730, 0.42);  // door seam
     box(0.020, 0.030, 0.14, M.ink, s * 0.964, 0.780, 0.05);   // door handle
     box(0.024, 0.06, 0.12, M.ink, s * 0.958, 0.80, 0.80);    // front fender badge
     box(0.05, 0.04, 0.10, M.ink, s * 0.955, 0.86, 0.74);      // mirror stalk
     box(0.14, 0.09, 0.06, M.ink, s * 1.02, 0.885, 0.72);      // mirror head
-    box(0.03, 0.04, 0.12, M.amber, s * (bodyAt(1.62).hw + 0.01), 0.36, 1.62); // side marker
+    box(0.035, 0.055, 0.22, M.amber, s * 0.965, 0.40, 1.50); // side marker / louvre
     const filler = new THREE.Mesh(new THREE.CylinderGeometry(0.075, 0.075, 0.012, 10), M.ink);
     filler.rotation.z = Math.PI / 2;
     filler.position.set(s * 0.958, 0.72, -1.52);
@@ -240,7 +240,7 @@ export function buildDesertCar(): THREE.Group {
 
   // ---------- Flares: the car's strongest read — chunky orange arches ----------
   const flare = (zc: number, side: 1 | -1) => {
-    const ro = 0.475, ri = 0.400, cy = 0.35, y0 = 0.16;
+    const ro = 0.50, ri = 0.415, cy = 0.35, y0 = 0.10;
     const pts: V2[] = [[zc + ro, y0], [zc + ro, cy]];
     for (let i = 1; i <= 16; i++) {
       const a = (i / 16) * Math.PI;
@@ -254,7 +254,7 @@ export function buildDesertCar(): THREE.Group {
     pts.push([zc + ri, y0]);
 
     const shape = new THREE.Shape(pts.map(([z, y]) => new THREE.Vector2(side > 0 ? -z : z, y)));
-    const geo = new THREE.ExtrudeGeometry(shape, { depth: 0.065, bevelEnabled: false });
+    const geo = new THREE.ExtrudeGeometry(shape, { depth: 0.08, bevelEnabled: false });
     const m = new THREE.Mesh(geo, M.orange);
     m.rotation.y = (side * Math.PI) / 2;
     m.position.x = side * 0.985;
@@ -273,16 +273,16 @@ export function buildDesertCar(): THREE.Group {
   box(1.82, 0.04, 0.18, M.ink, 0, 0.105, 2.12);   // skid plate
   box(1.66, 0.16, 0.10, M.ink, 0, 0.19, 2.13);    // air dam
   box(1.78, 0.13, 0.13, M.ink, 0, 0.37, 2.14);    // tube bumper bar
-  box(1.16, 0.18, 0.09, M.ink, 0, 0.56, 2.11);    // lamp pod backing
+  box(1.16, 0.21, 0.09, M.ink, 0, 0.565, 2.11);   // lamp pod backing
   for (const s of [1, -1] as const) {
     box(0.12, 0.30, 0.12, M.ink, s * 0.82, 0.44, 2.14);          // bumper stub
     box(0.34, 0.08, 0.07, M.ink, s * 0.27, 0.46, 2.17);           // grille slot
     box(0.10, 0.035, 0.05, M.amber, s * 0.72, 0.375, 2.16);       // indicator
-    const lens = new THREE.Mesh(new THREE.CylinderGeometry(0.105, 0.105, 0.04, 14), M.lamp);
+    const lens = new THREE.Mesh(new THREE.CylinderGeometry(0.135, 0.135, 0.04, 14), M.lamp);
     lens.rotation.x = Math.PI / 2;
     lens.position.set(s * 0.30, 0.555, 2.16);
     car.add(lens);
-    const bezel = new THREE.Mesh(new THREE.TorusGeometry(0.115, 0.014, 4, 14), M.ink);
+    const bezel = new THREE.Mesh(new THREE.TorusGeometry(0.146, 0.016, 4, 14), M.ink);
     bezel.position.set(s * 0.30, 0.555, 2.185);
     car.add(bezel);
     const pod = new THREE.Mesh(new THREE.CylinderGeometry(0.056, 0.056, 0.03, 10), M.lamp);
@@ -302,7 +302,9 @@ export function buildDesertCar(): THREE.Group {
     box(0.10, 0.05, 0.02, M.amber, s * 0.28, 0.60, -2.30);
   }
   box(0.30, 0.10, 0.02, M.white, 0, 0.44, -2.31);  // plate
-  outline(box(1.34, 0.055, 0.15, M.ink, 0, 0.795, -2.18), 1.05); // ducktail
+  outline(box(1.34, 0.055, 0.16, M.ink, 0, 0.905, -2.19), 1.05); // ducktail
+  box(0.06, 0.14, 0.10, M.ink, 0.56, 0.83, -2.18); // ducktail riser
+  box(0.06, 0.14, 0.10, M.ink, -0.56, 0.83, -2.18); // ducktail riser
   const exhaust = new THREE.Mesh(new THREE.CylinderGeometry(0.05, 0.05, 0.14, 10), M.ink);
   exhaust.rotation.x = Math.PI / 2;
   exhaust.position.set(0.54, 0.22, -2.32);
