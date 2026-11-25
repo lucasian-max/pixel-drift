@@ -209,9 +209,9 @@ export function buildDesertCar(): THREE.Group {
     beam(new THREE.Vector3(s * 0.64, 1.27, -1.35), new THREE.Vector3(s * 0.76, 0.80, -2.06), 0.070, M.sand); // C-pillar
     box(0.018, 0.024, 2.86, M.dInk, s * 0.842, 0.755, -0.56); // window sill trim
   }
-  outline(box(1.24, 0.030, 1.58, M.sand, 0, 1.300, -0.585), 1.012); // roof panel
+  outline(box(1.24, 0.030, 2.09, M.sand, 0, 1.300, -0.795), 1.012); // roof panel
   for (const s of [1, -1] as const) {
-    box(0.016, 0.020, 1.60, M.dInk, s * 0.612, 1.296, -0.585); // rain gutter
+    box(0.016, 0.020, 2.10, M.dInk, s * 0.612, 1.296, -0.795); // rain gutter
   }
 
   // ---------- Bonnet: plain sand, one dark vent (no stripes — desert differs from the garage) ----------
