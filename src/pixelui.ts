@@ -35,6 +35,8 @@ export interface UiState {
   laps: number;
   /** parked on the line before the lap timer starts: C may swap cars */
   atLine?: boolean;
+  /** chase camera lock state: false means the player orbited away */
+  camLocked?: boolean;
   maps?: { id: string; name: string }[];
   mapIndex?: number;
   mapName?: string;
@@ -104,7 +106,7 @@ function pxBorder(c: CanvasRenderingContext2D, x: number, y: number, w: number, 
 
 /** every clickable thing on the canvas */
 export type HitId = 'prev-map' | 'next-map' | 'prev-car' | 'next-car' | 'solo' | 'login' | 'logout'
-  | 'power-info' | 'garage' | 'garage-back'
+  | 'power-info' | 'garage' | 'garage-back' | 'menu'
   | 'admin' | 'admin-close' | 'admin-clear' | 'admin-dashboard' | 'admin-upload' | `admin-del-${number}`;
 
 interface Button { id: HitId; x: number; y: number; w: number; h: number; label: string }
@@ -128,6 +130,7 @@ export class PixelUI {
   private bGarage: Button = { id: 'garage', x: 0, y: 0, w: 64, h: 12, label: 'VIEW CAR' };
   private bGarageBack: Button = { id: 'garage-back', x: 0, y: 0, w: 48, h: 14, label: 'BACK' };
   private bSolo: Button = { id: 'solo', x: 0, y: 0, w: 148, h: 28, label: 'SOLO' };
+  private bMenu: Button = { id: 'menu', x: 0, y: 0, w: 66, h: 18, label: 'M MENU' };
   private bLogin: Button = { id: 'login', x: 0, y: 0, w: 72, h: 14, label: 'SIGN IN' };
   private bLogout: Button = { id: 'logout', x: 0, y: 0, w: 72, h: 14, label: 'SIGN OUT' };
   private bAdmin: Button = { id: 'admin', x: 0, y: 0, w: 62, h: 14, label: 'ADMIN' };
@@ -317,16 +320,30 @@ export class PixelUI {
       this.text(hint, pwX + 6, pwY + 16, { size: 8, color: active ? (darkText ? INK : CREAM) : DIM });
     }
 
-    /* ---- session keys chip (under the power card) ---- */
-    /* C is only listed while it works, i.e. parked on the line */
+    /* ---- session controls: solid M MENU button + C/T companion chip ---- */
     {
-      const keys = state.atLine ? 'C CAR   M MENU   T CAM' : 'M MENU   T CAM';
+      this.font(8, 700);
+      const bw = Math.ceil(c.measureText('M MENU').width) + 22;
+      const bh = 18;
+      const bx = this.w - bw - 8, by = 86;
+      pxRect(c, bx, by, bw, bh, CREAM);
+      pxBorder(c, bx, by, bw, bh, (time * 2) % 1 < 0.55 ? INK : 'rgba(21,24,26,0.30)');
+      this.text('M MENU', bx + bw / 2, by + 5, { size: 8, weight: 700, color: INK, align: 'center' });
+      this.bMenu.x = bx; this.bMenu.y = by; this.bMenu.w = bw; this.bMenu.h = bh;
+      this.buttons.push(this.bMenu);
+
+      const camInk = state.camLocked === false ? 'T RELOCK CAM' : 'T CAM';
+      const keys = state.atLine ? `C CAR   ${camInk}` : camInk;
       this.font(8);
       const kw = Math.ceil(c.measureText(keys).width) + 12;
-      const kx = this.w - kw - 8, ky = 88;
+      const kx = bx - kw - 6, ky = 89;
       pxRect(c, kx, ky, kw, 13, SLAB);
       pxBorder(c, kx, ky, kw, 13, LINE);
-      this.text(keys, kx + 6, ky + 3, { size: 8, color: HINT });
+      const urgent = state.camLocked === false;
+      this.text(keys, kx + 6, ky + 3, {
+        size: 8, weight: urgent ? 700 : 400,
+        color: urgent && (time * 2) % 1 < 0.6 ? CREAM : HINT,
+      });
     }
 
     /* ---- track-limit warning ---- */

@@ -479,9 +479,14 @@ async function boot() {
   });
 
   addEventListener('pointerdown', (e) => {
-    if (running || loginForm.isOpen()) return;
+    if (loginForm.isOpen()) return;
     const hit = ui.hit(e.clientX, e.clientY);
-    if (hit) ui.onAction?.(hit);   // only the PLAY button starts a race
+    if (!hit) return;
+    if (running) {                 // mid-race only the M MENU button is wired
+      if (hit === 'menu') backToTitle();
+      return;
+    }
+    ui.onAction?.(hit);   // only the PLAY button starts a race
   });
   addEventListener('keydown', (e) => {
     if (loginForm.isOpen()) return;   // the form handles its own keys
@@ -889,6 +894,7 @@ async function boot() {
       car, lapTime: started ? lapTime : 0, bestTime, started: running,
       paused: input.paused, throttle: controls.throttle, laps,
       atLine: running && !started,
+      camLocked: chase,
       maps: MAPS.map((m) => ({ id: m.id, name: m.name })),
       carNames: CAR_NAMES,
       carPowers: CAR_POWERS.map((p) => p.name),
