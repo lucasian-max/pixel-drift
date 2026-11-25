@@ -68,7 +68,6 @@ export interface MapDef {
   pagoda?: { x: number; z: number; rot: number; scale: number };
   pondBridge?: boolean;
   fuji?: { x: number; z: number; scale: number };
-  /** The drivable bridge at the figure-eight crossing; see ADR 004. */
   overpass?: boolean;
 }
 
@@ -1296,7 +1295,7 @@ export async function buildWorld(scene: THREE.Scene, mapId?: string): Promise<Wo
       }));
       banner.position.set(0, 4.6, zside);
       banner.rotation.y = zside > 0 ? 0 : Math.PI;
-      // Named so main.ts can hide it behind the title; see ADR 005.
+      // Named so main.ts can hide it behind the title.
       banner.name = 'gantryBanner';
       g.add(banner);
     }

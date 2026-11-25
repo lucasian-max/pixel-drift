@@ -175,8 +175,6 @@ async function boot() {
     ?? localStorage.getItem('sprite-drift:car') ?? 0);
   car.setVariant(Number.isFinite(savedCar) ? savedCar : 0);
   scene.add(car.group);
-
-  // ---- TUNNEL aim mode: the desert aim disc (bed + forward chevrons + marker)
   const aimUI = createWormAimRing(14);
   scene.add(aimUI.group);
   const aimRay = new THREE.Raycaster();
@@ -198,8 +196,6 @@ async function boot() {
     if (d <= r || d === 0) return { x: aimPoint.x, z: aimPoint.z };
     return { x: car.x + (dx / d) * r, z: car.z + (dz / d) * r };
   };
-
-  // ---- run recorder (imitation-learning dataset) ---------------------------
   const recorder = new Recorder({
     id: mapId,
     name: MAPS[mapIndex]?.name ?? mapId,
@@ -232,8 +228,6 @@ async function boot() {
   (carShadow.material as THREE.MeshBasicMaterial).opacity = 0.5;
   scene.add(carShadow);
   const shadowDummy = new THREE.Object3D();
-
-  // ---- camera ---------------------------------------------------------------
   const camera = new THREE.OrthographicCamera(-1, 1, 1, -1, 0.1, 600);
   const PITCH = THREE.MathUtils.degToRad(50);
   const CAM_DIST = 140;
@@ -266,8 +260,6 @@ async function boot() {
   }
   addEventListener('resize', () => { resize(); ui.resize(); });
   resize();
-
-  // ---- ui -----------------------------------------------------------------
   const ui = new PixelUI(uiCanvas, world.minimapPath, world.start);
   const sound = new Sound();
   car.onImpact = (s: number) => {
@@ -574,8 +566,6 @@ async function boot() {
     camYaw -= (e.clientX - lastX) * 0.008;
     lastX = e.clientX;
   });
-
-  // ---- dust ----------------------------------------------------------------
   const puffCanvas = document.createElement('canvas');
   puffCanvas.width = puffCanvas.height = 16;
   {
@@ -612,8 +602,6 @@ async function boot() {
     m.color.set(dirt ? '#c8b98f' : '#b9b3a6');
     m.opacity = 0.6;
   };
-
-  // ---- lap timing ----------------------------------------------------------
   const track = world.track;
   let nearest = 0, progress = 0, lapTime = 0, started = false;
   let prevU = 0;
@@ -624,8 +612,9 @@ async function boot() {
   ) || 0;
 
   /* ---- lap trace -----------------------------------------------------------
-     Samples are kept for the on-screen replay and the local trace API. The
-     leaderboard accepts the time as-is; there is no road/speed validation. */
+     Samples are kept for the on-screen replay and the local trace API; the
+     server validates the trace (server/anticheat.mjs) before the board takes
+     the lap. */
   let lapTrace: LapTracePoint[] = [];
   let lastTrace: LapTracePoint[] = [];
   let traceIn = 0;
@@ -756,8 +745,6 @@ async function boot() {
     }
     lapTime = ft;
   }
-
-  // ---- loop ----------------------------------------------------------------
   let last = performance.now() / 1000;
   const STEP = 1 / 120;
   let dustTimer = 0;
@@ -871,7 +858,7 @@ async function boot() {
       recorder.beginLap(lapInfo());
     }
 
-    // sample the lap for the replay; no road/speed validation
+    // samples the replay trace; the server validates it on submit
     if (started && !input.paused) {
       traceIn -= dt;
       if (traceIn <= 0) {
@@ -945,7 +932,6 @@ async function boot() {
     const cz = Math.cos(camYaw) * Math.cos(PITCH) * CAM_DIST;
     camera.position.set(focus.x + cx, Math.sin(PITCH) * CAM_DIST, focus.z + cz);
     camera.lookAt(focus.x, focus.y, focus.z);
-
 
     shadowDummy.position.set(car.x + 0.22, car.groundY + 0.016, car.z + 0.26);
     shadowDummy.rotation.set(0, car.heading, 0);
