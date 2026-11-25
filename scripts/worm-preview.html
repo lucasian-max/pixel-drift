@@ -1,0 +1,99 @@
+<!doctype html>
+<html>
+<head>
+<meta charset="utf-8">
+<title>Wormhole aim ring — studio</title>
+<style>
+  html, body { margin: 0; height: 100%; background: #cfd6dd; overflow: hidden; }
+  canvas { display: block; width: 100vw; height: 100vh; }
+</style>
+</head>
+<body>
+<canvas id="c"></canvas>
+<script type="module">
+// Studio mock of the DUNE aim disc: 14 m placement ring + marker + both end bursts,
+// mounted exactly the way main's aim mode will mount them (no interaction logic here).
+import * as THREE from 'three';
+import { createWormAimRing, WormDustBurst, DUST } from '/src/wormFx.ts';
+import { buildCarModel } from '/src/carModel.ts';
+
+// ?crop=<x,z,w,h> frames a gameplay-sized patch of ground, so the 14 m ring is judged
+// at the same scale it will be seen at in the 640x360 game, not as a full-screen diagram
+const params = new URLSearchParams(location.search);
+const crop = (params.get('crop') ?? '').split(',').map(Number);
+const zoom = Number(params.get('zoom') ?? 1);
+
+const canvas = document.getElementById('c');
+const renderer = new THREE.WebGLRenderer({ canvas, antialias: false, alpha: false });
+renderer.setPixelRatio(1);
+renderer.setSize(innerWidth, innerHeight, false);
+renderer.outputColorSpace = THREE.SRGBColorSpace;
+
+const scene = new THREE.Scene();
+scene.background = new THREE.Color(0xcfd6dd);
+scene.add(new THREE.AmbientLight(0xffffff, 2.2));
+const key = new THREE.DirectionalLight(0xffffff, 2.6);
+key.position.set(4, 8, 6);
+scene.add(key);
+
+// grass verge, sand shoulder and asphalt: the ring must hold on all three surfaces
+const grass = new THREE.Mesh(new THREE.PlaneGeometry(120, 120), new THREE.MeshLambertMaterial({ color: 0x7fa86a }));
+grass.rotation.x = -Math.PI / 2;
+scene.add(grass);
+const verge = new THREE.Mesh(new THREE.PlaneGeometry(13, 120), new THREE.MeshLambertMaterial({ color: 0xd8c9a4 }));
+verge.rotation.x = -Math.PI / 2;
+verge.position.y = 0.005;
+scene.add(verge);
+const road = new THREE.Mesh(new THREE.PlaneGeometry(9, 120), new THREE.MeshLambertMaterial({ color: 0x3c4047 }));
+road.rotation.x = -Math.PI / 2;
+road.position.y = 0.01;
+scene.add(road);
+
+const car = buildCarModel(2);
+car.rotation.y = Math.PI;          // nose toward -z = forward
+scene.add(car);
+
+// a stand-in portal ring so the shot shows the whole story: mouth, aim disc, landing dust
+const ring = createWormAimRing(14);
+scene.add(ring.group);
+ring.show(true);
+ring.place(0, 0, Math.PI);
+ring.marker(0, -10.5);             // pointer drag: 10.5 m forward, inside the 14 m disc
+
+const hit = new THREE.Mesh(
+  new THREE.TorusGeometry(1.45, 0.2, 4, 20),
+  new THREE.MeshBasicMaterial({ color: DUST.amber, transparent: true, opacity: 0.95, blending: THREE.AdditiveBlending, depthWrite: false, toneMapped: false }),
+);
+hit.rotation.x = -Math.PI / 2;
+hit.position.set(0, 0.05, -10.5);
+scene.add(hit);
+
+const arrive = new WormDustBurst(16);
+scene.add(arrive.group);
+arrive.burst(0, -10.5, true);
+
+// the marker is drawn for a steep pitch: tilt it flat toward the camera bearing
+const marker = ring.group.getObjectByName('wormMarker');
+marker.rotation.x = -Math.PI / 2;
+
+const cam = new THREE.OrthographicCamera(-1, 1, 1, -1, 0.1, 200);
+const place = () => {
+  const hw = crop.length === 4 ? crop[2] / 2 / zoom : (innerWidth / innerHeight) * 26 / zoom;
+  const hh = crop.length === 4 ? crop[3] / 2 / zoom : 26 / zoom;
+  const cx = crop.length === 4 ? crop[0] : 0;
+  const cz = crop.length === 4 ? crop[1] : -4;
+  cam.left = -hw; cam.right = hw; cam.top = hh; cam.bottom = -hh;
+  cam.position.set(cx, Math.sin(0.8727) * 90, cz - Math.cos(0.8727) * 90);
+  cam.lookAt(cx, 0, cz);
+  cam.updateProjectionMatrix();
+  renderer.setSize(innerWidth, innerHeight, false);
+};
+place();
+addEventListener('resize', place);
+
+arrive.update(0.2);
+renderer.render(scene, cam);
+window.carReady = true;
+</script>
+</body>
+</html>

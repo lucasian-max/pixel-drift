@@ -14,7 +14,9 @@ import * as THREE from 'three';
 import { buildCarModel } from '/src/carModel.ts';
 
 const params = new URLSearchParams(location.search);
-const variant = Number(params.get('variant') ?? 4);
+import { CAR_VARIANTS } from '/src/carModel.ts';
+// default to the newest car, not a stale index that falls back to PEARL GT
+const variant = Number(params.get('variant') ?? CAR_VARIANTS - 1);
 const view = params.get('view') ?? 'side';
 const zoom = Number(params.get('zoom') ?? 1.0);
 

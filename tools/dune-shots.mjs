@@ -27,6 +27,8 @@ const SHOTS = {
   iso: { screen: 'studio', file: 'dune-iso.png' },
   drive: { screen: 'ingame', file: 'dune-ingame-drive.png' },
   worm: { screen: 'ingame', file: 'dune-ingame-wormhole.png', worm: true },
+  // aim-disc mock (scripts/worm-preview.html): the 14 m placement ring + marker + landing dust
+  aim: { screen: 'studio', file: 'dune-worm-aim.png', url: `${BASE}/scripts/worm-preview.html` },
 };
 
 class Cdp {
@@ -101,9 +103,9 @@ async function open(url) {
 }
 
 async function capture(name, spec) {
-  const url = spec.screen === 'studio'
+  const url = spec.url ?? (spec.screen === 'studio'
     ? `${BASE}/scripts/car-preview.html?variant=2&view=${name}&zoom=1`
-    : `${BASE}/?skip&car=2`;
+    : `${BASE}/?skip&car=2`);
   const c = await open(url);
   await sleep(700);
 
