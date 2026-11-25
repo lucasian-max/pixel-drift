@@ -231,7 +231,7 @@ export function buildDesertCar(): THREE.Group {
     box(0.024, 0.06, 0.12, M.ink, s * 0.958, 0.80, 0.80);    // front fender badge
     box(0.05, 0.04, 0.10, M.ink, s * 0.955, 0.86, 0.74);      // mirror stalk
     box(0.14, 0.09, 0.06, M.ink, s * 1.02, 0.885, 0.72);      // mirror head
-    box(0.03, 0.04, 0.12, M.amber, s * (bodyAt(1.62).hw + 0.01), 0.36, 1.62); // side marker
+    box(0.035, 0.055, 0.22, M.amber, s * 0.965, 0.40, 1.50); // side marker / louvre
     const filler = new THREE.Mesh(new THREE.CylinderGeometry(0.075, 0.075, 0.012, 10), M.ink);
     filler.rotation.z = Math.PI / 2;
     filler.position.set(s * 0.958, 0.72, -1.52);
