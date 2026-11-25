@@ -316,3 +316,17 @@ test('rules keep the derived numbers honest', () => {
   assert.equal(RULES.WORMHOLE_COOLDOWN, 9);
   assert.ok(!('BLINK_ANGLE' in RULES), 'aimed placements have no direction rule');
 });
+
+/* Submissions captured from real validator runs, replayed byte-for-byte. These
+   fixtures carry no RULES constants, so a rule change that flips a verdict fails
+   here instead of quietly agreeing with itself. */
+test('captured submissions replay to their recorded verdict', () => {
+  const dir = path.join(here, 'fixtures/rejections');
+  const files = fs.readdirSync(dir).filter((f) => f.endsWith('.json')).sort();
+  assert.ok(files.length >= 4, `fixture set present (${files.length})`);
+  assert.ok(files.includes('clean-lap.json'), 'the set keeps a lap that is accepted');
+  for (const file of files) {
+    const fx = JSON.parse(fs.readFileSync(path.join(dir, file), 'utf8'));
+    assert.deepEqual(validateLap(fx.mapId, fx.ms, fx.trace), fx.verdict, file);
+  }
+});
