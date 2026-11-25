@@ -155,6 +155,20 @@ function put(db: IDBDatabase | null, store: string, value: unknown): Promise<voi
   });
 }
 
+function deleteOne(db: IDBDatabase | null, store: string, id: string): Promise<void> {
+  return new Promise((resolve) => {
+    if (!db) return resolve();
+    try {
+      const tx = db.transaction(store, 'readwrite');
+      tx.objectStore(store).delete(id);
+      tx.oncomplete = () => resolve();
+      tx.onerror = () => resolve();
+    } catch {
+      resolve();
+    }
+  });
+}
+
 function clearStore(db: IDBDatabase | null, store: string): Promise<void> {
   return new Promise((resolve) => {
     if (!db) return resolve();
@@ -307,8 +321,7 @@ export class Recorder {
     this.sessionSamples += samples;
     if (complete) this.sessionLaps++;
     if (complete && lapMs) this.lastLapMs = lapMs;
-    void put(this.db, STORE_RUNS, ep);
-    this.onEpisode?.(ep);
+    void put(this.db, STORE_RUNS, ep).then(() => this.onEpisode?.(ep));
   }
 
   /** Advance the sampler. Call once per physics step with the applied controls. */
@@ -469,11 +482,14 @@ export class Recorder {
 
   /** Upload one finished episode (automatic path). */
   async uploadEpisode(ep: Episode): Promise<{ episodes: number; bytes: number }> {
-    if (ep.uploaded) return { episodes: 0, bytes: 0 };
+    if (ep.uploaded || !ep.complete) return { episodes: 0, bytes: 0 };
     const jsonl = await this.buildJsonl([ep]);
     const out = await this.postRun(jsonl);
     ep.uploaded = true;
+    this.completed = this.completed.filter((e) => e.id !== ep.id);
+    // persist the flag first, then free the browser; the server owns the lap
     await put(this.db, STORE_RUNS, ep);
+    await deleteOne(this.db, STORE_RUNS, ep.id);
     return { episodes: out.episodes ?? 1, bytes: out.bytes ?? jsonl.length };
   }
 
@@ -517,7 +533,9 @@ export class Recorder {
     const out = await this.postRun(jsonl);
     for (const ep of episodes) {
       ep.uploaded = true;
+      this.completed = this.completed.filter((e) => e.id !== ep.id);
       await put(this.db, STORE_RUNS, ep);
+      await deleteOne(this.db, STORE_RUNS, ep.id);
     }
     return { episodes: out.episodes ?? episodes.length, bytes: out.bytes ?? jsonl.length };
   }

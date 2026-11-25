@@ -178,8 +178,10 @@ async function boot() {
     track: world.track,
   }, { fps: params.get('rec') === '120' ? 120 : 60 });
   recorder.onEpisode = (ep) => {
-    // automatic dataset upload for signed-in players; guests stay local
-    if (account.user) void recorder.uploadEpisode(ep).catch(() => { /* retry later */ });
+    // only finished laps go to the dataset; partials and resets stay local
+    if (ep.complete && account.user) {
+      void recorder.uploadEpisode(ep).catch(() => { /* retry later */ });
+    }
   };
   void sessionReady.then(() => {
     if (account.user) void recorder.uploadPending().catch(() => { /* offline */ });

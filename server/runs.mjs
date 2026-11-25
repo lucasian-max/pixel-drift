@@ -19,6 +19,7 @@ import { StoreError } from './store.mjs';
 const here = path.dirname(fileURLToPath(import.meta.url));
 export const RUNS_DIR = path.join(here, 'data', 'runs');
 const MANIFEST = path.join(RUNS_DIR, 'manifest.jsonl');
+const INDEX = path.join(RUNS_DIR, 'episode-ids.json');
 const MAX_UPLOAD_BYTES = 8 * 1024 * 1024;     // compressed body
 const MAX_JSONL_BYTES = 32 * 1024 * 1024;     // decompressed
 const USER_RE = /^[a-z0-9_]{1,32}$/;
@@ -37,6 +38,7 @@ function validateJsonl(text) {
   let header = null;
   let episodes = 0;
   let steps = 0;
+  const episodeIds = [];
   for (const line of text.split('\n')) {
     if (!line.trim()) continue;
     let rec;
@@ -49,6 +51,7 @@ function validateJsonl(text) {
       header = rec;
     } else if (rec.kind === 'episode') {
       episodes++;
+      if (typeof rec.id === 'string' && rec.id) episodeIds.push(rec.id);
     } else if (Object.prototype.hasOwnProperty.call(rec, 'e')) {
       steps++;
     }
@@ -62,7 +65,22 @@ function validateJsonl(text) {
   if (episodes === 0) {
     throw new StoreError(400, 'no_episodes', 'run file has no episodes');
   }
-  return { header, episodes, steps };
+  return { header, episodes, steps, episodeIds };
+}
+
+function loadEpisodeIds() {
+  try {
+    const ids = JSON.parse(fs.readFileSync(INDEX, 'utf8'));
+    return new Set(Array.isArray(ids) ? ids : []);
+  } catch {
+    return new Set();
+  }
+}
+
+function saveEpisodeIds(ids) {
+  const tmp = `${INDEX}.tmp`;
+  fs.writeFileSync(tmp, JSON.stringify([...ids]));
+  fs.renameSync(tmp, INDEX);
 }
 
 /** Save one JSONL upload and append it to the manifest. */
@@ -86,6 +104,13 @@ export function saveRun(user, buf, contentType) {
     throw new StoreError(413, 'payload_too_large', 'decompressed run is too large');
   }
   const parsed = validateJsonl(text);
+  const known = loadEpisodeIds();
+  if (parsed.episodeIds.length > 0 && parsed.episodeIds.every((id) => known.has(id))) {
+    return {
+      ok: true, skipped: true, user: safeUser(user),
+      episodes: 0, bytes: 0, uploadedAt: new Date().toISOString(),
+    };
+  }
   const name = safeUser(user);
   const dir = path.join(RUNS_DIR, name);
   fs.mkdirSync(dir, { recursive: true });
@@ -107,7 +132,9 @@ export function saveRun(user, buf, contentType) {
     uploadedAt: new Date().toISOString(),
   };
   fs.appendFileSync(MANIFEST, JSON.stringify(meta) + '\n');
-  return meta;
+  for (const id of parsed.episodeIds) known.add(id);
+  saveEpisodeIds(known);
+  return { ...meta, skipped: false };
 }
 
 function readManifest() {

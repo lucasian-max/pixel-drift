@@ -134,12 +134,13 @@ the local 60 Hz recorder runs from the admin's own browser, and any uploaded
 run files. It uses the same admin cookie; non-admins get a gate. The in-game
 admin panel has **DASHBOARD** and **UPLOAD RUNS** buttons.
 
-Signed-in players' runs upload automatically when an episode ends (and any
-pending local episodes on the next session), to `POST /api/runs`, which stores
-them under `server/data/runs/<user>/` and appends
-`server/data/runs/manifest.jsonl`. Guests stay local. The title screen carries
-a one-line disclosure. A file is capped at 8 MB compressed / 32 MB
-decompressed. The raw files are decompressed JSONL.
+Complete laps from signed-in players upload automatically when the lap ends
+(plus any pending complete laps on the next session) to `POST /api/runs`,
+which stores them under `server/data/runs/<user>/` and appends
+`server/data/runs/manifest.jsonl`. Partials, resets and guests stay local.
+A file is capped at 8 MB compressed / 32 MB decompressed. The raw files are
+decompressed JSONL and are deleted after the HF sync commits them. The browser
+drops its copy once the server accepts a complete lap.
 
 ## Hugging Face sync
 
@@ -163,7 +164,9 @@ systemctl --user enable --now pixel-drift-hf-sync.timer
 
 State is kept in `server/data/runs/.hf-uploaded.json`; only new files are
 committed. Uploaded paths include `README.md` (dataset card) and
-`raw/<player>/<file>.jsonl`. The repo is forced private.
+`raw/<player>/<file>.jsonl`. The repo is forced private. After a successful
+commit the local raw file is deleted (`--keep` disables pruning), so the game
+machine only holds the manifest and whatever is waiting for the next sync.
 
 Merge uploads before training:
 

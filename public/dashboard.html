@@ -316,8 +316,9 @@ function render(stats, boards, uploads) {
             </tr>`).join('')}
           </table>`
         : `<div class="muted">NO UPLOADS YET · ADMIN PANEL → UPLOAD RUNS</div>`}
-      <div class="note">Files are stored on the game machine under <b>server/data/runs/</b>. Uploads are explicit;
-        friends' browsers do not send their runs automatically. Merge them with tools/dataset/merge_runs.py before converting.</div>
+      <div class="note">Complete laps are staged under <b>server/data/runs/</b> only until the private Hugging Face
+        sync commits them, then the local raw copy is pruned. The browser also drops its copy after upload.
+        The manifest keeps this history; partials and resets stay local.</div>
     </div>`;
 
   const antiCheat = `

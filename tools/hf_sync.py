@@ -14,6 +14,7 @@ Run manually or let the pixel-drift-hf-sync.timer run it every minute.
 
 from __future__ import annotations
 
+import argparse
 import io
 import json
 import os
@@ -68,6 +69,10 @@ def read_setting(env: str, file: Path) -> str | None:
 
 
 def main() -> None:
+    ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
+    ap.add_argument("--keep", action="store_true", help="keep local raw files after upload")
+    args = ap.parse_args()
+
     try:
         from huggingface_hub import CommitOperationAdd, HfApi
     except ImportError:
@@ -159,11 +164,24 @@ def main() -> None:
             break
         for p in batch:
             uploaded.add(p.relative_to(RUNS).as_posix())
+            if not args.keep:
+                try:
+                    p.unlink()
+                except OSError:
+                    pass
         sent += len(batch)
         state = {"repo": repo, "uploaded": sorted(uploaded)}
         STATE.write_text(json.dumps(state, indent=2) + "\n", encoding="utf-8")
+        if not args.keep:
+            for d in RUNS.iterdir():
+                try:
+                    if d.is_dir() and not any(d.iterdir()):
+                        d.rmdir()
+                except OSError:
+                    pass
 
-    print(f"{repo}: uploaded {sent}/{len(pending)} new file(s)")
+    print(f"{repo}: uploaded {sent}/{len(pending)} new file(s)" + (
+        " and pruned local copies" if not args.keep else ""))
 
 
 if __name__ == "__main__":

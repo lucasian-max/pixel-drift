@@ -686,10 +686,6 @@ export class PixelUI {
 
     const cx = Math.round(w / 2);
 
-    this.text('RUNS SHARE TO A PRIVATE TRAINING SET', cx, 40, {
-      size: 8, color: HINT, align: 'center', spacing: 1,
-    });
-
     /* lockup with hard offset shadow blocks */
     this.text('PIXEL', cx + 3, 61, { size: 48, weight: 700, color: SHADOW, align: 'center' });
     this.text('PIXEL', cx, 58, { size: 48, weight: 700, color: CREAM, align: 'center' });
