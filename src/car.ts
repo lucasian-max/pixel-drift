@@ -2,6 +2,7 @@ import * as THREE from 'three';
 import { buildCarModel, CAR_VARIANTS } from './carModel';
 import { CAR_POWERS, type CarPower } from './powers';
 import type { World } from './world';
+import { DUST } from './wormFx';
 
 const WHEELBASE = 1.75;
 const MAX_STEER = 0.64;
@@ -53,8 +54,11 @@ export class Car {
   aiming = false;
   private wormRings: THREE.Group[] = [];
   private wormMats: THREE.MeshBasicMaterial[] = [];
+  private wormRimMats: THREE.MeshBasicMaterial[] = [];
   private wormLife: number[] = [];
   private fxFlash = 0;
+  private arrivalRing!: THREE.Mesh;
+  private arrivalRingMat!: THREE.MeshBasicMaterial;
 
   get power(): CarPower {
     return CAR_POWERS[this.variant] ?? CAR_POWERS[0];
@@ -324,6 +328,17 @@ export class Car {
     this.fxRing.position.y = 0.03;
     this.fxRing.renderOrder = 2;
     this.group.add(this.fxRing);
+    // arrival burst: a bright ground disc under the car that only the flash lights up
+    this.arrivalRingMat = new THREE.MeshBasicMaterial({
+      map: tex, color: p.color, transparent: true, opacity: 0,
+      blending: THREE.AdditiveBlending, depthWrite: false, toneMapped: false,
+    });
+    this.arrivalRing = new THREE.Mesh(new THREE.PlaneGeometry(1, 1), this.arrivalRingMat);
+    this.arrivalRing.rotation.x = -Math.PI / 2;
+    this.arrivalRing.position.y = 0.06;
+    this.arrivalRing.renderOrder = 4;
+    this.arrivalRing.visible = false;
+    this.group.add(this.arrivalRing);
 
     this.fxLight = new THREE.PointLight(p.color, 0, 15, 2);
     this.fxLight.position.set(0, 0.9, 0);
@@ -370,12 +385,25 @@ export class Car {
     this.fxFlash = Math.max(0, this.fxFlash - dt);
     this.fxLight.color.setHex(p.color);
     this.fxLight.intensity = (on ? 3.0 + Math.sin(t * 34) * 1.3 : 0) + 5.0 * flash;
-    this.fxRingMat.color.setHex(p.color);
+    // wormhole flashes wear straw, not amber: the sand glow separates from the orange body trim
+    const dustFlavour = !!p.blink;
+    if (dustFlavour) {
+      this.fxRingMat.color.setHex(DUST.hot);
+      this.arrivalRingMat.color.setHex(DUST.hot);
+      this.fxLight.color.setHex(DUST.amber);
+    }
     const pulse = on ? 0.34 + Math.sin(t * 16) * 0.10 : 0;
     this.fxRingMat.opacity = flash > 0 ? Math.max(pulse, 0.95 * flash) : pulse;
     this.fxRing.scale.setScalar(
       flash > 0 ? 0.5 + (1 - flash) * 1.5 : on ? 1 + Math.sin(t * 9) * 0.10 : 1,
     );
+    // wormhole arrival: the burst must out-shout the power glow under the car, not sit in it
+    const burst = p.blink && flash > 0 ? flash : 0;
+    this.arrivalRing.visible = burst > 0;
+    if (burst > 0) {
+      this.arrivalRingMat.opacity = 0.95 * burst;
+      this.arrivalRing.scale.setScalar(0.15 + (1 - burst) * 2.9);
+    }
     for (let i = 0; i < this.wormRings.length; i++) {
       if (this.wormLife[i] <= 0) continue;
       this.wormLife[i] -= dt;
@@ -461,7 +489,7 @@ export class Car {
     if (!this.model) return;
     this.model.traverse(o => {
       const m = o as THREE.Mesh;
-      if (!m.isMesh || m.userData.isOutline) return;
+      if (!m.isMesh) return;
       const mats = Array.isArray(m.material) ? m.material : [m.material];
       for (const mat of mats) {
         mat.transparent = on;
@@ -472,7 +500,7 @@ export class Car {
     });
   }
 
-  /** Park a violet portal mouth on the ground where the wormhole opened. */
+  /** Park a dust-vortex mouth on the ground where the wormhole opened. */
   private dropWormRing(world: World, x: number, z: number) {
     if (this.wormRings.length === 0) {
       for (let i = 0; i < 3; i++) {
@@ -480,14 +508,20 @@ export class Car {
           color: this.power.color, transparent: true, opacity: 0,
           blending: THREE.AdditiveBlending, depthWrite: false, toneMapped: false,
         });
+        // sandstone outer torus, amber inner torus: the ring reads as a kicked-up pit of dirt
+        const rimMat = new THREE.MeshBasicMaterial({
+          color: DUST.sand, transparent: true, opacity: 0,
+          blending: THREE.AdditiveBlending, depthWrite: false, toneMapped: false,
+        });
         const ring = new THREE.Group();
         ring.visible = false;
         ring.renderOrder = 3;
-        const outer = new THREE.Mesh(new THREE.TorusGeometry(1.85, 0.16, 5, 26), mat);
+        const outer = new THREE.Mesh(new THREE.TorusGeometry(1.85, 0.16, 5, 26), rimMat);
         outer.rotation.x = -Math.PI / 2;
         const inner = new THREE.Mesh(new THREE.TorusGeometry(1.15, 0.10, 4, 20), mat);
         inner.rotation.x = -Math.PI / 2;
         ring.add(outer, inner);
+        this.wormRimMats.push(rimMat);
         this.wormRings.push(ring);
         this.wormMats.push(mat);
         this.wormLife.push(0);
@@ -498,8 +532,9 @@ export class Car {
     for (let i = 1; i < this.wormRings.length; i++) {
       if (this.wormLife[i] < this.wormLife[s]) s = i;
     }
-    this.wormMats[s].color.setHex(this.power.color);
+    this.wormMats[s].color.setHex(DUST.amber);     // inner torus: bright sand
     this.wormMats[s].opacity = 0.95;
+    this.wormRimMats[s].opacity = 0.8;             // outer torus keeps its sandstone colour
     const ring = this.wormRings[s];
     ring.position.set(x, 0.05, z);
     ring.scale.setScalar(0.72);

@@ -53,7 +53,9 @@ export const CAR_POWERS: CarPower[] = [
     name: 'WORMHOLE',
     blurb: 'Tear open the ground: freeze time and re-place the car anywhere within reach.',
     effect: 'PLACE ≤ 14 m · 0.5 s PHASE',
-    duration: 0.5, cooldown: 9, color: 0xb05cff,
+    // earthy amber, not violet: the card fill and the HUD charge bar share this hex, the
+    // FX pick their own lighter sand tones (DUST in src/wormFx.ts)
+    duration: 0.5, cooldown: 9, color: 0xe8a33d,
     speed: 1.0, accel: 1.0, grip: 1.0, steer: 1.0,
     blink: 14, aim: true, ghost: true,
   },
