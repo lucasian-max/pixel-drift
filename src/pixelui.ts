@@ -179,6 +179,16 @@ export class PixelUI {
     this.ctx.font = `${weight} ${size}px Silkscreen, ui-monospace, monospace`;
   }
 
+  /** glyph width at the spacing the text will actually be drawn with */
+  private measure(s: string, size: number, weight: number, spacing = 0) {
+    const c = this.ctx;
+    this.font(size, weight);
+    c.letterSpacing = `${spacing}px`;
+    const wide = c.measureText(s).width;
+    c.letterSpacing = '0px';
+    return Math.ceil(wide);
+  }
+
   private text(s: string, x: number, y: number, o: {
     size?: number; weight?: number; color?: string; align?: CanvasTextAlign; baseline?: CanvasTextBaseline;
     spacing?: number;
@@ -567,31 +577,48 @@ export class PixelUI {
   private drawGarage(time: number, state: UiState) {
     const c = this.ctx;
     this.buttons.length = 0;
-    const by = this.h - 62;
-    pxRect(c, 8, by, this.w - 16, 54, SLAB);
-    pxBorder(c, 8, by, this.w - 16, 54, LINE);
-    const cx = Math.round(this.w / 2);
+    const w = this.w;
+    const cx = Math.round(w / 2);
+    const rows = state.carStatRows ?? [];
     const names = state.carNames ?? ['CAR'];
     const ci = ((state.car.variant % names.length) + names.length) % names.length;
     const nm = (names[ci] ?? 'CAR').toUpperCase();
-    this.text(nm, cx, by + 7, { size: 16, weight: 700, color: CREAM, align: 'center' });
-    const pwName = state.power?.name ?? '';
-    const cls = state.carClass ?? '';
-    this.font(8, 700);
-    const nameW = Math.ceil(c.measureText(pwName).width);
-    const tag = cls ? ` · ${cls}` : '';
-    const tagW = tag ? Math.ceil(c.measureText(tag).width) : 0;
-    const tagX = Math.round(cx - (nameW + tagW) / 2);
-    this.text(pwName, tagX, by + 27, { size: 8, color: ACCENT, spacing: 1 });
-    if (tag) this.text(tag, tagX + nameW, by + 27, { size: 8, color: DIM, spacing: 1 });
-    this.text('F ACTIVATES IN RACE', cx, by + 40, { size: 8, color: DIM, align: 'center', spacing: 1 });
 
-    /* the arrows sit outside the measured name, like the title chooser: a fixed offset
-       put them on top of longer names (DUNE RUNNER is 155px at 16px, not 106) */
-    this.font(16, 700);
-    const nmW = Math.ceil(c.measureText(nm).width);
-    this.bCarPrev.x = Math.round(cx - nmW / 2 - 34); this.bCarPrev.y = by + 6;
-    this.bCarNext.x = Math.round(cx + nmW / 2 + 10); this.bCarNext.y = by + 6;
+    /* three stacked tiers — the name with its arrows, POWER · CLASS, then the key
+       hint — with the corner buttons in the bottom tier. The old single band put
+       the POWER line at by+27, straight through the 24px arrow boxes, so the tag
+       was painted over and the class name was cut in half. Ratings shrink, then
+       the name drops a size, before either is dropped, so 4:3 keeps every axis,
+       and the POWER line is measured at the spacing it is drawn with — unspaced
+       widths left it off-centre. */
+    const by = this.h - 70;
+    pxRect(c, 8, by, w - 16, 62, SLAB);
+    pxBorder(c, 8, by, w - 16, 62, LINE);
+
+    const compact = w < 600;
+    const rLabelX = compact ? 14 : 18;
+    const rBarX = compact ? 66 : 78;
+    const rSegW = compact ? 4 : 6;
+    const rEdge = rBarX + 10 * (rSegW + 1) + 22;
+    const ratings = rows.length > 0 && cx - 34 - rEdge - 6 >= 40;
+    const maxHalf = ratings ? cx - 34 - (rEdge + 6) : Math.round((w - 96) / 2);
+
+    let nameSize = 16;
+    let nmW = this.measure(nm, nameSize, 700);
+    while (nameSize > 8 && nmW > maxHalf * 2) {
+      nameSize -= 4;
+      nmW = this.measure(nm, nameSize, 700);
+    }
+    this.text(nm, cx, by + 6 + (16 - nameSize) / 2, {
+      size: nameSize, weight: 700, color: CREAM, align: 'center',
+    });
+
+    /* the arrows sit outside the measured name, like the title chooser: a fixed
+       offset put them on top of longer names (DUNE RUNNER is 155px at 16px) */
+    this.bCarPrev.x = Math.max(12, Math.round(cx - nmW / 2 - 34));
+    this.bCarPrev.y = by + 4;
+    this.bCarNext.x = Math.min(w - 36, Math.round(cx + nmW / 2 + 10));
+    this.bCarNext.y = by + 4;
     for (const [b, dir] of [[this.bCarPrev, -1], [this.bCarNext, 1]] as [Button, number][]) {
       pxRect(c, b.x, b.y, b.w, b.h, SLAB);
       pxBorder(c, b.x, b.y, b.w, b.h, 'rgba(242,238,225,0.55)');
@@ -599,11 +626,29 @@ export class PixelUI {
       this.buttons.push(b);
     }
 
+    const pwName = state.power?.name ?? '';
+    const cls = state.carClass ?? '';
+    const tag = cls ? ` · ${cls}` : '';
+    const pwW = this.measure(pwName, 8, 400, 1);
+    const tagW = tag ? this.measure(tag, 8, 400, 1) : 0;
+    const showTag = tagW > 0 && pwW + tagW <= w - 32;
+    const lineW = showTag ? pwW + tagW : pwW;
+    const leftEdge = ratings ? rEdge + 6 : 16;
+
+    const lineX = Math.max(leftEdge, Math.round(cx - lineW / 2));
+    this.text(pwName, lineX, by + 34, { size: 8, color: ACCENT, spacing: 1 });
+    if (showTag) this.text(tag, lineX + pwW, by + 34, { size: 8, color: DIM, spacing: 1 });
+
+    const hint = 'F ACTIVATES IN RACE';
+    if (leftEdge + this.measure(hint, 8, 400, 1) <= w - 164) {
+      this.text(hint, leftEdge, by + 46, { size: 8, color: DIM, spacing: 1 });
+    }
+
     this.bInfo.label = 'POWER INFO';
-    this.bInfo.x = this.w - 156;
-    this.bInfo.y = by + 20;
-    this.bGarageBack.x = this.w - 64;
-    this.bGarageBack.y = by + 20;
+    this.bInfo.x = w - 156;
+    this.bInfo.y = by + 46;
+    this.bGarageBack.x = w - 64;
+    this.bGarageBack.y = by + 46;
     for (const b of [this.bInfo, this.bGarageBack]) {
       pxRect(c, b.x, b.y, b.w, b.h, SLAB);
       pxBorder(c, b.x, b.y, b.w, b.h, 'rgba(242,238,225,0.55)');
@@ -612,19 +657,20 @@ export class PixelUI {
     }
 
     // ratings, left of the name: ten hard segments per axis so 6 and 7 read apart
-    const rows = state.carStatRows ?? [];
-    for (let i = 0; i < rows.length; i++) {
-      const row = rows[i];
-      const ry = by + 3 + i * 10;
-      this.text(row.label, 18, ry, { size: 8, color: row.best ? ACCENT : DIM });
-      const bx = 78, segs = 10, sw = 6, gap = 1;
-      for (let s = 0; s < segs; s++) {
-        c.fillStyle = s < row.rating ? ACCENT : SEG_OFF;
-        c.fillRect(bx + s * (sw + gap), ry + 1, sw, 4);
+    if (ratings) {
+      for (let i = 0; i < rows.length; i++) {
+        const row = rows[i];
+        const ry = by + 3 + i * 10;
+        this.text(row.label, rLabelX, ry, { size: 8, color: row.best ? ACCENT : DIM });
+        const segs = 10, gap = 1;
+        for (let s = 0; s < segs; s++) {
+          c.fillStyle = s < row.rating ? ACCENT : SEG_OFF;
+          c.fillRect(rBarX + s * (rSegW + gap), ry + 1, rSegW, 4);
+        }
+        this.text(String(row.rating), rBarX + segs * (rSegW + gap) + 5, ry, {
+          size: 8, weight: 700, color: row.best ? ACCENT : CREAM,
+        });
       }
-      this.text(String(row.rating), bx + segs * (sw + gap) + 5, ry, {
-        size: 8, weight: 700, color: row.best ? ACCENT : CREAM,
-      });
     }
 
     if (state.powerInfo) this.drawPowerInfo(state);
