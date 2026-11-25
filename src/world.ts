@@ -2,12 +2,14 @@ import * as THREE from 'three';
 import { instancedStack, loadSheet, shadowPatch, type Placement, type StackDef } from './stack';
 
 export const WORLD = 172;
+// Set from the active map in buildWorld; the world is WORLD × WORLD units.
 let ROAD_HALF = 4.4;
-// set from the active map when the world is built          // world is WORLD × WORLD units
-const PX = 2048;                  // ground texture resolution
-const GX = 180;                   // ground is painted wider than the playable area
+const PX = 2048;
+// The painted ground is wider than the playable area, so props and the camera
+// never see the texture edge.
+const GX = 180;
 const HALF_G = GX / 2;
-const PPU = PX / GX;              // pixels per world unit
+const PPU = PX / GX;
 const HALF = WORLD / 2;
 
 export interface Collider { x: number; z: number; r: number }
@@ -58,27 +60,18 @@ export interface MapDef {
   petals?: boolean;
   snow?: boolean;
   snowGear?: boolean;
-  /** place tiered grandstands on the outside of the longest straights */
   grandstands?: boolean;
-  /** continuous metal armco instead of loose tyre stacks */
   armco?: boolean;
-  /** white motor yachts in the lake */
   yachts?: { x: number; z: number; rot: number; scale: number }[];
-  /** landmark ferris wheel */
   ferris?: { x: number; z: number; rot: number; scale: number };
-  /** landmark torii gate */
   torii?: { x: number; z: number; rot: number; scale: number };
-  /** multi-tier pagoda */
   pagoda?: { x: number; z: number; rot: number; scale: number };
-  /** red arched garden bridge across the lake */
   pondBridge?: boolean;
-  /** distant low-poly Fuji */
   fuji?: { x: number; z: number; scale: number };
-  /** drivable bridge at the figure-eight crossing */
+  /** The drivable bridge at the figure-eight crossing; see ADR 004. */
   overpass?: boolean;
 }
 
-/** Closed parametric figure-eight: rx across, rz along, crossing at (0, 0). */
 function figure8(rx: number, rz: number, n = 64, phase = 0): [number, number][] {
   const pts: [number, number][] = [];
   for (let i = 0; i < n; i++) {
@@ -91,10 +84,6 @@ function figure8(rx: number, rz: number, n = 64, phase = 0): [number, number][] 
 export const MAPS: MapDef[] = [
   {
     id: 'coast', name: 'Saltmarsh Coast', roadHalf: 4.4,
-    // 28-point lap: start/finish on the long top straight, fast double-apex
-    // sweep down the east side, genuine 180° hairpin over the lake, a wide
-    // exit corner rolling onto the back run, a quick left-right chicane, and
-    // a stadium 180° U-turn up the west side back onto the straight.
     ctrl: [
       [-51.4, 18.6], [-59.0, 26.3], [-61.8, 36.7], [-59.0, 47.1], [-51.4, 54.7],
       [-41.0, 57.5], [-25.4, 57.5], [-9.8, 57.5], [5.9, 57.5], [21.4, 57.5], [31.2, 57.5],
@@ -114,9 +103,6 @@ export const MAPS: MapDef[] = [
     props: { trees: 280, rocks: 58, buildings: 15, lampStride: 58, rockScale: 1 },
   },
   {
-    // Long outer sweep plus the infield loop from the sketch: the lap leaves
-    // the bottom straight, runs east above the lake, sweeps the right side and
-    // returns west to the left esses, then climbs the left edge to the start.
     id: 'alpine', name: 'Frostbite Pass', roadHalf: 4.2, smooth: true,
     ctrl: [
       [-50, 4], [-40, 22], [-20, 36], [4, 42], [28, 38], [46, 28], [58, 10],
@@ -140,8 +126,6 @@ export const MAPS: MapDef[] = [
     sky: '#cfe4f2',
   },
   {
-    // Suzuka-inspired figure-eight: the track crosses itself at the infield,
-    // with a forest, a pond, a torii gate and a ferris wheel.
     id: 'sakura', name: 'Sakura Circuit', roadHalf: 4.2, smooth: true,
     ctrl: figure8(58, 38, 72, 0.35),
     palette: {
@@ -164,7 +148,7 @@ export const MAPS: MapDef[] = [
   },
 ];
 
-/** Fill long polygon edges with points so roadAt/minimap see the whole straight. */
+// Fill long polygon edges with points so roadAt/minimap see the whole straight.
 function densify(pts: P2[], maxStep = 0.55): P2[] {
   const out: P2[] = [];
   for (let i = 0; i < pts.length; i++) {
@@ -186,8 +170,8 @@ function sampleTrack(ctrl: [number, number][], smooth = true): P2[] {
     );
     return curve.getPoints(900).map((p) => ({ x: p.x, z: p.z }));
   }
-  // polygon with filleted corners: keeps the hard layout while giving the
-  // kerb offset a radius to work with
+  // Polygon with filleted corners: keeps the hard layout while giving the
+  // kerb offset a radius to work with.
   const n = ctrl.length;
   const r = 4.5;
   const out: P2[] = [];
@@ -210,7 +194,7 @@ function sampleTrack(ctrl: [number, number][], smooth = true): P2[] {
   return densify(out);
 }
 
-/** Pick a straight stretch, away from self-crossings, for the start line. */
+// Pick the straightest stretch, away from self-crossings, for the start line.
 function straightestIndex(track: P2[], minOriginDist = 0): number {
   const n = track.length;
   const win = n > 300 ? 16 : 4;
@@ -288,12 +272,9 @@ function paintGround(track: P2[], map: MapDef): HTMLCanvasElement {
 
   const rnd = mulberry(1337);
 
-  // grass base, then one-texel grain so it reads at the game's pixel scale
   g.fillStyle = map.palette.grass;
   g.fillRect(0, 0, PX, PX);
 
-
-  // dense pixel grain: 1–2 texel specks in four grass tones
   const tones = map.palette.tones;
   for (let i = 0; i < 42000; i++) {
     const x = (rnd() * PX) | 0, y = (rnd() * PX) | 0;
@@ -303,7 +284,6 @@ function paintGround(track: P2[], map: MapDef): HTMLCanvasElement {
   }
   g.globalAlpha = 1;
 
-  // blades: short vertical light specks
   for (let i = 0; i < 3000; i++) {
     const x = (rnd() * PX) | 0, y = (rnd() * PX) | 0;
     g.fillStyle = rnd() > 0.6 ? map.palette.bladeA : map.palette.bladeB;
@@ -312,7 +292,7 @@ function paintGround(track: P2[], map: MapDef): HTMLCanvasElement {
   }
   g.globalAlpha = 1;
 
-  // cherry petals: a soft pink scatter under the blossom trees
+  // Cherry petals: a soft pink scatter under the blossom trees.
   if (map.petals) {
     for (let i = 0; i < 9000; i++) {
       const x = (rnd() * PX) | 0, y = (rnd() * PX) | 0;
@@ -328,7 +308,6 @@ function paintGround(track: P2[], map: MapDef): HTMLCanvasElement {
     }
   }
 
-  // clover / dirt clusters
   for (let i = 0; i < 420; i++) {
     const cx = rnd() * PX, cy = rnd() * PX;
     for (let k = 0; k < 14; k++) {
@@ -339,7 +318,6 @@ function paintGround(track: P2[], map: MapDef): HTMLCanvasElement {
   }
   g.globalAlpha = 1;
 
-  // lake (if the map has one)
   if (map.lake) {
     const lx = (map.lake.x + HALF_G) * PPU, ly = (map.lake.z + HALF_G) * PPU;
     g.fillStyle = map.palette.sand;
@@ -361,7 +339,6 @@ function paintGround(track: P2[], map: MapDef): HTMLCanvasElement {
     }
   }
 
-  // cracked ice on the frozen lake
   if (map.snow && map.lake) {
     const lx = (map.lake.x + HALF_G) * PPU, ly = (map.lake.z + HALF_G) * PPU;
     g.save();
@@ -385,11 +362,9 @@ function paintGround(track: P2[], map: MapDef): HTMLCanvasElement {
     g.restore();
   }
 
-  // dirt shoulder + asphalt
   strokePath(g, track, map.palette.shoulder, (ROAD_HALF * 2 + 1.6) * PPU);
   strokePath(g, track, map.palette.asphalt, ROAD_HALF * 2 * PPU);
 
-  // asphalt grain
   g.globalAlpha = 1;
   for (let i = 0; i < 24000; i++) {
     const p = track[(rnd() * track.length) | 0];
@@ -403,11 +378,9 @@ function paintGround(track: P2[], map: MapDef): HTMLCanvasElement {
 
   g.globalAlpha = 1;
 
-  // white edge lines
   strokePath(g, offsetPath(track, ROAD_HALF - 0.45), map.palette.line, 0.34 * PPU);
   strokePath(g, offsetPath(track, -(ROAD_HALF - 0.45)), map.palette.line, 0.34 * PPU);
 
-  // red/white kerbs
   for (const side of [1, -1]) {
     const edge = offsetPath(track, side * (ROAD_HALF + 0.15));
     strokePath(g, edge, map.palette.kerbA, 0.7 * PPU);
@@ -415,13 +388,12 @@ function paintGround(track: P2[], map: MapDef): HTMLCanvasElement {
 
   }
 
-  // centre dashes
   dotted(g, track, 'rgba(246,246,240,0.62)', 0.16 * PPU, 1.9 * PPU, 2.4 * PPU);
 
-  // start / finish checker
   const si = straightestIndex(track, map.overpass ? 46 : 0);
   const s = track[si], s2 = track[(si + 3) % track.length];
-  const ang = Math.atan2(s2.z - s.z, s2.x - s.x) + Math.PI * 0.5;   // start line runs ACROSS the road
+  // The start line runs across the road, not along it.
+  const ang = Math.atan2(s2.z - s.z, s2.x - s.x) + Math.PI * 0.5;
   g.save();
   g.translate((s.x + HALF_G) * PPU, (s.z + HALF_G) * PPU);
   g.rotate(ang);
@@ -556,10 +528,8 @@ export async function buildWorld(scene: THREE.Scene, mapId?: string): Promise<Wo
 
   const track = sampleTrack(map.ctrl, map.smooth !== false);
 
-  // ---- Sakura overpass ------------------------------------------------------
-  // The figure-eight crosses itself at the origin. One branch climbs a short
-  // bridge; the other passes underneath. Height is selected from the car's
-  // heading so the two branches do not both rise.
+  // Fig-eight overpass: one branch climbs a short bridge, the other passes
+  // underneath; which branch rises is picked by x-tangent, not heading.
   let bridge: { cx: number; cz: number; dirx: number; dirz: number;
     halfW: number; deckHalf: number; ramp: number; height: number; upperIdx: number } | null = null;
   const bridgeColliders: Collider[] = [];
@@ -613,7 +583,6 @@ export async function buildWorld(scene: THREE.Scene, mapId?: string): Promise<Wo
     return bridgeHeight(along);
   };
 
-  // ---- road membership grid -------------------------------------------------
   const cell = 1;
   const dim = Math.ceil(WORLD / cell);
   const grid = new Uint8Array(dim * dim);
@@ -631,7 +600,6 @@ export async function buildWorld(scene: THREE.Scene, mapId?: string): Promise<Wo
       const d = Math.sqrt(best);
       const at = j * dim + i;
       if (d < ROAD_HALF) grid[at] = 1;
-      // a wheel-width either side of the painted kerb band
       if (d >= ROAD_HALF - 1.0 && d <= ROAD_HALF + 0.55) kerbs[at] = 1;
     }
   }
@@ -652,7 +620,6 @@ export async function buildWorld(scene: THREE.Scene, mapId?: string): Promise<Wo
     return false;
   };
 
-  // ---- ground ---------------------------------------------------------------
   const canvas = paintGround(track, map);
   const groundTex = new THREE.CanvasTexture(canvas);
   groundTex.magFilter = THREE.NearestFilter;
@@ -668,7 +635,6 @@ export async function buildWorld(scene: THREE.Scene, mapId?: string): Promise<Wo
   ground.position.y = 0;
   group.add(ground);
 
-  // ---- skid decal layer ------------------------------------------------------
   const SK = 512;
   const skidCanvas = document.createElement('canvas');
   skidCanvas.width = skidCanvas.height = SK;
@@ -707,7 +673,6 @@ export async function buildWorld(scene: THREE.Scene, mapId?: string): Promise<Wo
     skidDirty = true;
   };
 
-  // ---- props ----------------------------------------------------------------
   const [pineTex, sakuraTex, snowTex, palmTex, rockTex, lampTex, tyreTex, bldA, bldB, bldC, shadowTex,
     cactusTex, mesaTex, pylonTex] = await Promise.all([
     loadSheet('/sprites/pine.png'), loadSheet('/sprites/sakura.png'),
@@ -753,7 +718,6 @@ export async function buildWorld(scene: THREE.Scene, mapId?: string): Promise<Wo
     return true;
   };
 
-  // town in the infield
   const TOWN: [number, number][] = [
     [2, -8], [13, -10], [20, -2], [6, 2], [17, 7], [-2, 6],
     [4, 14], [14, 16], [-6, -2], [22, 26], [-10, 12], [10, 22],
@@ -772,7 +736,6 @@ export async function buildWorld(scene: THREE.Scene, mapId?: string): Promise<Wo
     shadows.push({ x, z, rot, scale: 1.35 });
   });
 
-  // trees: a corridor along the track, then loose clusters in the open
   const pines: Placement[] = [], palms: Placement[] = [], sakuras: Placement[] = [];
   const addTree = (x: number, z: number, palm = false) => {
     if (!free(x, z, 1.5, 0.9)) return;
@@ -784,7 +747,7 @@ export async function buildWorld(scene: THREE.Scene, mapId?: string): Promise<Wo
     shadows.push({ x, z, rot: 0, scale: 1.7 });
   };
 
-  // corridor: step around the lap, offset outward from the kerb at varied depth
+  // Trees: a corridor along the track, then loose woodland clusters in the open.
   for (let i = 0; i < track.length; i += 9) {
     if (rnd() > 0.62) continue;
     const p = track[i];
@@ -799,7 +762,7 @@ export async function buildWorld(scene: THREE.Scene, mapId?: string): Promise<Wo
     const palmChance = map.snow ? 0 : map.trees === 'palm' ? 0.9 : map.trees === 'mixed' ? 0.45 : 0.08;
     addTree(x + (rnd() - 0.5) * 2, z + (rnd() - 0.5) * 2, !map.snow && nearLake ? rnd() > 0.35 : rnd() < palmChance);
   }
-  // scattered woodland
+
   let guard = 0;
   const treeTarget = map.props?.trees ?? Math.round(190 * (map.density ?? 1));
   while (pines.length + palms.length + sakuras.length < treeTarget && guard++ < 3000) {
@@ -810,7 +773,6 @@ export async function buildWorld(scene: THREE.Scene, mapId?: string): Promise<Wo
     addTree(x, z, !map.snow && nearLake ? rnd() > 0.35 : rnd() < palmChance);
   }
 
-  // rocks
   const rocks: Placement[] = [];
   const rockCount = map.props?.rocks ?? 34;
   for (let i = 0; i < rockCount; i++) {
@@ -823,7 +785,6 @@ export async function buildWorld(scene: THREE.Scene, mapId?: string): Promise<Wo
     shadows.push({ x, z, rot: 0, scale: 1.5 });
   }
 
-  // lamps along the outside of the track
   const lamps: Placement[] = [];
   for (let i = 0; i < track.length; i += (map.props?.lampStride ?? 58)) {
     const p = track[i];
@@ -833,14 +794,13 @@ export async function buildWorld(scene: THREE.Scene, mapId?: string): Promise<Wo
     const nx = dz / len, nz = -dx / len;
     const x = p.x + nx * (ROAD_HALF + 1.6);
     const z = p.z + nz * (ROAD_HALF + 1.6);
-    // a nearby branch of the circuit can put the lamp on tarmac; skip those
+    // A nearby branch of the circuit can put the lamp on tarmac; skip those.
     if (nearbyRoad(x, z, ROAD_HALF + 0.7)) continue;
     lamps.push({ x, z, rot: Math.atan2(dx, dz), scale: 1 });
     colliders.push({ x, z, r: 0.28 });
     shadows.push({ x, z, rot: 0, scale: 0.6 });
   }
 
-  // tyre barriers on the outside of the sharper corners
   const tyres: Placement[] = [];
   const n = track.length;
   for (let i = 0; i < n; i += 14) {
@@ -862,7 +822,6 @@ export async function buildWorld(scene: THREE.Scene, mapId?: string): Promise<Wo
     }
   }
 
-  // ---- F1-inspired landmarks ------------------------------------------------
   const basic = (color: number) => new THREE.MeshBasicMaterial({ color, toneMapped: false });
   const addBox = (g: THREE.Group, w: number, h: number, d: number, color: number,
     x: number, y: number, z: number) => {
@@ -898,8 +857,8 @@ export async function buildWorld(scene: THREE.Scene, mapId?: string): Promise<Wo
         const rx = side * (-1.9 + row * 1.2);
         addBox(g, 1.25, 0.45, 12.6, seatColours[(row + k) % 3], rx, 0.55 + row * 0.46, 0);
       }
-      // open grandstand: tiered seats read from above; low wall and banner behind
-      addBox(g, 0.40, 1.35, 13.6, 0x2b2d33, side * 3.0, 0.68, 0);
+
+      group.add(g);
       addBox(g, 0.14, 0.70, 7.0, 0xe0513f, side * -3.0, 1.45, 0);
       addBox(g, 0.10, 0.18, 13.4, 0xf2eee1, side * 3.0, 1.40, 0);
       group.add(g);
@@ -1009,7 +968,6 @@ export async function buildWorld(scene: THREE.Scene, mapId?: string): Promise<Wo
     const rp = bridge.ramp;
     const segs = 18;
 
-    // arched wooden deck
     const deckMat = new THREE.MeshBasicMaterial({ color: 0x6b4a3a, toneMapped: false });
     const verts: number[] = [];
     for (let i = 0; i < segs; i++) {
@@ -1024,7 +982,6 @@ export async function buildWorld(scene: THREE.Scene, mapId?: string): Promise<Wo
     geo.computeVertexNormals();
     g.add(new THREE.Mesh(geo, deckMat));
 
-    // plank seams and cream edge beams following the crown
     for (let i = 1; i < segs; i++) {
       const z = -rp + (2 * rp * i) / segs;
       addBox(g, W - 0.34, 0.020, 0.10, 0x4a3228, 0, bridgeHeight(z) + 0.025, z);
@@ -1043,9 +1000,9 @@ export async function buildWorld(scene: THREE.Scene, mapId?: string): Promise<Wo
         const za = -rp + (2 * rp * i) / segs;
         const zb = -rp + (2 * rp * (i + 1)) / segs;
         const ya = bridgeHeight(za), yb = bridgeHeight(zb);
-        beam(sx, ya + 0.04, za, sx, yb + 0.04, zb, 0.22, 0xf2eee1);        // curb
-        beam(sx, ya + 0.55, za, sx, yb + 0.55, zb, 0.085, 0xb5523f);        // lower rail
-        beam(sx, ya + 1.02, za, sx, yb + 1.02, zb, 0.075, 0xb5523f);        // top rail
+        beam(sx, ya + 0.04, za, sx, yb + 0.04, zb, 0.22, 0xf2eee1);
+        beam(sx, ya + 0.55, za, sx, yb + 0.55, zb, 0.085, 0xb5523f);
+        beam(sx, ya + 1.02, za, sx, yb + 1.02, zb, 0.075, 0xb5523f);
       }
       for (let i = 0; i <= segs; i++) {
         const z = -rp + (2 * rp * i) / segs;
@@ -1058,7 +1015,6 @@ export async function buildWorld(scene: THREE.Scene, mapId?: string): Promise<Wo
       }
     }
 
-    // stone piers and a crossbeam tucked under the crown
     const stone = 0xa8adb3;
     for (const sx of [-W / 2 + 0.58, W / 2 - 0.58]) {
       for (const z of [-5.8, 5.8]) {
@@ -1078,7 +1034,6 @@ export async function buildWorld(scene: THREE.Scene, mapId?: string): Promise<Wo
       }
     }
 
-    // bridge name plaques on the outside faces
     for (const sx of [-W / 2 - 0.02, W / 2 + 0.02]) {
       const plaque = new THREE.Mesh(
         new THREE.PlaneGeometry(2.2, 0.95),
@@ -1170,11 +1125,9 @@ export async function buildWorld(scene: THREE.Scene, mapId?: string): Promise<Wo
     colliders.push({ x: t.x - 2.2, z: t.z, r: 0.7 }, { x: t.x + 2.2, z: t.z, r: 0.7 });
   }
 
-  // ---- winter equipment -----------------------------------------------------
   if (map.snowGear) {
     const white = 0xf4f8fb, blue = 0x4f8fb5, red = 0xc8463c, ink = 0x22262c, steel = 0x9aa7b0;
 
-    // ski lift along the outside of the east side
     const lift = new THREE.Group();
     for (const z of [-22, 0, 22]) {
       addBox(lift, 0.55, 8.4, 0.55, steel, 66, 4.2, z);
@@ -1193,7 +1146,6 @@ export async function buildWorld(scene: THREE.Scene, mapId?: string): Promise<Wo
     }
     group.add(lift);
 
-    // snow cannons on the outside of the bends
     const cannon = (x: number, z: number, rot: number) => {
       const g = new THREE.Group();
       g.position.set(x, 0, z);
@@ -1215,8 +1167,8 @@ export async function buildWorld(scene: THREE.Scene, mapId?: string): Promise<Wo
     cannon(61, -28, -0.7);
     cannon(20, -56, Math.PI);
 
-    // parked snowcat / plough in the infield service area; scan for a clear
-    // patch so rocks or trees never evict it
+    // Scan outward from the service area for a patch free enough to park the
+    // snowcat, so rocks or trees never evict it.
     let catAt: [number, number] | null = null;
     for (let a = 0; a < 96 && !catAt; a++) {
       const ang = a * 0.61;
@@ -1245,7 +1197,6 @@ export async function buildWorld(scene: THREE.Scene, mapId?: string): Promise<Wo
       colliders.push({ x: cx, z: cz, r: 3.2 });
     }
 
-    // ice-fishing huts on the frozen lake
     if (map.lake) {
       const huts: [number, number, number][] = [[-2, 8, 0.25], [7, 5, -0.35], [1, 13, 0.7]];
       for (const [x, z, rot] of huts) {
@@ -1297,13 +1248,11 @@ export async function buildWorld(scene: THREE.Scene, mapId?: string): Promise<Wo
   group.add(instancedStack(bldC, defs.bldC, buildings[2], tint));
   group.add(shadowPatch(shadowTex, shadows, 2.6));
 
-  // start on the long bottom straight, facing along the tangent
   const si = straightestIndex(track, map.overpass ? 46 : 0);
   const ahead = track.length > 300 ? 8 : 3;
   const s0 = track[si], s1 = track[(si + ahead) % track.length];
   const start = { x: s0.x, z: s0.z, heading: Math.atan2(-(s1.x - s0.x), -(s1.z - s0.z)) };
 
-  // ---- start gantry over the line
   {
     const g = new THREE.Group();
     const steel = new THREE.MeshBasicMaterial({ color: 0x2a2d33, toneMapped: false });
@@ -1320,7 +1269,6 @@ export async function buildWorld(scene: THREE.Scene, mapId?: string): Promise<Wo
     beam.position.set(0, 5.2, 0);
     g.add(beam);
 
-    // banner: cream field, black chequer band, hanging under the beam
     const cv = document.createElement('canvas');
     cv.width = 256; cv.height = 48;
     const c2 = cv.getContext('2d')!;
@@ -1349,6 +1297,7 @@ export async function buildWorld(scene: THREE.Scene, mapId?: string): Promise<Wo
       }));
       banner.position.set(0, 4.6, zside);
       banner.rotation.y = zside > 0 ? 0 : Math.PI;
+      // Named so main.ts can hide it behind the title; see ADR 005.
       banner.name = 'gantryBanner';
       g.add(banner);
     }
@@ -1358,7 +1307,6 @@ export async function buildWorld(scene: THREE.Scene, mapId?: string): Promise<Wo
     group.add(g);
   }
 
-  // ---- marker boards --------------------------------------------------------
   {
     const furniture = new THREE.Group();
     const postMat = new THREE.MeshBasicMaterial({ color: 0x24262b, toneMapped: false });
@@ -1386,7 +1334,6 @@ export async function buildWorld(scene: THREE.Scene, mapId?: string): Promise<Wo
       furniture.add(g);
     };
 
-    // outward is whichever side of the track is farther from the infield
     let ccx = 0, ccz = 0;
     for (const p of track) { ccx += p.x; ccz += p.z; }
     ccx /= n; ccz /= n;
@@ -1402,7 +1349,6 @@ export async function buildWorld(scene: THREE.Scene, mapId?: string): Promise<Wo
       : ['PIXEL', 'TURBO', 'DRIFT', '8-BIT', 'NITRO', 'OIL'];
     const accents = ['#e0513f', '#2b6d7a', '#b5432f'];
 
-    // sponsor boards flank the start straight, clear of the gantry
     let bi = 0;
     for (let k = -140; k <= 140; k += 34) {
       if (Math.abs(k) < 22) continue;
@@ -1415,7 +1361,6 @@ export async function buildWorld(scene: THREE.Scene, mapId?: string): Promise<Wo
       const off = ROAD_HALF + 2.0 + (bi % 2) * 0.3;
       const x = p.x + nx * side * off;
       const z = p.z + nz * side * off;
-      // face down the straight toward oncoming cars, angled in toward the road
       const rot = Math.atan2(-dx, -dz) - side * 0.55;
       const tex = map.id === 'sakura'
         ? jpBoardTexture(straightLabels[bi % straightLabels.length], accents[bi % accents.length])
@@ -1424,7 +1369,6 @@ export async function buildWorld(scene: THREE.Scene, mapId?: string): Promise<Wo
       bi++;
     }
 
-    // vertical kanji banners flanking the Sakura start straight
     if (map.id === 'sakura') {
       const banners = ['桜', '鈴鹿'];
       banners.forEach((label, k) => {
@@ -1441,7 +1385,6 @@ export async function buildWorld(scene: THREE.Scene, mapId?: string): Promise<Wo
       });
     }
 
-    // turn boards at the sharpest corners, placed on the outside of the bend
     const curvAt = (i: number) => {
       const a = track[(i - 8 + n) % n], b = track[i], c = track[(i + 8) % n];
       const v1x = b.x - a.x, v1z = b.z - a.z, v2x = c.x - b.x, v2z = c.z - b.z;
@@ -1457,12 +1400,10 @@ export async function buildWorld(scene: THREE.Scene, mapId?: string): Promise<Wo
       const tx = q.x - r.x, tz = q.z - r.z;
       const len = Math.hypot(tx, tz) || 1;
       const nx = tz / len, nz = -tx / len;
-      // outside of the bend: away from the turn, not away from the centroid
       const side = curvAt(i) > 0 ? 1 : -1;
       const x = p.x + nx * side * (ROAD_HALF + 3.0);
       const z = p.z + nz * side * (ROAD_HALF + 3.0);
       lastBoard = i;
-      // skip it if another branch of the circuit would put the board on tarmac
       if (nearbyRoad(x, z, ROAD_HALF + 1.2)) continue;
       const rot = Math.atan2(-tx, -tz) - side * 0.35;
       placeBoard(x, z, rot, arrowTexture(curvAt(i) > 0 ? 1 : -1), 2.1, 2.1, 1.0);
