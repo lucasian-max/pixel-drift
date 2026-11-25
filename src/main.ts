@@ -178,8 +178,8 @@ async function boot() {
     track: world.track,
   }, { fps: params.get('rec') === '120' ? 120 : 60 });
   recorder.onEpisode = (ep) => {
-    // only finished laps go to the dataset; partials and resets stay local
-    if (ep.complete && account.user) {
+    // every saved episode goes up, labelled complete/partial; guests stay local
+    if (account.user) {
       void recorder.uploadEpisode(ep).catch(() => { /* retry later */ });
     }
   };

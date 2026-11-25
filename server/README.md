@@ -134,13 +134,14 @@ the local 60 Hz recorder runs from the admin's own browser, and any uploaded
 run files. It uses the same admin cookie; non-admins get a gate. The in-game
 admin panel has **DASHBOARD** and **UPLOAD RUNS** buttons.
 
-Complete laps from signed-in players upload automatically when the lap ends
-(plus any pending complete laps on the next session) to `POST /api/runs`,
-which stores them under `server/data/runs/<user>/` and appends
-`server/data/runs/manifest.jsonl`. Partials, resets and guests stay local.
+Every saved episode from signed-in players uploads automatically (complete,
+partial, reset or launch; plus pending episodes on the next session) to
+`POST /api/runs`, which stores them under `server/data/runs/<user>/` and
+appends `server/data/runs/manifest.jsonl`. The episode line labels
+`complete`, `partial`, `launch`, stats and events. Guests stay local.
 A file is capped at 8 MB compressed / 32 MB decompressed. The raw files are
 decompressed JSONL and are deleted after the HF sync commits them. The browser
-drops its copy once the server accepts a complete lap.
+drops its copy once the server accepts the episode.
 
 ## Hugging Face sync
 

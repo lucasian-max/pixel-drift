@@ -87,7 +87,7 @@ One JSON object per line:
 | --- | --- |
 | `header` | schema, `fps`, `physicsHz`, `obs`/`act` field names, units |
 | `track` | map id/name, `roadHalf`, start pose, centreline `points: [[x,z],…]` |
-| `episode` | id, index, map, car, variant, power, driver, player, input, launch, `lapMs`, sample count, complete, per-episode stats, event list |
+| `episode` | id, index, map, car, variant, power, driver, player, input, launch, `lapMs`, sample count, complete, partial, per-episode stats, event list |
 | step | `e` episode index, `s` step index, `o` observation array, `a` action array |
 
 Everything is in metres, radians and seconds. `steer` is `+1 = left`.
@@ -99,13 +99,16 @@ the standing launch; it is marked `launch: true`. Events (`impact`, `power`,
 stats include off-track seconds, impacts, power uses and reset count. Record at
 120 Hz with `?rec=120` if you need physics-step fidelity.
 
-Complete laps from signed-in players upload automatically; partials and resets
-stay local. Files are staged under `server/data/runs/<player>/` and indexed in
-`manifest.jsonl`. The private Hugging Face sync (`tools/hf_sync.py`) pushes new
-files to `raw/<player>/` in `<you>/pixel-drift-runs` every minute once
-`server/data/hf-token` exists, then deletes the local raw copy. The browser
-also deletes its copy after the server accepts the complete lap. Use `--keep`
-if you want a local staging copy.
+Every saved episode from signed-in players uploads automatically — complete or
+partial — and is labelled `complete`/`partial`. Files are staged under
+`server/data/runs/<player>/` and indexed in `manifest.jsonl`. The private Hugging
+Face sync (`tools/hf_sync.py`) pushes new files to `raw/<player>/` in
+`<you>/pixel-drift-runs` every minute once `server/data/hf-token` exists, then
+deletes the local raw copy. The browser also deletes its copy after the server
+accepts the episode. Use `--keep` if you want a local staging copy.
+
+For behaviour cloning, filter `complete = true`; keep partials for recovery or
+filter them out. The episode metadata has both flags.
 
 ### Observation (`o`, 19 floats, 60 Hz)
 

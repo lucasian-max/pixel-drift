@@ -44,8 +44,8 @@ auto-uploaded episode (or a merged session), in the recorder's JSONL format:
 
 - a `header` line with schema, fps, physicsHz, observation/action names
 - one `track` line per circuit (centrelines, width, start pose)
-- one `episode` line per lap with car, power, player, input device, launch flag,
-  lap time, per-episode stats and events
+- one `episode` line per lap with car, power, player, input device, launch and
+  partial flags, lap time, per-episode stats and events
 - one `step` line per sample: `e`, `s`, `o` (19 observation floats), `a` (4
   action floats)
 

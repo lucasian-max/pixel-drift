@@ -34,12 +34,12 @@ off-track time. Nothing about it is shown in the HUD. Developer keys: `V`
 toggles recording, `X` downloads all stored laps as JSONL; both only log to the
 console. Add `?rec=120` for 120 Hz samples.
 
-Complete laps from signed-in players upload automatically to the game server;
-partials and resets stay local, and guests stay local. The server only stages
-raw files until the **private Hugging Face dataset** sync runs every minute,
-then deletes the local copy. The browser also drops its copy after the server
-accepts a complete lap, so recordings don't pile up on either side. See
-[`TERMS.md`](TERMS.md).
+Every saved episode from signed-in players — complete or partial — uploads
+automatically to the game server, labelled with `complete`, `partial`,
+`launch`, stats and events. Guests stay local. The server only stages raw files
+until the **private Hugging Face dataset** sync runs every minute, then deletes
+the local copy. The browser also drops its copy after the server accepts it, so
+recordings don't pile up on either side. See [`TERMS.md`](TERMS.md).
 `tools/dataset/convert_runs.py` turns that into Parquet + NPZ with
 track-relative observations, episode metadata, normalisation stats and a
 train/val split; `tools/dataset/train_bc.py` is a ridge and MLP behaviour-
