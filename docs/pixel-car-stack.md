@@ -73,13 +73,12 @@ The hero and rally cars were/are meant to be authored by Opus 5.5 through Hack C
 
 ```sh
 node scripts/hackclub-image.mjs --model anthropic/claude-opus-5.5 --text \
-  --prompt-file art/prompts/rally-car-model.txt \
-  --ref art/sheets/rally-reference.png \
+  --prompt-file <prompt> --ref <sheet> \
   --out tmp/opus-rally-model.txt --max-tokens 24000 --effort high
 ```
 
 - Key: `HACKCLUB_API_KEY` or `~/.config/hackclub-ai.key`.
-- The prompt must include the sheet, the hard contract, the rendering conventions and the pitfalls. `art/prompts/rally-car-model.txt` is the working template.
+- The prompt must include the sheet, the hard contract, the rendering conventions and the pitfalls.
 - Save the raw output, strip the Markdown fence, paste into `src/rallyCar.ts`, then typecheck and fix.
 - **Check credits first.** A 402 `Insufficient credits` means the Hack Club/OpenRouter balance is empty; do not burn time retrying. Author the model directly and note it.
 
