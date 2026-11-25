@@ -113,7 +113,7 @@ const WHITE = 0xede6d8;
 const INK = 0x15181a;
 const GLASS = 0x1f2a2b;
 const TYRE = 0x141416;
-const GOLD = 0xb8892c;
+const GOLD = 0x8f6510;
 const AMBER = 0xf2a63a;
 const CREAM = 0xf2eee1;
 
@@ -137,7 +137,7 @@ export function buildDesertCar(): THREE.Group {
     ink: lam(INK),
     glass: lam(GLASS),
     tyre: lam(TYRE),
-    gold: lam(GOLD),
+    gold: lam(GOLD, { emissive: 0x1c1000 }),
     amber: lam(AMBER, { emissive: 0x402000 }),
     lamp: lam(0xf7f2d8, { emissive: 0x1a1204 }),
     band: lam(0xf2eee1),
