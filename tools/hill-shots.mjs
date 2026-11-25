@@ -65,6 +65,10 @@ async function open(url) {
   await sleep(800);
   const prof = `${ROOT}/tmp/hill-profile-${PORT}`;
   spawnSync('bash', ['-c', `rm -rf ${prof}`]);
+  // The agent runtime exports its own LD_LIBRARY_PATH; chromium then loads a libstdc++
+  // without GLIBCXX_3.4.30 and dies before the debug port opens. Drop it for the browser.
+  const env = { ...process.env };
+  delete env.LD_LIBRARY_PATH;
   const child = spawn('xvfb-run', ['-a', '-s', '-screen 0 1280x720x24', 'chromium',
     '--no-sandbox', '--disable-dev-shm-usage', '--disable-extensions',
     '--disable-background-timer-throttling', '--disable-renderer-backgrounding',
@@ -72,7 +76,7 @@ async function open(url) {
     '--ozone-platform=x11', '--use-gl=angle', '--use-angle=swiftshader', '--enable-unsafe-swiftshader',
     `--remote-debugging-port=${PORT}`, `--user-data-dir=${prof}`,
     '--window-size=1280,720', 'about:blank'],
-  { detached: true, stdio: 'ignore' });
+  { detached: true, stdio: 'ignore', env });
   child.unref();
   let pages = [];
   for (let i = 0; i < 80; i++) {

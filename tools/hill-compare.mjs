@@ -11,8 +11,13 @@ if (!out) throw new Error('usage: node tools/hill-compare.mjs <a> <b> <out.png> 
 const dir = 'shots/hill';
 const f = (p, v) => path.join(dir, `${p}-${v}.png`);
 
+// magick inherits LD_LIBRARY_PATH from the agent runtime, whose libstdc++ lacks
+// GLIBCXX_3.4.30 and kills ImageMagick before it draws anything. Drop it.
+const ENV = { ...process.env };
+delete ENV.LD_LIBRARY_PATH;
+
 const run = (args) => {
-  const r = spawnSync('magick', args, { stdio: 'pipe' });
+  const r = spawnSync('magick', args, { stdio: 'pipe', env: ENV });
   if (r.status !== 0) { process.stderr.write(String(r.stderr)); process.exit(r.status ?? 1); }
 };
 
@@ -31,7 +36,7 @@ const row = (p) => {
 
 const ra = row(a), rb = row(b);
 run([ra, rb, '-append', out]);
-const h = Number(String(spawnSync('magick', ['identify', '-format', '%h', out]).stdout));
+const h = Number(String(spawnSync('magick', ['identify', '-format', '%h', out], { env: ENV }).stdout));
 run([out,
   '-background', '#1b1b1b', '-gravity', 'NorthWest', '-splice', '0x22',
   '-pointsize', '18', '-fill', '#ffd76a',
