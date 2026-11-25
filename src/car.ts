@@ -53,6 +53,8 @@ export class Car {
   private wormMats: THREE.MeshBasicMaterial[] = [];
   private wormLife: number[] = [];
   private fxFlash = 0;
+  private arrivalRing!: THREE.Mesh;
+  private arrivalRingMat!: THREE.MeshBasicMaterial;
 
   get power(): CarPower {
     return CAR_POWERS[this.variant] ?? CAR_POWERS[0];
@@ -289,6 +291,17 @@ export class Car {
     this.fxRing.position.y = 0.03;
     this.fxRing.renderOrder = 2;
     this.group.add(this.fxRing);
+    // arrival burst: a bright ground disc under the car that only the flash lights up
+    this.arrivalRingMat = new THREE.MeshBasicMaterial({
+      map: tex, color: p.color, transparent: true, opacity: 0,
+      blending: THREE.AdditiveBlending, depthWrite: false, toneMapped: false,
+    });
+    this.arrivalRing = new THREE.Mesh(new THREE.PlaneGeometry(1, 1), this.arrivalRingMat);
+    this.arrivalRing.rotation.x = -Math.PI / 2;
+    this.arrivalRing.position.y = 0.06;
+    this.arrivalRing.renderOrder = 4;
+    this.arrivalRing.visible = false;
+    this.group.add(this.arrivalRing);
 
     this.fxLight = new THREE.PointLight(p.color, 0, 15, 2);
     this.fxLight.position.set(0, 0.9, 0);
@@ -341,6 +354,13 @@ export class Car {
     this.fxRing.scale.setScalar(
       flash > 0 ? 0.5 + (1 - flash) * 1.5 : on ? 1 + Math.sin(t * 9) * 0.10 : 1,
     );
+    // wormhole arrival: the burst must out-shout the power glow under the car, not sit in it
+    const burst = p.blink && flash > 0 ? flash : 0;
+    this.arrivalRing.visible = burst > 0;
+    if (burst > 0) {
+      this.arrivalRingMat.opacity = 0.95 * burst;
+      this.arrivalRing.scale.setScalar(0.15 + (1 - burst) * 2.9);
+    }
     for (let i = 0; i < this.wormRings.length; i++) {
       if (this.wormLife[i] <= 0) continue;
       this.wormLife[i] -= dt;
@@ -426,7 +446,7 @@ export class Car {
     if (!this.model) return;
     this.model.traverse(o => {
       const m = o as THREE.Mesh;
-      if (!m.isMesh || m.userData.isOutline) return;
+      if (!m.isMesh) return;
       const mats = Array.isArray(m.material) ? m.material : [m.material];
       for (const mat of mats) {
         mat.transparent = on;

@@ -202,12 +202,14 @@ export function buildDesertCar(): THREE.Group {
   car.add(outline(cabin, 1.022));
 
   for (const s of [1, -1] as const) {
-    beam(new THREE.Vector3(s * 0.80, 0.74, 0.90), new THREE.Vector3(s * 0.64, 1.24, 0.68), 0.065, M.white); // A-pillar
-    beam(new THREE.Vector3(s * 0.64, 1.27, 0.18), new THREE.Vector3(s * 0.64, 1.27, -1.35), 0.055, M.white); // roof rail
-    beam(new THREE.Vector3(s * 0.64, 1.27, -1.35), new THREE.Vector3(s * 0.76, 0.80, -2.06), 0.070, M.white); // C-pillar
+    // pillars keep the sand tone: a white A-pillar read as cream wire against the dark glass,
+    // and at 360p a light roof cage loses the tall raid greenhouse it frames
+    beam(new THREE.Vector3(s * 0.80, 0.74, 0.90), new THREE.Vector3(s * 0.64, 1.24, 0.68), 0.065, M.sand); // A-pillar
+    beam(new THREE.Vector3(s * 0.64, 1.27, 0.18), new THREE.Vector3(s * 0.64, 1.27, -1.35), 0.055, M.sand); // roof rail
+    beam(new THREE.Vector3(s * 0.64, 1.27, -1.35), new THREE.Vector3(s * 0.76, 0.80, -2.06), 0.070, M.sand); // C-pillar
     box(0.018, 0.024, 2.86, M.dInk, s * 0.842, 0.755, -0.56); // window sill trim
   }
-  outline(box(1.24, 0.030, 1.58, M.white, 0, 1.300, -0.585), 1.012); // roof panel
+  outline(box(1.24, 0.030, 1.58, M.sand, 0, 1.300, -0.585), 1.012); // roof panel
   for (const s of [1, -1] as const) {
     box(0.016, 0.020, 1.60, M.dInk, s * 0.612, 1.296, -0.585); // rain gutter
   }
@@ -222,7 +224,7 @@ export function buildDesertCar(): THREE.Group {
   for (const s of [1, -1] as const) {
     const band: V2[] = [[1.72, 0.22], [1.72, 0.56], [-1.95, 0.56], [-1.95, 0.22]];
     sidePanel(band, s, 0.958, M.dOrange);
-    const stripe: V2[] = [[1.72, 0.565], [1.72, 0.595], [-1.95, 0.595], [-1.95, 0.565]];
+    const stripe: V2[] = [[1.72, 0.565], [1.72, 0.608], [-1.95, 0.608], [-1.95, 0.565]];
     sidePanel(stripe, s, 0.960, M.dCream);
     box(0.012, 0.32, 0.010, M.dInk, s * 0.961, 0.730, 0.42);  // door seam
     box(0.020, 0.030, 0.14, M.ink, s * 0.964, 0.780, 0.05);   // door handle
