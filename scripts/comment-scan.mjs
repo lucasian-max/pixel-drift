@@ -8,7 +8,10 @@ export const FILES = [
   "src/account.ts", "src/car.ts", "src/carModel.ts", "src/desertCar.ts",
   "src/input.ts", "src/main.ts", "src/pixelui.ts", "src/powers.ts",
   "src/rallyCar.ts", "src/recorder.ts", "src/sound.ts", "src/stack.ts",
-  "src/world.ts", "server/api.mjs", "scripts/car-preview.html",
+  "src/world.ts", "src/wormFx.ts",
+  "server/anticheat.mjs", "server/anticheat.test.mjs", "server/api.mjs",
+  "server/runs.mjs", "server/store.mjs", "server/track.mjs",
+  "scripts/car-preview.html",
 ];
 
 export const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "..");
@@ -18,12 +21,12 @@ const SCHEME = /(?:https?|wss?|file|data|blob):$/;
 // A `/` after one of these opens a regular expression literal.
 const REGEX_AFTER = /[=(,:[!&|?{};+\-*%<>~^]$/;
 const REGEX_KEYWORD = /\b(?:return|typeof|case|in|of|new|delete|void|throw)$/;
-// A quote after one of these ends an operand, so it must be a string opener.
+// A quote after one of these ends an operand, so the quote cannot open a
+// string. Elsewhere (after `,`, `(`, `[`, `+`, ...) a quote always opens one.
 const EXPRESSION_END = /[\w$\])}]$/;
 
 function opensString(quote, prev) {
-  if (quote === "`") return !EXPRESSION_END.test(prev);
-  return !REGEX_AFTER.test(prev) && !EXPRESSION_END.test(prev) && !REGEX_KEYWORD.test(prev);
+  return !EXPRESSION_END.test(prev);
 }
 
 function lineAt(source, index) {
