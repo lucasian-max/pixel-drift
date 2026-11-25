@@ -41,6 +41,10 @@ export interface UiState {
   mapIndex?: number;
   mapName?: string;
   carNames?: string[];
+  /** garage ratings for the selected car, from ./carStats: 1..10 per axis */
+  carStatRows?: { label: string; rating: number; best: boolean }[];
+  /** one-word identity shown beside the power name in the garage */
+  carClass?: string;
   carPowers?: string[];
   power?: {
     name: string; active: boolean; ready: boolean;
@@ -569,7 +573,15 @@ export class PixelUI {
     const ci = ((state.car.variant % names.length) + names.length) % names.length;
     const nm = (names[ci] ?? 'CAR').toUpperCase();
     this.text(nm, cx, by + 7, { size: 16, weight: 700, color: CREAM, align: 'center' });
-    this.text(state.power?.name ?? '', cx, by + 27, { size: 8, color: ACCENT, align: 'center', spacing: 1 });
+    const pwName = state.power?.name ?? '';
+    const cls = state.carClass ?? '';
+    this.font(8, 700);
+    const nameW = Math.ceil(c.measureText(pwName).width);
+    const tag = cls ? ` · ${cls}` : '';
+    const tagW = tag ? Math.ceil(c.measureText(tag).width) : 0;
+    const tagX = Math.round(cx - (nameW + tagW) / 2);
+    this.text(pwName, tagX, by + 27, { size: 8, color: ACCENT, spacing: 1 });
+    if (tag) this.text(tag, tagX + nameW, by + 27, { size: 8, color: DIM, spacing: 1 });
     this.text('F ACTIVATES IN RACE', cx, by + 40, { size: 8, color: DIM, align: 'center', spacing: 1 });
 
     /* the arrows sit outside the measured name, like the title chooser: a fixed offset
@@ -596,6 +608,23 @@ export class PixelUI {
       this.text(b.label, b.x + b.w / 2, b.y + 3, { size: 8, color: CREAM, align: 'center' });
       this.buttons.push(b);
     }
+
+    // ratings, left of the name: ten hard segments per axis so 6 and 7 read apart
+    const rows = state.carStatRows ?? [];
+    for (let i = 0; i < rows.length; i++) {
+      const row = rows[i];
+      const ry = by + 3 + i * 10;
+      this.text(row.label, 18, ry, { size: 8, color: row.best ? ACCENT : DIM });
+      const bx = 78, segs = 10, sw = 6, gap = 1;
+      for (let s = 0; s < segs; s++) {
+        c.fillStyle = s < row.rating ? ACCENT : SEG_OFF;
+        c.fillRect(bx + s * (sw + gap), ry + 1, sw, 4);
+      }
+      this.text(String(row.rating), bx + segs * (sw + gap) + 5, ry, {
+        size: 8, weight: 700, color: row.best ? ACCENT : CREAM,
+      });
+    }
+
     if (state.powerInfo) this.drawPowerInfo(state);
   }
 

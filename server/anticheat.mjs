@@ -43,7 +43,7 @@ const SPEED_HEADROOM = 1.5;  // slip, shoves and sampling jitter
 // per-segment cap: fastest legitimate rolling speed with any margin
 const MAX_SPEED = HARD_TOP * POWER_TOP_MULT * SPEED_HEADROOM; // 72 units/s
 
-const BLINK_MAX = 14;        // metres, WORMHOLE placement radius (powers.ts)
+const BLINK_MAX = 22;        // metres, TUNNEL placement radius (powers.ts)
 const WORMHOLE_COOLDOWN = 9; // seconds between WORMHOLE placements (powers.ts)
 // the client clamps a placement to BLINK_MAX and then lets collide() nudge the
 // car out of any barrier it landed against; a push-out may cross the promise
@@ -249,7 +249,12 @@ export function validateLap(mapId, ms, trace) {
   }
   if (stalls > MAX_STALLS) return fail('lap trace stalls');
 
-  if (length < track.length * MIN_LENGTH_RATIO) return fail('route too short');
+  // a placement removes its own length from the rolled route by design, so the
+  // ratio is applied to what the car could still have rolled: each mark may
+  // legally skip up to the radius, and the cooldown check above already caps
+  // how many marks a lap can carry
+  const skip = marks * BLINK_MAX;
+  if (length < track.length * MIN_LENGTH_RATIO - skip) return fail('route too short');
   if (length > track.length * MAX_LENGTH_RATIO) return fail('route too long');
 
   // average sanity: the lapped route (blinks excluded) over the submitted

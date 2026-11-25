@@ -192,18 +192,30 @@ test('an unmarked 14 m teleport fails', () => {
   assert.equal(v.reason, 'impossible speed');
 });
 
-test('a marked 16 m placement fails', () => {
-  const lap = drive(30, { blinks: [{ at: REL(0.3), delta: [0, 16] }] });
+test('a marked 24 m placement fails', () => {
+  const lap = drive(30, { blinks: [{ at: REL(0.3), delta: [0, 24] }] });
   assert.equal(markTimes(lap.trace).length, 1);
   const v = validateLap('coast', lap.ms, lap.trace);
   assert.equal(v.ok, false);
   assert.equal(v.reason, 'blink jump too far');
 });
 
-test('a marked 15 m placement passes (collide push-out slack)', () => {
-  // 14 m promised + a hair of barrier push-out is legal play; anything past
-  // BLINK_MAX + PUSH_SLACK still rejects (see the 16 m test above)
-  const lap = drive(30, { blinks: [{ at: REL(0.4), delta: [0, 15] }] });
+test('a marked 23 m placement passes (collide push-out slack)', () => {
+  // 22 m promised + a hair of barrier push-out is legal play; anything past
+  // BLINK_MAX + PUSH_SLACK still rejects (see the 24 m test above)
+  const lap = drive(30, { blinks: [{ at: REL(0.4), delta: [0, 23] }] });
+  const v = validateLap('coast', lap.ms, lap.trace);
+  assert.equal(v.ok, true, `reason: ${v.reason}`);
+});
+
+test('a tunnel-heavy lap is judged against its own skip budget', () => {
+  // a slowish lap (~30 s, sampled clear of the still threshold) carrying three
+  // full-radius placements loses 3 x
+  // BLINK_MAX of rolled route by design; the length ratio alone would call
+  // this "route too short"
+  const lap = drive(12, { blinks: [{ at: REL(0.1006) }, { at: REL(0.4804) }, { at: REL(0.8603) }] });
+  assert.equal(markTimes(lap.trace).length, 3);  
+  // (this lap's marks are spaced clear of the 9 s cooldown in wall time)
   const v = validateLap('coast', lap.ms, lap.trace);
   assert.equal(v.ok, true, `reason: ${v.reason}`);
 });
@@ -300,7 +312,7 @@ test('laps on circuits without trace data are refused', () => {
 
 test('rules keep the derived numbers honest', () => {
   assert.equal(RULES.MAX_SPEED, 72); // 32 hard clamp × 1.5 power × 1.5 headroom
-  assert.equal(RULES.BLINK_MAX, 14);
+  assert.equal(RULES.BLINK_MAX, 22);
   assert.equal(RULES.WORMHOLE_COOLDOWN, 9);
   assert.ok(!('BLINK_ANGLE' in RULES), 'aimed placements have no direction rule');
 });

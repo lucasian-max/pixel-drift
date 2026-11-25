@@ -3,6 +3,7 @@ import { buildWorld, MAPS } from './world';
 import { createWormAimRing } from './wormFx';
 import { Car } from './car';
 import { CAR_NAMES } from './carModel';
+import { CAR_CLASS, carStatRows } from './carStats';
 import { CAR_POWERS, powerColour } from './powers';
 import { Input } from './input';
 import { PixelUI } from './pixelui';
@@ -175,7 +176,7 @@ async function boot() {
   const entryCar = Number(params.get('car') ?? 0);
   car.setVariant(Number.isFinite(entryCar) ? entryCar : 0);
   scene.add(car.group);
-  const aimUI = createWormAimRing(14);
+  const aimUI = createWormAimRing(CAR_POWERS.find((p) => p.blink)?.blink ?? 22);
   scene.add(aimUI.group);
   const aimRay = new THREE.Raycaster();
   const aimPlane = new THREE.Plane(new THREE.Vector3(0, 1, 0), 0);
@@ -190,7 +191,7 @@ async function boot() {
   };
   /** the aimed point, clamped to the power's blink radius around the car */
   const clampedAim = () => {
-    const r = car.power.blink ?? 14;
+    const r = car.power.blink ?? 22;
     const dx = aimPoint.x - car.x, dz = aimPoint.z - car.z;
     const d = Math.hypot(dx, dz);
     if (d <= r || d === 0) return { x: aimPoint.x, z: aimPoint.z };
@@ -952,6 +953,8 @@ async function boot() {
       aiming: car.aiming,
       maps: MAPS.map((m) => ({ id: m.id, name: m.name })),
       carNames: CAR_NAMES,
+      carStatRows: carStatRows(car.variant),
+      carClass: CAR_CLASS[car.variant] ?? '',
       carPowers: CAR_POWERS.map((p) => p.name),
       power: {
         name: car.power.name,

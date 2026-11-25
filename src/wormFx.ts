@@ -50,18 +50,18 @@ export interface WormAimRing {
 }
 
 /**
- * Flat 14 m aim disc + chunky placement marker, for main's aim mode.
+ * Flat aim disc (the tunnel's blink radius) + chunky placement marker, for main's aim mode.
  * `mesh.material.opacity` never animates on its own: main owns the in/out fade, so the
  * ring is perfectly steady (no flicker) while the mouse moves.
  */
-export function createWormAimRing(radius = 14): WormAimRing {
+export function createWormAimRing(radius = 22): WormAimRing {
   const group = new THREE.Group();
   group.name = 'wormAim';
   group.visible = false;
 
   const tex = dustTexture();
   // the bed takes the existing additive ring look (reads on asphalt); the rim is drawn
-  // normal-blended one step paler so the 14 m edge survives on light grass too
+  // normal-blended one step paler so the rim survives on light grass too
   const bed = new THREE.Mesh(
     new THREE.CircleGeometry(radius, 48),
     new THREE.MeshBasicMaterial({

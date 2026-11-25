@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import { buildCarModel, CAR_VARIANTS } from './carModel';
 import { CAR_POWERS, type CarPower } from './powers';
+import { CAR_STATS } from './carStats';
 import type { World } from './world';
 import { DUST } from './wormFx';
 
@@ -109,7 +110,7 @@ export class Car {
       return true;
     }
     this.powerTime = p.duration;
-    this.powerCd = p.cooldown;
+    this.powerCd = p.cooldown * (CAR_STATS[this.variant]?.power ?? 1);
     this.powerCharge = 0;
     if (p.burst) {
       this.vx += -Math.sin(this.heading) * p.burst;
@@ -132,7 +133,7 @@ export class Car {
     const p = this.power;
     let dx = x - this.x, dz = z - this.z;
     const d = Math.hypot(dx, dz);
-    const r = p.blink ?? 14;
+    const r = p.blink ?? 22;
     if (d > r) { dx *= r / d; dz *= r / d; }
     const ox = this.x, oz = this.z;
     this.aiming = false;
@@ -153,7 +154,7 @@ export class Car {
     }
     this.fxFlash = 0.38;                          // arrival ground-ring flash
     this.powerTime = p.duration;
-    this.powerCd = p.cooldown;
+    this.powerCd = p.cooldown * (CAR_STATS[this.variant]?.power ?? 1);
     this.powerCharge = 0;
     return true;
   }
@@ -212,12 +213,13 @@ export class Car {
     const powered = this.powerTime > 0;
     const speedK = powered ? power.speed : 1;
     const accelK = powered ? power.accel : 1;
+    const st = CAR_STATS[this.variant] ?? CAR_STATS[0];
 
     // engine / brakes
     const throttle = c.throttle;
     if (throttle > 0) {
-      const top = 30 * surface * speedK;
-      if (vLong < top) vLong += 21 * throttle * surface * accelK * dt;
+      const top = st.top * surface * speedK;
+      if (vLong < top) vLong += st.accel * throttle * surface * accelK * dt;
     } else if (throttle < 0) {
       if (vLong > 0.6) vLong -= 34 * dt;
       else if (vLong > -10) vLong += 13 * throttle * surface * dt;
@@ -225,11 +227,11 @@ export class Car {
     // rolling drag
     const drag = this.onRoad ? 0.55 : 2.1;
     vLong -= vLong * drag * dt;
-    vLong = THREE.MathUtils.clamp(vLong, -10, 32 * speedK);
+    vLong = THREE.MathUtils.clamp(vLong, -10, (st.top + 2) * speedK);
 
     // steering: less lock at speed, smooth into it
     // less lock the faster you go: full lock at a crawl, ~18deg at top speed
-    const lock = MAX_STEER * (1 - 0.68 * Math.min(1, Math.abs(vLong) / 24)) * (powered ? power.steer : 1);
+    const lock = MAX_STEER * st.steer * (1 - 0.68 * Math.min(1, Math.abs(vLong) / 24)) * (powered ? power.steer : 1);
     const target = c.steer * lock;
     this.steerAngle += (target - this.steerAngle) * Math.min(1, dt * 9);
 
@@ -238,7 +240,7 @@ export class Car {
 
     // lateral grip: low grip = the car keeps its old velocity while the nose turns
     const gripK = powered ? (power.driftGrip ?? power.grip) : 1;
-    const grip = (c.handbrake ? 2.1 : this.onRoad ? 9.5 : 5.0) * gripK;
+    const grip = (c.handbrake ? 2.1 : this.onRoad ? 9.5 : 5.0) * st.grip * gripK;
     vLat *= Math.exp(-grip * dt);
     if (c.handbrake && Math.abs(vLong) > 4) vLat += -yawRate * 0.55 * dt * Math.abs(vLong);
 
