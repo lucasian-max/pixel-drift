@@ -176,7 +176,7 @@ async function boot() {
   car.setVariant(Number.isFinite(savedCar) ? savedCar : 0);
   scene.add(car.group);
 
-  // ---- WORMHOLE aim mode: the desert aim disc (bed + forward chevrons + marker)
+  // ---- TUNNEL aim mode: the desert aim disc (bed + forward chevrons + marker)
   const aimUI = createWormAimRing(14);
   scene.add(aimUI.group);
   const aimRay = new THREE.Raycaster();
@@ -539,7 +539,7 @@ async function boot() {
     }
   });
 
-  /** confirm an aimed WORMHOLE placement and stamp the lap trace */
+  /** confirm an aimed TUNNEL placement and stamp the lap trace */
   const placeWormhole = () => {
     if (!car.aiming) return;
     const a = clampedAim();

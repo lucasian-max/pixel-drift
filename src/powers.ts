@@ -16,7 +16,7 @@ export interface CarPower {
   ghost?: boolean;
   /** yellow lightning arcs (Group B) */
   zap?: boolean;
-  /** forward blink distance in metres, applied on activation (WORMHOLE) */
+  /** forward blink distance in metres, applied on activation (TUNNEL) */
   blink?: number;
   /** freeze the game and aim a placement anywhere inside the blink radius */
   aim?: boolean;
@@ -50,7 +50,7 @@ export const CAR_POWERS: CarPower[] = [
     zap: true,
   },
   {
-    name: 'WORMHOLE',
+    name: 'TUNNEL',
     blurb: 'Tear open the ground: freeze time and re-place the car anywhere within reach.',
     effect: 'PLACE ≤ 14 m · 0.5 s PHASE',
     // earthy amber, not violet: the card fill and the HUD charge bar share this hex, the

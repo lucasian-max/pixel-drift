@@ -37,7 +37,7 @@ export interface UiState {
   atLine?: boolean;
   /** chase camera lock state: false means the player orbited away */
   camLocked?: boolean;
-  /** WORMHOLE aim mode: the sim is frozen, the player is placing the car */
+  /** TUNNEL aim mode: the sim is frozen, the player is placing the car */
   aiming?: boolean;
   maps?: { id: string; name: string }[];
   mapIndex?: number;
@@ -411,7 +411,7 @@ export class PixelUI {
       c.fillRect(segX + i * (segw + gap), segY, segw, 5);
     }
 
-    /* ---- wormhole aim prompt / first-lap hints ---- */
+    /* ---- tunnel aim prompt / first-lap hints ---- */
     if (state.aiming) {
       const msg = 'AIM · CLICK TO PLACE · ESC CANCELS';
       this.font(8, 700);

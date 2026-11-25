@@ -50,7 +50,7 @@ export class Car {
   private ghostOn = false;
   private glowOn = false;
   powerCharge = 0;
-  /** WORMHOLE aim mode: the sim is frozen and main is placing the car */
+  /** TUNNEL aim mode: the sim is frozen and main is placing the car */
   aiming = false;
   private wormRings: THREE.Group[] = [];
   private wormMats: THREE.MeshBasicMaterial[] = [];
@@ -385,7 +385,7 @@ export class Car {
     this.fxFlash = Math.max(0, this.fxFlash - dt);
     this.fxLight.color.setHex(p.color);
     this.fxLight.intensity = (on ? 3.0 + Math.sin(t * 34) * 1.3 : 0) + 5.0 * flash;
-    // wormhole flashes wear straw, not amber: the sand glow separates from the orange body trim
+    // tunnel flashes wear straw, not amber: the sand glow separates from the orange body trim
     const dustFlavour = !!p.blink;
     if (dustFlavour) {
       this.fxRingMat.color.setHex(DUST.hot);
@@ -397,7 +397,7 @@ export class Car {
     this.fxRing.scale.setScalar(
       flash > 0 ? 0.5 + (1 - flash) * 1.5 : on ? 1 + Math.sin(t * 9) * 0.10 : 1,
     );
-    // wormhole arrival: the burst must out-shout the power glow under the car, not sit in it
+    // tunnel arrival: the burst must out-shout the power glow under the car, not sit in it
     const burst = p.blink && flash > 0 ? flash : 0;
     this.arrivalRing.visible = burst > 0;
     if (burst > 0) {
@@ -500,7 +500,7 @@ export class Car {
     });
   }
 
-  /** Park a dust-vortex mouth on the ground where the wormhole opened. */
+  /** Park a dust-vortex mouth on the ground where the tunnel opened. */
   private dropWormRing(world: World, x: number, z: number) {
     if (this.wormRings.length === 0) {
       for (let i = 0; i < 3; i++) {
