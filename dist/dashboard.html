@@ -219,11 +219,16 @@ async function load() {
       boards[m.id] = { times: [] };
     }
   }));
-  render(stats, boards);
+  let uploads = null;
+  try {
+    const r = await fetch('/api/admin/runs', { credentials: 'same-origin' });
+    if (r.ok) uploads = await r.json();
+  } catch { /* no uploads endpoint */ }
+  render(stats, boards, uploads);
   await renderRuns();
 }
 
-function render(stats, boards) {
+function render(stats, boards, uploads) {
   const best = stats.bestLap;
   const kpis = `
     <div class="kpis">
@@ -293,6 +298,28 @@ function render(stats, boards) {
       </table>
     </div>`;
 
+  const uploadCard = `
+    <div class="panel" style="grid-column: 1 / -1">
+      <h2>UPLOADED 60 HZ RUNS</h2>
+      ${uploads && uploads.totals.files
+        ? `<table>
+            <tr><td>${uploads.totals.files} FILES</td><td>${uploads.totals.episodes} EPISODES</td>
+              <td class="r">${(uploads.totals.bytes / 1048576).toFixed(1)} MB</td></tr>
+          </table>
+          <table style="margin-top:8px">
+            <tr><th>WHEN</th><th>PLAYER</th><th class="r">EPISODES</th><th class="r">SIZE</th></tr>
+            ${uploads.recent.slice(0, 8).map((r) => `<tr>
+              <td class="muted">${esc(ago(r.uploadedAt).toUpperCase())}</td>
+              <td>${esc(String(r.user).toUpperCase())}</td>
+              <td class="r">${r.episodes}</td>
+              <td class="r muted">${(r.bytes / 1048576).toFixed(1)} MB</td>
+            </tr>`).join('')}
+          </table>`
+        : `<div class="muted">NO UPLOADS YET · ADMIN PANEL → UPLOAD RUNS</div>`}
+      <div class="note">Files are stored on the game machine under <b>server/data/runs/</b>. Uploads are explicit;
+        friends' browsers do not send their runs automatically. Merge them with tools/dataset/merge_runs.py before converting.</div>
+    </div>`;
+
   const antiCheat = `
     <div class="panel" style="grid-column: 1 / -1">
       <h2>HOW LAPS ARE CHECKED</h2>
@@ -304,7 +331,7 @@ function render(stats, boards) {
       </div>
     </div>`;
 
-  app.innerHTML = kpis + `<div class="grid">${mapCards}${carCard}${recent}${antiCheat}
+  app.innerHTML = kpis + `<div class="grid">${mapCards}${carCard}${recent}${antiCheat}${uploadCard}
     <div class="panel" id="runs" style="grid-column: 1 / -1"><h2>RECORDED RUNS · THIS BROWSER</h2>
       <div class="muted">READING LOCAL INDEXEDDB…</div></div>
     </div>`;

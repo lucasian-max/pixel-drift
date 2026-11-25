@@ -35,6 +35,7 @@ export const OBS_FIELDS = [
 export const ACT_FIELDS = ['throttle', 'steer', 'handbrake', 'power'] as const;
 
 export const RUN_SCHEMA = 'pixel-drift/runs@1';
+export const RUN_GAME_VERSION = 'pixel-drift@1';
 export const RUN_FPS = 60;
 
 const DB_NAME = 'pixel-drift-runs';
@@ -43,13 +44,37 @@ const DB_VERSION = 1;
 const STORE_RUNS = 'episodes';
 const STORE_TRACKS = 'tracks';
 const MIN_SAMPLES = 20;        // ignore blips under a third of a second
-const MAX_SAMPLES = 60 * 60 * 20; // hard cap: 20 minutes at 60 Hz
+const MAX_MINUTES = 20;
+
+export type InputDevice = 'keyboard' | 'gamepad' | 'mixed';
 
 export interface LapInfo {
   carName: string;
   variant: number;
   power: string;
   driver?: Driver;
+  /** signed-in username, or guest */
+  player?: string;
+  /** last used input device */
+  input?: InputDevice;
+  /** true for the episode that starts on the grid, before the lap line */
+  launch?: boolean;
+}
+
+export interface EpisodeEvent {
+  step: number;
+  t: number;
+  kind: 'impact' | 'power' | 'reset' | 'offtrack' | string;
+  strength?: number;
+  x?: number;
+  z?: number;
+}
+
+interface EpisodeStats {
+  offTrackSeconds: number;
+  powerUses: number;
+  impacts: number;
+  resets: number;
 }
 
 interface Episode {
@@ -60,9 +85,14 @@ interface Episode {
   variant: number;
   power: string;
   driver: Driver;
+  player: string;
+  input: InputDevice;
+  launch: boolean;
   createdAt: string;
   lapMs: number | null;
   complete: boolean;
+  events: EpisodeEvent[];
+  stats: EpisodeStats | null;
   /** flat obs and act arrays, OBS_FIELDS.length / ACT_FIELDS.length per step */
   obs: number[];
   act: number[];
@@ -155,9 +185,14 @@ export class Recorder {
   private sessionSamples = 0;
   private lastLapMs: number | null = null;
 
-  constructor(map: RunMap) {
+  constructor(map: RunMap, opts: { fps?: number } = {}) {
     this.map = map;
+    this.fps = opts.fps === 120 ? 120 : RUN_FPS;
     this.ready = this.initStore();
+  }
+
+  private get maxSamples() {
+    return MAX_MINUTES * 60 * this.fps;
   }
 
   private async initStore(): Promise<void> {
@@ -223,21 +258,46 @@ export class Recorder {
       variant: info.variant,
       power: info.power,
       driver: info.driver ?? 'human',
+      player: info.player ?? 'guest',
+      input: info.input ?? 'keyboard',
+      launch: !!info.launch,
       createdAt: new Date().toISOString(),
       lapMs: null,
       complete: false,
+      events: [],
+      stats: null,
       obs: [],
       act: [],
     };
+  }
+
+  /** Record an impact, power use, reset or other event at the current sample. */
+  noteEvent(kind: EpisodeEvent['kind'], data: Pick<EpisodeEvent, 'strength' | 'x' | 'z'> = {}) {
+    const ep = this.current;
+    if (!ep) return;
+    const step = Math.floor(ep.obs.length / OBS_FIELDS.length);
+    ep.events.push({ step, t: +(step / this.fps).toFixed(3), kind, ...data });
   }
 
   /** Close the open episode. Non-improvements (resets, stops) set complete=false. */
   endLap(lapMs: number | null, complete: boolean) {
     const ep = this.current;
     if (!ep) return;
-    const samples = ep.obs.length / OBS_FIELDS.length;
+    const O = OBS_FIELDS.length, A = ACT_FIELDS.length;
+    const samples = Math.floor(ep.obs.length / O);
     ep.lapMs = lapMs;
     ep.complete = complete;
+    let off = 0, power = 0;
+    for (let i = 0; i < samples; i++) {
+      if (ep.obs[i * O + 11] === 0) off++;
+      if (ep.act[i * A + 3]) power++;
+    }
+    ep.stats = {
+      offTrackSeconds: +(off / this.fps).toFixed(2),
+      powerUses: power,
+      impacts: ep.events.filter((e) => e.kind === 'impact').length,
+      resets: ep.events.filter((e) => e.kind === 'reset').length,
+    };
     this.current = null;
     if (samples < MIN_SAMPLES) return;
     this.completed.push(ep);
@@ -273,7 +333,7 @@ export class Recorder {
     );
     this.powerPulse = false;
 
-    if (o.length / OBS_FIELDS.length >= MAX_SAMPLES) this.endLap(null, false);
+    if (o.length / OBS_FIELDS.length >= this.maxSamples) this.endLap(null, false);
   }
 
   /** Toggle recording; stopping also closes the open lap as incomplete. */
@@ -324,6 +384,7 @@ export class Recorder {
       kind: 'header',
       schema: RUN_SCHEMA,
       exportedAt: new Date().toISOString(),
+      gameVersion: RUN_GAME_VERSION,
       fps: this.fps,
       physicsHz: 120,
       obs: OBS_FIELDS,
@@ -354,10 +415,15 @@ export class Recorder {
         variant: ep.variant,
         power: ep.power,
         driver: ep.driver,
+        player: ep.player ?? 'guest',
+        input: ep.input ?? 'keyboard',
+        launch: !!ep.launch,
         createdAt: ep.createdAt,
         lapMs: ep.lapMs,
         samples: n,
         complete: ep.complete,
+        stats: ep.stats,
+        events: ep.events,
       }));
       for (let s = 0; s < n; s++) {
         const o = ep.obs.slice(s * O, (s + 1) * O);
@@ -383,6 +449,32 @@ export class Recorder {
     a.remove();
     setTimeout(() => URL.revokeObjectURL(url), 10_000);
     return laps;
+  }
+
+  /** Send every locally stored episode to the API as gzipped JSONL. */
+  async upload(): Promise<{ episodes: number; bytes: number }> {
+    const jsonl = await this.exportJsonl();
+    const episodes = new Set(jsonl.match(/"kind":"episode"/g) ?? []).size;
+    let body: BodyInit = jsonl;
+    let type = 'application/x-ndjson';
+    try {
+      if (typeof CompressionStream !== 'undefined') {
+        const stream = new Blob([jsonl]).stream().pipeThrough(new CompressionStream('gzip'));
+        body = await new Response(stream).blob();
+        type = 'application/gzip';
+      }
+    } catch {
+      /* send plain JSONL */
+    }
+    const res = await fetch('/api/runs', {
+      method: 'POST',
+      credentials: 'same-origin',
+      headers: { 'Content-Type': type },
+      body,
+    });
+    if (!res.ok) throw new Error(`upload failed (${res.status})`);
+    const out = await res.json() as { episodes?: number; bytes?: number };
+    return { episodes: out.episodes ?? episodes, bytes: out.bytes ?? jsonl.length };
   }
 
   async clear(): Promise<void> {

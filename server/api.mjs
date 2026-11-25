@@ -18,6 +18,7 @@ import {
   DEFAULT_MAP,
 } from './store.mjs';
 import { validateLap, mapNames } from './anticheat.mjs';
+import { saveRun, listRuns, RUN_UPLOAD_LIMIT } from './runs.mjs';
 
 const HOST = '127.0.0.1';
 const PORT = 8790;
@@ -34,6 +35,8 @@ const KNOWN_PATHS = new Set([
   '/api/admin/delete-time',
   '/api/admin/clear-map',
   '/api/admin/stats',
+  '/api/runs',
+  '/api/admin/runs',
 ]);
 
 const here = path.dirname(fileURLToPath(import.meta.url));
@@ -95,6 +98,28 @@ function authRateLimited(req) {
     }
   }
   return hits.length > AUTH_MAX;
+}
+
+function readRawBody(req, limit) {
+  return new Promise((resolve, reject) => {
+    const chunks = [];
+    let received = 0;
+    let overflow = false;
+    req.on('data', (chunk) => {
+      received += chunk.length;
+      if (received > limit) {
+        overflow = true;
+        chunks.length = 0;
+        return;
+      }
+      chunks.push(chunk);
+    });
+    req.on('end', () => {
+      if (overflow) return reject(new StoreError(413, 'payload_too_large', 'upload too large'));
+      resolve(Buffer.concat(chunks));
+    });
+    req.on('error', () => reject(new StoreError(400, 'read_error', 'could not read upload')));
+  });
 }
 
 function readJsonBody(req) {
@@ -174,6 +199,21 @@ async function handle(req, res, pathname) {
     return send(res, 200, {
       times: store.submitTime(user, body.ms, map, body.trace, verdict.summary, car, variant),
     });
+  }
+
+  if (pathname === '/api/runs') {
+    if (req.method !== 'POST') return send(res, 405, { error: 'method_not_allowed' });
+    if (!user) return send(res, 401, { error: 'unauthorized' });
+    const body = await readRawBody(req, RUN_UPLOAD_LIMIT);
+    const meta = saveRun(user, body, req.headers['content-type']);
+    return send(res, 200, { ok: true, ...meta });
+  }
+
+  if (pathname === '/api/admin/runs') {
+    if (req.method !== 'GET') return send(res, 405, { error: 'method_not_allowed' });
+    if (!user) return send(res, 401, { error: 'unauthorized' });
+    if (!store.isAdmin(user)) return send(res, 403, { error: 'forbidden' });
+    return send(res, 200, listRuns());
   }
 
   if (pathname === '/api/admin/stats') {

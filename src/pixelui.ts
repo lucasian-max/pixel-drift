@@ -55,6 +55,8 @@ export interface UiState {
   adminPanel?: boolean;
   /** clear-board button is in its second, confirming click */
   adminConfirm?: boolean;
+  /** upload status line in the admin panel */
+  adminUpload?: string;
   /** transient red notice, e.g. "LAP NOT COUNTED — OFF TRACK" */
   warning?: string;
   /** transient cream confirmation, e.g. "LAP SAVED · RANK 2" */
@@ -101,7 +103,7 @@ function pxBorder(c: CanvasRenderingContext2D, x: number, y: number, w: number, 
 /** every clickable thing on the canvas */
 export type HitId = 'prev-map' | 'next-map' | 'prev-car' | 'next-car' | 'solo' | 'login' | 'logout'
   | 'power-info' | 'garage' | 'garage-back'
-  | 'admin' | 'admin-close' | 'admin-clear' | 'admin-dashboard' | `admin-del-${number}`;
+  | 'admin' | 'admin-close' | 'admin-clear' | 'admin-dashboard' | 'admin-upload' | `admin-del-${number}`;
 
 interface Button { id: HitId; x: number; y: number; w: number; h: number; label: string }
 
@@ -129,6 +131,7 @@ export class PixelUI {
   private bAdmin: Button = { id: 'admin', x: 0, y: 0, w: 62, h: 14, label: 'ADMIN' };
   private bAdminClear: Button = { id: 'admin-clear', x: 0, y: 0, w: 104, h: 16, label: 'CLEAR BOARD' };
   private bAdminDash: Button = { id: 'admin-dashboard', x: 0, y: 0, w: 104, h: 16, label: 'DASHBOARD' };
+  private bAdminUpload: Button = { id: 'admin-upload', x: 0, y: 0, w: 120, h: 16, label: 'UPLOAD RUNS' };
   private bAdminClose: Button = { id: 'admin-close', x: 0, y: 0, w: 58, h: 16, label: 'CLOSE' };
   private buttons: Button[] = [];
 
@@ -408,7 +411,7 @@ export class PixelUI {
     c.fillRect(0, 0, this.w, this.h);
 
     const w = Math.min(430, this.w - 20);
-    const h = 250;
+    const h = 274;
     const x = Math.round((this.w - w) / 2);
     const y = Math.round((this.h - h) / 2);
     pxRect(c, x, y, w, h, SLAB);
@@ -479,9 +482,18 @@ export class PixelUI {
       this.bAdminClose.y + 4, { size: 8, color: CREAM, align: 'center' });
     this.buttons.push(this.bAdminClose);
 
-    this.text('CHANGES APPLY IMMEDIATELY', x + w / 2, y + h - 46, {
-      size: 8, color: HINT, align: 'center',
+    this.text(state.adminUpload ?? "UPLOAD THIS BROWSER'S 60 HZ RUNS", x + w / 2, y + h - 68, {
+      size: 8, color: state.adminUpload ? ACCENT : HINT, align: 'center',
     });
+
+    this.bAdminUpload.x = Math.round(x + w / 2 - this.bAdminUpload.w / 2);
+    this.bAdminUpload.y = y + h - 52;
+    pxRect(c, this.bAdminUpload.x, this.bAdminUpload.y, this.bAdminUpload.w, this.bAdminUpload.h, SLAB);
+    pxBorder(c, this.bAdminUpload.x, this.bAdminUpload.y, this.bAdminUpload.w, this.bAdminUpload.h,
+      'rgba(242,238,225,0.55)');
+    this.text(this.bAdminUpload.label, this.bAdminUpload.x + this.bAdminUpload.w / 2,
+      this.bAdminUpload.y + 4, { size: 8, color: CREAM, align: 'center' });
+    this.buttons.push(this.bAdminUpload);
   }
 
   /** Power description modal; also used from the garage. */

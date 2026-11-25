@@ -53,6 +53,8 @@ With this in place, pages on `https://drift.lucasian.tech` can call
 | POST   | `/api/admin/delete-time` | admin | `{map, username}` | `200 {removed, times}`, `403`, `401` |
 | POST   | `/api/admin/clear-map` | admin | `{map}` | `200 {removed, times}`, `403`, `401` |
 | GET    | `/api/admin/stats` | admin | — | `200` aggregate laps/players/maps/recent, `403`, `401` |
+| POST   | `/api/runs` | cookie | gzip or plain JSONL recorder export (≤8 MB) | `200 {ok, episodes, bytes}`, `401`, `400`, `413` |
+| GET    | `/api/admin/runs` | admin | — | `200` upload totals/users/recent, `403`, `401` |
 
 ## Lap submission and anti-cheat
 
@@ -127,12 +129,27 @@ circuit's board (requires a second confirming click). The list is
 ## Data desk
 
 `/dashboard.html` (served by Vite from `public/`) is an admin-only dashboard:
-per-circuit boards, total laps/players, fastest lap, recent laps, and the local
-60 Hz recorder runs from the admin's own browser. It uses the same admin cookie;
-non-admins get a gate. The in-game admin panel has a **DASHBOARD** button.
+per-circuit boards, total laps/players, fastest lap, car usage, recent laps,
+the local 60 Hz recorder runs from the admin's own browser, and any uploaded
+run files. It uses the same admin cookie; non-admins get a gate. The in-game
+admin panel has **DASHBOARD** and **UPLOAD RUNS** buttons.
 
-The dashboard does **not** receive other players' 60 Hz runs: those stay in
-each player's IndexedDB. Only lap times and their traces are sent to the API.
+Uploads are **explicit**: `POST /api/runs` stores the recording under
+`server/data/runs/<user>/` and appends `server/data/runs/manifest.jsonl`.
+Only the admin panel button (or a friend choosing to export/call upload) sends
+data; nothing uploads silently. A file is capped at 8 MB compressed / 32 MB
+decompressed. The raw files are decompressed JSONL.
+
+Merge uploads before training:
+
+```bash
+python3 tools/dataset/merge_runs.py server/data/runs/*/*.jsonl -o runs-all.jsonl
+python3 tools/dataset/convert_runs.py runs-all.jsonl -o dataset/
+```
+
+Run `?rec=120` to record at 120 Hz instead of 60 Hz. Episode metadata now
+includes player, input device, launch flag, event list (impact/power/reset) and
+per-episode stats (off-track seconds, impacts, power uses).
 
 ## Storage
 

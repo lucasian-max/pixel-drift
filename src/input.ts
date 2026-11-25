@@ -9,6 +9,7 @@ export class Input {
   zoom = 0;          // accumulated wheel input
   resetPressed = false;
   paused = false;
+  device: 'keyboard' | 'gamepad' | 'mixed' = 'keyboard';
 
   constructor(private onAnyKey?: () => void) {
     addEventListener('keydown', (e) => {
@@ -32,26 +33,32 @@ export class Input {
   read(): CarControls {
     const k = this.keys;
     let steer = 0, throttle = 0, hb = false;
-    if (k.has('KeyA') || k.has('ArrowLeft')) steer += 1;
-    if (k.has('KeyD') || k.has('ArrowRight')) steer -= 1;
-    if (k.has('KeyW') || k.has('ArrowUp')) throttle += 1;
-    if (k.has('KeyS') || k.has('ArrowDown')) throttle -= 1;
-    if (k.has('Space')) hb = true;
-    if (k.has('ShiftLeft') || k.has('ShiftRight')) throttle = Math.min(1, throttle + 0.35);
+    let usedKeys = false;
+    if (k.has('KeyA') || k.has('ArrowLeft')) { steer += 1; usedKeys = true; }
+    if (k.has('KeyD') || k.has('ArrowRight')) { steer -= 1; usedKeys = true; }
+    if (k.has('KeyW') || k.has('ArrowUp')) { throttle += 1; usedKeys = true; }
+    if (k.has('KeyS') || k.has('ArrowDown')) { throttle -= 1; usedKeys = true; }
+    if (k.has('Space')) { hb = true; usedKeys = true; }
+    if (k.has('ShiftLeft') || k.has('ShiftRight')) { throttle = Math.min(1, throttle + 0.35); usedKeys = true; }
     this.look = 0;
     if (k.has('KeyQ')) this.look -= 1;
     if (k.has('KeyE')) this.look += 1;
 
     this.pad = navigator.getGamepads?.()[0] ?? this.pad;
     const p = this.pad;
+    let usedPad = false;
     if (p) {
       const ax = p.axes[0] ?? 0;
       const rt = p.buttons[7]?.value ?? 0;
       const lt = p.buttons[6]?.value ?? 0;
-      if (Math.abs(ax) > 0.12) steer -= ax;
+      if (Math.abs(ax) > 0.12) { steer -= ax; usedPad = true; }
+      if (rt > 0.02 || lt > 0.02) usedPad = true;
       throttle += rt - lt;
-      if (p.buttons[0]?.pressed || p.buttons[5]?.pressed) hb = true;
+      if (p.buttons[0]?.pressed || p.buttons[5]?.pressed) { hb = true; usedPad = true; }
       this.look += (p.buttons[4]?.pressed ? -1 : 0) + (p.buttons[5]?.pressed ? 1 : 0);
+    }
+    if (usedKeys || usedPad) {
+      this.device = usedKeys && usedPad ? 'mixed' : usedPad ? 'gamepad' : 'keyboard';
     }
 
     this.steer = clamp(steer, -1, 1);

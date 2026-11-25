@@ -176,13 +176,15 @@ async function boot() {
     roadHalf: world.roadHalf,
     start: world.start,
     track: world.track,
-  });
+  }, { fps: params.get('rec') === '120' ? 120 : 60 });
   const driver = params.has('demo') ? 'autopilot' : 'human';
   const lapInfo = () => ({
     carName: CAR_NAMES[car.variant] ?? `CAR ${car.variant + 1}`,
     variant: car.variant,
     power: car.power.name,
     driver,
+    player: account.user?.username ?? 'guest',
+    input: input.device,
   }) as const;
 
   const shadowTex = await loadSheet('/sprites/shadow.png');
@@ -225,7 +227,10 @@ async function boot() {
   // ---- ui -----------------------------------------------------------------
   const ui = new PixelUI(uiCanvas, world.minimapPath, world.start);
   const sound = new Sound();
-  car.onImpact = (s: number) => sound.impact(s);
+  car.onImpact = (s: number) => {
+    sound.impact(s);
+    recorder.noteEvent('impact', { strength: s, x: car.x, z: car.z });
+  };
   let running = false;
   let laps = 0;
   let acc = 0;   // fixed-step carry; declared before begin so skip can clear it
@@ -243,6 +248,7 @@ async function boot() {
     acc = 0;
     running = true;
     adminPanel = false;
+    recorder.beginLap({ ...lapInfo(), launch: true });
     sound.start();
   };
 
@@ -262,6 +268,8 @@ async function boot() {
   let powerInfo = false;
   let adminPanel = false;
   let adminConfirmUntil = 0;
+  let adminUploadMsg = '';
+  let adminUploadUntil = 0;
   let garagePad: THREE.Mesh | null = null;
   let studioGroup: THREE.Group | null = null;
   const garageHome = { x: car.x, z: car.z, heading: car.heading };
@@ -400,6 +408,20 @@ async function boot() {
     }
     else if (a === 'admin-dashboard') {
       window.open('/dashboard.html', '_blank', 'noopener');
+    }
+    else if (a === 'admin-upload') {
+      const started = performance.now() / 1000;
+      adminUploadMsg = 'UPLOADING…';
+      adminUploadUntil = started + 20;
+      void recorder.upload()
+        .then((r) => {
+          adminUploadMsg = `SENT ${r.episodes} EPISODES`;
+          adminUploadUntil = performance.now() / 1000 + 5;
+        })
+        .catch(() => {
+          adminUploadMsg = 'UPLOAD FAILED';
+          adminUploadUntil = performance.now() / 1000 + 5;
+        });
     }
     else if (a === 'admin-clear') {
       const now = performance.now() / 1000;
@@ -667,7 +689,10 @@ async function boot() {
           });
         }
         if (input.consumeKey('KeyF') && running) {
-          if (car.activatePower()) recorder.markPower();
+          if (car.activatePower()) {
+            recorder.markPower();
+            recorder.noteEvent('power');
+          }
         }
         if (input.consumeKey('KeyV')) {
           // silent by design: nothing on screen mentions the recorder
@@ -679,8 +704,10 @@ async function boot() {
             .catch(() => console.warn('run export failed'));
         }
         if (input.consumeReset()) {
+          recorder.noteEvent('reset');
           recorder.endLap(0, false);
           resetRaceLocal();
+          recorder.beginLap({ ...lapInfo(), launch: true });
         }
       }
     }
@@ -816,6 +843,7 @@ async function boot() {
       admin: account.user?.role === 'admin',
       adminPanel: adminPanel && account.user?.role === 'admin',
       adminConfirm: now / 1000 < adminConfirmUntil,
+      adminUpload: now / 1000 < adminUploadUntil ? adminUploadMsg : undefined,
       garage,
       powerInfo,
       powerBlurb: car.power.blurb,

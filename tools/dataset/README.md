@@ -25,6 +25,13 @@ record in game  →  pixel-drift-runs-*.jsonl  →  convert_runs.py  →  datase
    python3 tools/dataset/convert_runs.py ~/Downloads/pixel-drift-runs-*.jsonl -o dataset/
    ```
 
+   Uploads from the admin panel land in `server/data/runs/*/*.jsonl`; merge
+   them into one file first:
+
+   ```bash
+   python3 tools/dataset/merge_runs.py server/data/runs/*/*.jsonl -o runs-all.jsonl
+   ```
+
 3. Sanity-check with the numpy-only ridge baseline:
 
    ```bash
@@ -80,11 +87,21 @@ One JSON object per line:
 | --- | --- |
 | `header` | schema, `fps`, `physicsHz`, `obs`/`act` field names, units |
 | `track` | map id/name, `roadHalf`, start pose, centreline `points: [[x,z],…]` |
-| `episode` | id, index, map, car, variant, power, driver, `lapMs`, sample count, complete |
+| `episode` | id, index, map, car, variant, power, driver, player, input, launch, `lapMs`, sample count, complete, per-episode stats, event list |
 | step | `e` episode index, `s` step index, `o` observation array, `a` action array |
 
 Everything is in metres, radians and seconds. `steer` is `+1 = left`.
 `power` is a one-tick activation pulse (pressed this tick), not a held button.
+
+The first episode after PLAY begins **before** the start line, so it includes
+the standing launch; it is marked `launch: true`. Events (`impact`, `power`,
+`reset`) carry a step/time and, for impacts, strength and position. Per-episode
+stats include off-track seconds, impacts, power uses and reset count. Record at
+120 Hz with `?rec=120` if you need physics-step fidelity.
+
+Run files are browser-local until the admin uses **UPLOAD RUNS** (or a player
+exports with `X`). Uploads are stored under `server/data/runs/<player>/` and
+indexed in `manifest.jsonl`; nothing is uploaded silently.
 
 ### Observation (`o`, 19 floats, 60 Hz)
 
