@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import { buildWorld, MAPS } from './world';
+import { createWormAimRing } from './wormFx';
 import { Car } from './car';
 import { CAR_NAMES } from './carModel';
 import { CAR_POWERS, powerColour } from './powers';
@@ -175,31 +176,9 @@ async function boot() {
   car.setVariant(Number.isFinite(savedCar) ? savedCar : 0);
   scene.add(car.group);
 
-  // ---- WORMHOLE aim mode: ring + marker ground visuals ----------------------
-  const aimRing = new THREE.Mesh(
-    new THREE.TorusGeometry(13.85, 0.16, 5, 72),
-    new THREE.MeshBasicMaterial({
-      color: 0xb05cff, transparent: true, opacity: 0.34,
-      blending: THREE.AdditiveBlending, depthWrite: false, toneMapped: false,
-    }),
-  );
-  aimRing.rotation.x = -Math.PI / 2;
-  aimRing.position.y = 0.05;
-  aimRing.renderOrder = 3;
-  aimRing.visible = false;
-  scene.add(aimRing);
-  const aimMarker = new THREE.Mesh(
-    new THREE.TorusGeometry(0.95, 0.14, 5, 28),
-    new THREE.MeshBasicMaterial({
-      color: 0xb05cff, transparent: true, opacity: 0.95,
-      blending: THREE.AdditiveBlending, depthWrite: false, toneMapped: false,
-    }),
-  );
-  aimMarker.rotation.x = -Math.PI / 2;
-  aimMarker.position.y = 0.06;
-  aimMarker.renderOrder = 3;
-  aimMarker.visible = false;
-  scene.add(aimMarker);
+  // ---- WORMHOLE aim mode: the desert aim disc (bed + forward chevrons + marker)
+  const aimUI = createWormAimRing(14);
+  scene.add(aimUI.group);
   const aimRay = new THREE.Raycaster();
   const aimPlane = new THREE.Plane(new THREE.Vector3(0, 1, 0), 0);
   const aimNdc = new THREE.Vector2();
@@ -822,17 +801,13 @@ async function boot() {
         car.group.rotation.y += dt * 0.65;
         car.group.position.set(car.x, 0.24, car.z);
       } else if (car.aiming) {
-        /* the wrap is open: the sim freezes while the ring tracks the pointer */
+        /* the wrap is open: the sim freezes while the aim disc tracks the pointer */
         input.forget('KeyF', 'KeyV', 'KeyX', 'KeyR');
-        aimRing.visible = true;
-        aimMarker.visible = true;
-        aimRing.position.set(car.x, 0.05, car.z);
-        (aimRing.material as THREE.MeshBasicMaterial).color.setHex(car.power.color);
-        (aimMarker.material as THREE.MeshBasicMaterial).color.setHex(car.power.color);
-        const a = clampedAim();
-        aimMarker.position.set(a.x, 0.06, a.z);
+        aimUI.place(car.x, car.z, car.heading);
+        aimUI.marker(aimPoint.x, aimPoint.z);
+        aimUI.show(true);
       } else {
-        aimRing.visible = aimMarker.visible = false;
+        aimUI.show(false);
         acc += dt;
         let steps = 0;
         while (acc >= STEP && steps++ < 6) {
