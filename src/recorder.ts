@@ -483,7 +483,7 @@ export class Recorder {
 
   /** Upload one finished episode (automatic path). */
   async uploadEpisode(ep: Episode): Promise<{ episodes: number; bytes: number }> {
-    if (ep.uploaded) return { episodes: 0, bytes: 0 };
+    if (ep.uploaded || ep.player === 'guest') return { episodes: 0, bytes: 0 };
     const jsonl = await this.buildJsonl([ep]);
     const out = await this.postRun(jsonl);
     ep.uploaded = true;
@@ -496,7 +496,8 @@ export class Recorder {
 
   /** Retry any saved episode that has not reached the server yet. */
   async uploadPending(): Promise<{ episodes: number }> {
-    const episodes = (await this.collectEpisodes()).filter((ep) => !ep.uploaded && ep.id !== this.current?.id);
+    const episodes = (await this.collectEpisodes())
+      .filter((ep) => !ep.uploaded && ep.player !== 'guest' && ep.id !== this.current?.id);
     let sent = 0;
     for (const ep of episodes) {
       try {
@@ -528,7 +529,8 @@ export class Recorder {
 
   /** Send every locally stored episode to the API as gzipped JSONL. */
   async upload(): Promise<{ episodes: number; bytes: number }> {
-    const episodes = (await this.collectEpisodes()).filter((ep) => !ep.uploaded && ep.id !== this.current?.id);
+    const episodes = (await this.collectEpisodes())
+      .filter((ep) => !ep.uploaded && ep.player !== 'guest' && ep.id !== this.current?.id);
     if (episodes.length === 0) return { episodes: 0, bytes: 0 };
     const jsonl = await this.buildJsonl(episodes);
     const out = await this.postRun(jsonl);

@@ -249,11 +249,13 @@ export function buildCarModel(variant = 0): THREE.Group {
   }
 
   // ---------- Nose ----------
-  box(1.3, 0.05, 0.16, M.cream, 0, 0.16, 2.26);   // cream splitter lip
+  box(1.3, 0.05, 0.16, M.dark, 0, 0.16, 2.26);   // black splitter lip
   box(0.7, 0.04, 0.05, M.dark, 0, 0.24, 2.29);  // slim intake slot
   for (const s of [1, -1]) {
     const l = box(0.18, 0.03, 0.08, M.amber, s * 0.4, 0.43, 2.1);
     l.rotation.x = 0.38;
+    box(0.30, 0.075, 0.03, M.dark, s * 0.50, 0.280, 2.305);  // headlight housing
+    box(0.24, 0.050, 0.02, M.cream, s * 0.50, 0.280, 2.320); // headlight lens
   }
 
   // ---------- Tail: black bar, red lights, diffuser ----------

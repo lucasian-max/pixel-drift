@@ -15,6 +15,8 @@ By playing Pixel Drift on this server you agree that:
   storage.
 - To request deletion of your laps, contact the server owner. The admin panel
   can remove a player's leaderboard time and associated lap history.
+- See [PRIVACY.md](PRIVACY.md) for what the game collects, how long it is kept
+  and your rights.
 
 This is a plain-language notice, not legal advice. Update it with your own
 contact details and jurisdiction before treating it as a formal agreement.
