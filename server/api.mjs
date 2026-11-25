@@ -41,9 +41,6 @@ const KNOWN_PATHS = new Set([
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 const store = new Store(path.join(here, 'data', 'db.json'));
-
-// ---- helpers -----------------------------------------------------------------
-
 function send(res, status, body) {
   res.statusCode = status;
   res.setHeader('Cache-Control', 'no-store');
@@ -156,9 +153,6 @@ function readJsonBody(req) {
     req.on('error', () => reject(new StoreError(400, 'read_error', 'could not read request body')));
   });
 }
-
-// ---- request handling ----------------------------------------------------------
-
 async function handle(req, res, pathname) {
   if (!KNOWN_PATHS.has(pathname)) {
     return send(res, 404, { error: 'not_found' });
@@ -262,9 +256,6 @@ async function handle(req, res, pathname) {
   res.setHeader('Set-Cookie', sessionCookie(store.createSession(found.id)));
   return send(res, 200, { user: found });
 }
-
-// ---- server ---------------------------------------------------------------------
-
 const server = http.createServer((req, res) => {
   const startedAt = Date.now();
   let pathname = req.url;
@@ -287,9 +278,6 @@ const server = http.createServer((req, res) => {
 server.listen(PORT, HOST, () => {
   console.log(`Pixel Drift API listening on http://${HOST}:${PORT} (db: ${store.dataPath})`);
 });
-
-// ---- graceful shutdown -------------------------------------------------------------
-
 function shutdown() {
   console.log('[api] shutting down');
   store.close();
