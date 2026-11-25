@@ -108,7 +108,7 @@ function loft(secs: Section[], matFor: (j: number) => number): THREE.BufferGeome
 }
 
 const SAND = 0xead5a6;
-const ORANGE = 0xd4642a;
+const ORANGE = 0xe2621f;
 const WHITE = 0xede6d8;
 const INK = 0x15181a;
 const GLASS = 0x1f2a2b;
