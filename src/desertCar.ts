@@ -273,16 +273,16 @@ export function buildDesertCar(): THREE.Group {
   box(1.82, 0.04, 0.18, M.ink, 0, 0.105, 2.12);   // skid plate
   box(1.66, 0.16, 0.10, M.ink, 0, 0.19, 2.13);    // air dam
   box(1.78, 0.13, 0.13, M.ink, 0, 0.37, 2.14);    // tube bumper bar
-  box(1.16, 0.18, 0.09, M.ink, 0, 0.56, 2.11);    // lamp pod backing
+  box(1.16, 0.21, 0.09, M.ink, 0, 0.565, 2.11);   // lamp pod backing
   for (const s of [1, -1] as const) {
     box(0.12, 0.30, 0.12, M.ink, s * 0.82, 0.44, 2.14);          // bumper stub
     box(0.34, 0.08, 0.07, M.ink, s * 0.27, 0.46, 2.17);           // grille slot
     box(0.10, 0.035, 0.05, M.amber, s * 0.72, 0.375, 2.16);       // indicator
-    const lens = new THREE.Mesh(new THREE.CylinderGeometry(0.105, 0.105, 0.04, 14), M.lamp);
+    const lens = new THREE.Mesh(new THREE.CylinderGeometry(0.135, 0.135, 0.04, 14), M.lamp);
     lens.rotation.x = Math.PI / 2;
     lens.position.set(s * 0.30, 0.555, 2.16);
     car.add(lens);
-    const bezel = new THREE.Mesh(new THREE.TorusGeometry(0.115, 0.014, 4, 14), M.ink);
+    const bezel = new THREE.Mesh(new THREE.TorusGeometry(0.146, 0.016, 4, 14), M.ink);
     bezel.position.set(s * 0.30, 0.555, 2.185);
     car.add(bezel);
     const pod = new THREE.Mesh(new THREE.CylinderGeometry(0.056, 0.056, 0.03, 10), M.lamp);
