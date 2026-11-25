@@ -202,13 +202,12 @@ export function buildDesertCar(): THREE.Group {
   car.add(outline(cabin, 1.022));
 
   for (const s of [1, -1] as const) {
-    // Pillars stand proud of the glass by ~0.03 so the posts carrying the roof read at 360p.
-    // Buried flush (the old A/C feet sat inside the hull) they vanished and the greenhouse
-    // became one dark slab with a lid floating on it.
-    beam(new THREE.Vector3(s * 0.86, 0.86, 0.90), new THREE.Vector3(s * 0.60, 1.29, -0.04), 0.085, M.sand); // A-pillar
-    beam(new THREE.Vector3(s * 0.88, 0.86, -0.34), new THREE.Vector3(s * 0.60, 1.29, -0.34), 0.075, M.sand); // B-pillar
-    beam(new THREE.Vector3(s * 0.60, 1.30, -0.06), new THREE.Vector3(s * 0.60, 1.30, -1.35), 0.065, M.sand); // roof rail
-    beam(new THREE.Vector3(s * 0.60, 1.29, -1.62), new THREE.Vector3(s * 0.88, 0.86, -2.02), 0.095, M.sand); // C-pillar
+    // One frame: A post -> rail -> C post, all landing on y 1.30, uniform 0.075 width.
+    // Proud of the glass by ~0.03 so the posts read at 360p without going chunky.
+    beam(new THREE.Vector3(s * 0.86, 0.86, 0.90), new THREE.Vector3(s * 0.60, 1.30, -0.04), 0.075, M.sand); // A-pillar
+    beam(new THREE.Vector3(s * 0.88, 0.86, -0.34), new THREE.Vector3(s * 0.60, 1.30, -0.34), 0.075, M.sand); // B-pillar
+    beam(new THREE.Vector3(s * 0.60, 1.30, -0.04), new THREE.Vector3(s * 0.60, 1.30, -1.62), 0.060, M.sand); // roof rail
+    beam(new THREE.Vector3(s * 0.60, 1.30, -1.62), new THREE.Vector3(s * 0.88, 0.86, -2.02), 0.075, M.sand); // C-pillar
     box(0.018, 0.024, 2.86, M.dInk, s * 0.842, 0.755, -0.56); // window sill trim
   }
   outline(box(1.12, 0.030, 1.54, M.sand, 0, 1.300, -0.8325), 1.012); // roof panel
