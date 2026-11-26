@@ -1143,12 +1143,18 @@ export class PixelUI {
       this.text('LAPS', c2, base, { size: 8, color: CREAM });
       this.text(String(s.laps), x + w - 12, base, { size: 8, weight: 700, color: CREAM, align: 'right' });
       this.text('ON TRACK', c2, base + 13, { size: 8, color: CREAM });
-      this.text(fmtDur(s.driveMs), x + w - 12, base + 13, { size: 8, weight: 700, color: CREAM, align: 'right' });
+      // a long session (hours) would run into the label: clamp to what's left
+      // of the column, measured at the weight it is drawn at
+      let dur = fmtDur(s.driveMs);
+      const trackW = this.measure('ON TRACK', 8, 400);
+      this.font(8, 700);
+      while (dur.length > 1 && c.measureText(dur).width > x + w - 12 - c2 - trackW - 6) dur = dur.slice(0, -1);
+      this.text(dur, x + w - 12, base + 13, { size: 8, weight: 700, color: CREAM, align: 'right' });
       this.text('FAV CAR', c2, base + 26, { size: 8, color: CREAM });
-      this.font(8, 400);
-      let fav = s.favCar || '—';
-      while (fav.length > 1 && c.measureText(fav).width > x + w - 12 - c2 - 6) fav = fav.slice(0, -1);
-      this.text(fav, x + w - 12, base + 26, { size: 8, weight: 700, color: ACCENT, align: 'right' });
+      // the car's name gets its own line under the label: the column is a row
+      // shorter than the bests column, so even DUNE RUNNER fits whole instead
+      // of crowding into the label or losing letters to a clamp
+      this.text(s.favCar || '—', x + w - 12, base + 39, { size: 8, weight: 700, color: ACCENT, align: 'right' });
     }
     // the reset sits with the numbers it wipes, not with the safe toggles
     const ry = y + h - 56;
