@@ -901,7 +901,7 @@ export class PixelUI {
       this.text(b.label, b.x + b.w / 2, b.y + 2, { size: 8, color: CREAM, align: 'center' });
       this.buttons.push(b);
     }
-    this.drawMuteChip(state, 238);
+    this.drawMuteChip(state, this.h - 44);
 
     this.bSolo.label = 'PLAY';
     this.bSolo.w = 104;
@@ -963,31 +963,36 @@ export class PixelUI {
     }
 
     if (acct && w >= 560) {
-      const lx = w - 176;
-      this.text('LEADERBOARD', w - 8, 48, { size: 8, weight: 700, color: CREAM, align: 'right', spacing: 2 });
+      const lx = w - 188, pw = 180, py = 46;
+      const right = lx + pw - 8;
+      const n = acct.offline ? 0 : Math.min(10, acct.times.length);
+      const rows = acct.offline || n === 0 ? 1 : n;
+      const bh = 46 + rows * 12;
+      pxRect(c, lx, py, pw, bh, SLAB);
+      pxBorder(c, lx, py, pw, bh, 'rgba(242,238,225,0.45)');
+      this.text('LEADERBOARD', right, py + 10, { size: 8, weight: 700, color: CREAM, align: 'right', spacing: 2 });
       let track = (state.mapName ?? '').toUpperCase();
       this.font(8, 700);
-      while (track.length > 1 && c.measureText(track).width > 168) track = track.slice(0, -1);
-      this.text(track, w - 8, 60, { size: 8, weight: 700, color: ACCENT, align: 'right', spacing: 1 });
+      while (track.length > 1 && c.measureText(track).width > pw - 16) track = track.slice(0, -1);
+      this.text(track, right, py + 22, { size: 8, weight: 700, color: ACCENT, align: 'right', spacing: 1 });
       c.fillStyle = LINE;
-      c.fillRect(lx, 72, 168, 1);
-      if (acct.offline) {
-        this.text('OFFLINE', w - 8, 78, { size: 8, color: DIM, align: 'right', spacing: 1 });
+      c.fillRect(lx + 8, py + 30, pw - 16, 1);
+      this.font(8);
+      if (acct.offline || n === 0) {
+        this.text(acct.offline ? 'OFFLINE' : 'NO TIMES YET', right, py + 44, { size: 8, color: DIM, align: 'right', spacing: 1 });
       } else {
         this.font(8);
         const timeW = Math.ceil(c.measureText('00:00.00').width);
-        const nameMax = 168 - 18 - timeW;
-        const n = Math.min(10, acct.times.length);
+        const nameMax = pw - 42 - timeW;
         for (let i = 0; i < n; i++) {
           const t = acct.times[i];
-          const y = 78 + i * 12;
-          this.text(String(t.rank).padStart(2, '0'), lx, y, { size: 8, color: DIM });
+          const y = py + 44 + i * 12;
+          this.text(String(t.rank).padStart(2, '0'), lx + 8, y, { size: 8, color: DIM });
           let name = t.username.toUpperCase();
           while (name.length > 1 && c.measureText(name).width > nameMax) name = name.slice(0, -1);
-          this.text(name, lx + 18, y, { size: 8, color: CREAM });
-          this.text(fmtMs(t.ms), w - 8, y, { size: 8, color: CREAM, align: 'right' });
+          this.text(name, lx + 26, y, { size: 8, color: CREAM });
+          this.text(fmtMs(t.ms), right, y, { size: 8, color: CREAM, align: 'right' });
         }
-        if (n === 0) this.text('NO TIMES YET', w - 8, 78, { size: 8, color: DIM, align: 'right', spacing: 1 });
       }
     }
 
