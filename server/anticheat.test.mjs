@@ -317,6 +317,122 @@ test('rules keep the derived numbers honest', () => {
   assert.ok(!('BLINK_ANGLE' in RULES), 'aimed placements have no direction rule');
 });
 
+/* alpine runs its centreline close to itself: two stretches 18.2 m apart
+   (arc 228 m -> 299 m, 71 m of road between them) and 20.4 m apart (arc 164 m
+   -> 248 m, 85 m), and the validator's own off-road tolerance is
+   roadHalf + MAX_OFF_TRACK = 18.2 m. A car can therefore cross between the two
+   branches while every sample stays near some part of the circuit, which is
+   invisible to distance-to-track and to the bounding box: only the stretch of
+   road the lap never passes gives it away. 26 u/s is DUNE RUNNER's top speed,
+   16.12 u/s the same car on grass (src/car.ts surface factor). */
+const ALPINE = DATA.alpine;
+const ALPINE_TOP = 26;
+const ALPINE_GRASS = ALPINE_TOP * 0.62;
+
+/** Uniform STEP-metre course around a circuit, starting at its line. */
+function course(track) {
+  const pts = track.points;
+  const out = [];
+  let start = 0;
+  for (let i = 1; i < pts.length; i++) {
+    if (Math.hypot(pts[i][0] - track.start.x, pts[i][1] - track.start.z) <
+        Math.hypot(pts[start][0] - track.start.x, pts[start][1] - track.start.z)) start = i;
+  }
+  let travelled = 0;
+  for (let i = start, guard = 0; guard < pts.length * 4 && travelled < track.length - 0.3; guard++) {
+    const a = pts[i];
+    const b = pts[(i + 1) % pts.length];
+    const len = Math.hypot(b[0] - a[0], b[1] - a[1]);
+    if (len < 1e-6) { i = (i + 1) % pts.length; continue; }
+    for (let k = 0; k < len; k += STEP) {
+      const f = k / len;
+      out.push({ x: a[0] + (b[0] - a[0]) * f, z: a[1] + (b[1] - a[1]) * f, s: travelled + k });
+    }
+    travelled += len;
+    i = (i + 1) % pts.length;
+  }
+  return { path: out, total: out[out.length - 1].s };
+}
+
+const ALPINE_COURSE = course(ALPINE);
+
+function alpineAt(s) {
+  const p = ALPINE_COURSE.path;
+  if (s <= 0) return p[0];
+  let lo = 0;
+  let hi = p.length - 1;
+  while (lo < hi) {
+    const mid = (lo + hi + 1) >> 1;
+    if (p[mid].s <= s) lo = mid;
+    else hi = mid - 1;
+  }
+  return p[lo];
+}
+
+/**
+ * Drive alpine's road at its top speed. `cut` leaves the road at arc `from` and
+ * rejoins at arc `to`: `by` 'grass' drives the straight line between them at
+ * off-road speed, 'mark' places the car there with one WORMHOLE mark.
+ */
+function alpineLap(cut = null) {
+  const total = ALPINE_COURSE.total;
+  const trace = [{ x: alpineAt(0).x, z: alpineAt(0).z, t: 0 }];
+  let s = 0;
+  let t = 0;
+  while (s < total - 0.5) {
+    if (cut && s >= cut.from && s < cut.to) {
+      const a = alpineAt(cut.from);
+      const b = alpineAt(cut.to);
+      if (cut.by === 'mark') {
+        trace.push({ x: b.x, z: b.z, t, e: 'blink' });
+      } else {
+        const steps = Math.max(1, Math.round(Math.hypot(b.x - a.x, b.z - a.z) /
+          ((SAMPLE_MS / 1000) * ALPINE_GRASS)));
+        for (let k = 1; k <= steps; k++) {
+          const f = k / steps;
+          t += SAMPLE_MS;
+          trace.push({ x: a.x + (b.x - a.x) * f, z: a.z + (b.z - a.z) * f, t });
+        }
+      }
+      s = cut.to;
+      continue;
+    }
+    s += (SAMPLE_MS / 1000) * ALPINE_TOP;
+    t += SAMPLE_MS;
+    const p = alpineAt(Math.min(total, s));
+    trace.push({ x: p.x, z: p.z, t });
+  }
+  const ms = trace[trace.length - 1].t;
+  const end = alpineAt(total);
+  trace.push({ x: end.x, z: end.z, t: ms });
+  return { ms, trace };
+}
+
+test('an alpine lap that follows the road passes', () => {
+  const lap = alpineLap();
+  const v = validateLap('alpine', lap.ms, lap.trace);
+  assert.equal(v.ok, true, v.reason);
+  assert.ok(v.summary.pathLength > ALPINE.length * 0.95, `${v.summary.pathLength}`);
+});
+
+test('an alpine lap that cuts the switchback fails', () => {
+  // 18.2 m across the grass, rejoining 71 m up the road
+  const lap = alpineLap({ from: 228, to: 299, by: 'grass' });
+  const v = validateLap('alpine', lap.ms, lap.trace);
+  assert.equal(v.ok, false, 'cut lap accepted');
+  assert.equal(v.reason, 'incomplete circuit');
+});
+
+test('an alpine switchback cut taken with a placement fails', () => {
+  // the mark makes the jump legal-looking, but the road between the two
+  // branches is still never passed
+  const lap = alpineLap({ from: 228, to: 299, by: 'mark' });
+  assert.equal(lap.trace.filter((p) => p.e === 'blink').length, 1);
+  const v = validateLap('alpine', lap.ms, lap.trace);
+  assert.equal(v.ok, false, 'marked cut accepted');
+  assert.equal(v.reason, 'incomplete circuit');
+});
+
 /* Submissions captured from real validator runs, replayed byte-for-byte. These
    fixtures carry no RULES constants, so a rule change that flips a verdict fails
    here instead of quietly agreeing with itself. */

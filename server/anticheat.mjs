@@ -58,6 +58,13 @@ const MAX_OFF_TRACK = 14;    // metres beyond the road edge
 const START_SLACK = 35;      // metres from the start/finish line
 const MIN_LENGTH_RATIO = 0.85; // shortest believable lap vs centreline
 const MAX_LENGTH_RATIO = 2.0;  // drifting/spinning leeway
+// share of the centreline a lap may leave unpassed: a wide line or one
+// placement across a corner stays under it, cutting a branch of the circuit
+// (two stretches that run close together) does not. Passing a stretch means
+// coming within the road plus this slack of it; an honest lap comes within a
+// couple of metres, a cut leaves a fifth of the circuit untouched.
+const MAX_SKIPPED_CIRCUIT = 0.10;
+const PASSED_SLACK = 6;
 const MAX_CLOCK_SLACK = 2500;  // ms between last trace t and submitted ms
 
 const LAP_START_SLACK = 2000;
@@ -138,6 +145,7 @@ export const RULES = {
   MAX_OFF_TRACK,
   MAX_LENGTH_RATIO,
   MIN_LENGTH_RATIO,
+  MAX_SKIPPED_CIRCUIT,
 };
 
 function fail(reason) {
@@ -275,6 +283,26 @@ export function validateLap(mapId, ms, trace) {
   const coversW = rb.w > track.box.w * 0.55;
   const coversH = rb.h > track.box.h * 0.55;
   if (!coversW || !coversH) return fail('incomplete circuit');
+
+  // ...and it passes every stretch of it. A circuit that runs close to itself
+  // can be cut between two of its branches while every sample still sits near
+  // some part of the road, so distance-to-track never sees the cut and only the
+  // route-length floor notices it. Counting the centreline points the lap never
+  // came near sees the cut for what it is, whichever way it was crossed: driven
+  // across the grass or placed across with a mark.
+  const corridor = track.roadHalf + PASSED_SLACK;
+  const reach = corridor * corridor;
+  let passed = 0;
+  let counted = 0;
+  for (let i = 0; i < track.points.length; i += 2) {
+    const c = track.points[i];
+    counted++;
+    for (const p of route) {
+      const dx = p.x - c[0], dz = p.z - c[1];
+      if (dx * dx + dz * dz <= reach) { passed++; break; }
+    }
+  }
+  if (passed < counted * (1 - MAX_SKIPPED_CIRCUIT)) return fail('incomplete circuit');
 
   return {
     ok: true,
