@@ -216,7 +216,14 @@ export function validateLap(mapId, ms, trace) {
       if (d > BLINK_MAX + PUSH_SLACK) return fail('blink jump too far');
       continue;
     }
-    if (a.e === 'blink') continue; // the frame after a placement is not travel
+    if (a.e === 'blink') {
+      // the car landed somewhere inside the disc and kept rolling, so the span
+      // from the landing point to this sample is real travel and counts: the
+      // placement only ever removes the jump itself. It credits at most one
+      // sample of rolling, because part of the span can be a barrier push-out.
+      length += Math.min(d, ROLL_LIMIT);
+      continue;
+    }
 
     length += d;
     if (dt > 0.02) {
