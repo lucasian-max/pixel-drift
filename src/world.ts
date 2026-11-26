@@ -69,6 +69,9 @@ export interface MapDef {
   pondBridge?: boolean;
   fuji?: { x: number; z: number; scale: number };
   overpass?: boolean;
+  /** tyre-wall lines that close a gap between two branches of the circuit, as
+   *  centreline points (x1, z1, x2, z2); the wall stops short of both roads */
+  fences?: [number, number, number, number][];
 }
 
 function figure8(rx: number, rz: number, n = 64, phase = 0): [number, number][] {
@@ -121,6 +124,15 @@ export const MAPS: MapDef[] = [
     lake: { x: 2, z: 8, rx: 10, rz: 7 },
     trees: 'pine', density: 1.0, tint: '#f3fbff', snow: true, snowGear: true,
     props: { trees: 230, rocks: 44, buildings: 0, lampStride: 46, rockScale: 1.2 },
+    // Frostbite Pass doubles back on itself three times: 18.2 m, 20.4 m and
+    // 28.6 m apart. A car can cross a gap up to twice the off-road tolerance
+    // (2 x 18.2 m) without ever leaving the road's shadow, and each crossing
+    // skips 71 m to 152 m of the lap, so tyre walls close all three
+    fences: [
+      [-1.6, -29.2, -3.1, -11],
+      [24.7, -47.6, 18.3, -28.2],
+      [57.4, -12.6, 29.1, -16.9],
+    ],
     town: [],
     sky: '#cfe4f2',
   },
@@ -818,6 +830,27 @@ export async function buildWorld(scene: THREE.Scene, mapId?: string): Promise<Wo
       tyres.push({ x: bx, z: bz, rot: rnd() * 6.28, scale: 0.95 + rnd() * 0.15 });
       colliders.push({ x: bx, z: bz, r: 0.62 });
       shadows.push({ x: bx, z: bz, rot: 0, scale: 0.9 });
+    }
+  }
+
+  // a fence across a gap the circuit leaves open: without it a car can drive
+  // between two branches and skip the road that runs between them
+  for (const [ax, az, bx, bz] of map.fences ?? []) {
+    const dx = bx - ax;
+    const dz = bz - az;
+    const span = Math.hypot(dx, dz);
+    const inset = ROAD_HALF + 1.3;   // stop on the grass, clear of both roads
+    if (span <= inset * 2) continue;
+    const ux = dx / span;
+    const uz = dz / span;
+    const steps = Math.round((span - inset * 2) / 1.5);
+    for (let k = 0; k <= steps; k++) {
+      const f = inset + ((span - inset * 2) * k) / steps;
+      const x = ax + ux * f;
+      const z = az + uz * f;
+      tyres.push({ x, z, rot: rnd() * 6.28, scale: 0.95 + rnd() * 0.15 });
+      colliders.push({ x, z, r: 0.62 });
+      shadows.push({ x, z, rot: 0, scale: 0.9 });
     }
   }
 
