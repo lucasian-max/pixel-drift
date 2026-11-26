@@ -11,7 +11,10 @@ export class Sound {
   private squeal!: GainNode;
   private rumble!: GainNode;
   private kerb!: GainNode;
-  muted = false;
+  muted = (() => {
+    // remembered between visits: a muted tab should not blast on relaunch
+    try { return localStorage.getItem('sprite-drift:muted') === '1'; } catch { return false; }
+  })();
   private musicGain!: GainNode;
   private musicNext = 0;
   private musicStep = 0;
@@ -97,6 +100,7 @@ export class Sound {
 
   toggleMute() {
     this.muted = !this.muted;
+    try { localStorage.setItem('sprite-drift:muted', this.muted ? '1' : '0'); } catch { /* private mode */ }
     const ctx = this.ctx;
     if (ctx) this.master.gain.setTargetAtTime(this.muted ? 0 : 0.55, ctx.currentTime, 0.05);
     return this.muted;

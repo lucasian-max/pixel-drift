@@ -238,7 +238,7 @@ async function boot() {
      for an admin session. ?ghost=0 is the owner's kill switch, ?ghost=1
      forces it on for visual probes. Built once, on the first visible frame. */
   const ghostParam = params.get('ghost');
-  const ghostAllowed = () => ghostParam !== '0' && (ghostParam === '1' || devOn('ghost'));
+  const ghostAllowed = () => ghostParam !== '0' && (ghostParam === '1' || (devOn('ghost') && playerGhost));
   let ghostModel: THREE.Group | null = null;
   let ghostFx: GhostFx | null = null;   // the ghost shows its powers, not a chip
   let ghostEventsSeen = 0;               // power marks the ghost clock has passed
@@ -322,6 +322,12 @@ async function boot() {
 
   let garage = false;
   let powerInfo = false;
+  let settings = false;
+  /* the player's ghost preference: on until they switch it off in SETTINGS,
+     remembered for the next visit. The ?ghost URL param outranks it. */
+  const GHOST_KEY = 'sprite-drift:ghost';
+  let playerGhost = true;
+  try { playerGhost = localStorage.getItem(GHOST_KEY) !== '0'; } catch { /* private mode */ }
   let adminPanel = false;
   let adminConfirmUntil = 0;
   let adminUploadMsg = '';
@@ -451,6 +457,16 @@ async function boot() {
     else if (a === 'next-car') cycleCar(1);
     else if (a === 'power-info') powerInfo = !powerInfo;
     else if (a === 'mute') sound.toggleMute();
+    else if (a === 'settings') {
+      settings = !settings;
+      if (settings) powerInfo = false;
+    }
+    else if (a === 'setting-sound') sound.toggleMute();
+    else if (a === 'setting-ghost') {
+      playerGhost = !playerGhost;
+      ghostEventsSeen = 0;
+      try { localStorage.setItem(GHOST_KEY, playerGhost ? '1' : '0'); } catch { /* private mode */ }
+    }
     else if (a === 'garage') setGarage(true);
     else if (a === 'garage-back') setGarage(false);
     else if (a === 'login') loginForm.open();
@@ -1078,6 +1094,11 @@ async function boot() {
       adminConfirm: now / 1000 < adminConfirmUntil,
       adminUpload: now / 1000 < adminUploadUntil ? adminUploadMsg : undefined,
       garage,
+      settings,
+      settingsRows: [
+        { name: 'sound', label: 'SOUND', on: !sound.muted },
+        { name: 'ghost', label: 'GHOST CAR', on: ghostAllowed() },
+      ],
       powerInfo,
       powerBlurb: car.power.blurb,
       powerEffect: car.power.effect,

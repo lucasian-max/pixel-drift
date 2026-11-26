@@ -52,6 +52,10 @@ export interface UiState {
   };
   garage?: boolean;
   powerInfo?: boolean;
+  /** the player's own settings modal, from the title's SETTINGS button */
+  settings?: boolean;
+  /** one chip row per player-tunable thing, hit id setting-${name} */
+  settingsRows?: { name: string; label: string; on: boolean }[];
   powerBlurb?: string;
   powerEffect?: string;
   powerDuration?: number;
@@ -104,7 +108,7 @@ function pxBorder(c: CanvasRenderingContext2D, x: number, y: number, w: number, 
 export type HitId = 'prev-map' | 'next-map' | 'prev-car' | 'next-car' | 'solo' | 'login' | 'logout'
   | 'power-info' | 'garage' | 'garage-back' | 'menu' | 'mute'
   | 'admin' | 'admin-close' | 'admin-clear' | 'admin-dashboard' | 'admin-upload' | `admin-del-${number}`
-  | `admin-feature-${string}`;
+  | 'settings' | `setting-${string}` | `admin-feature-${string}`;
 
 interface Button { id: HitId; x: number; y: number; w: number; h: number; label: string }
 
@@ -124,6 +128,7 @@ export class PixelUI {
   private bInfo: Button = { id: 'power-info', x: 0, y: 0, w: 70, h: 12, label: 'POWER INFO' };
   private bGarage: Button = { id: 'garage', x: 0, y: 0, w: 64, h: 12, label: 'VIEW CAR' };
   private bGarageBack: Button = { id: 'garage-back', x: 0, y: 0, w: 48, h: 14, label: 'BACK' };
+  private bSettings: Button = { id: 'settings', x: 0, y: 0, w: 66, h: 14, label: 'SETTINGS' };
   private bSolo: Button = { id: 'solo', x: 0, y: 0, w: 148, h: 28, label: 'SOLO' };
   private bMenu: Button = { id: 'menu', x: 0, y: 0, w: 66, h: 18, label: 'M MENU' };
   private bMute: Button = { id: 'mute', x: 0, y: 0, w: 60, h: 14, label: 'SOUND ON' };
@@ -925,6 +930,17 @@ export class PixelUI {
       this.buttons.push(b);
     }
     this.drawMuteChip(state, this.h - 44);
+    // the player's own switches live one reach above the sound chip
+    this.bSettings.label = 'SETTINGS';
+    this.bSettings.w = 66;
+    this.bSettings.x = this.w - 8 - this.bSettings.w;
+    this.bSettings.y = this.h - 62;
+    pxRect(c, this.bSettings.x, this.bSettings.y, this.bSettings.w, this.bSettings.h, SLAB);
+    pxBorder(c, this.bSettings.x, this.bSettings.y, this.bSettings.w, this.bSettings.h, 'rgba(242,238,225,0.55)');
+    this.text(this.bSettings.label, this.bSettings.x + this.bSettings.w / 2, this.bSettings.y + 3, {
+      size: 8, color: CREAM, align: 'center',
+    });
+    this.buttons.push(this.bSettings);
 
     this.bSolo.label = 'PLAY';
     this.bSolo.w = 104;
@@ -1082,6 +1098,51 @@ export class PixelUI {
       size: 8, color: HINT, align: 'center',
     });
     if (state.powerInfo) this.drawPowerInfo(state);
+    if (state.settings) this.drawSettings(state);
+  }
+
+  /** The player's own switches: sound now, the ghost car the same way. A
+      modal like POWER INFO — dimmed world, this.buttons cleared so only the
+      panel can be hit, and its own relabelled CLOSE. */
+  private drawSettings(state: UiState) {
+    const c = this.ctx;
+    this.buttons.length = 0;
+    c.fillStyle = 'rgba(10,12,16,0.62)';
+    c.fillRect(0, 0, this.w, this.h);
+    const w = 226, h = 118;
+    const x = Math.round((this.w - w) / 2), y = Math.round((this.h - h) / 2);
+    pxRect(c, x, y, w, h, SLAB);
+    pxRect(c, x, y, w, 14, INK);
+    pxBorder(c, x, y, w, h, 'rgba(242,238,225,0.75)');
+    c.fillStyle = ACCENT;
+    c.fillRect(x + 5, y + 4, 2, 8);
+    this.text('SETTINGS', x + 12, y + 3, { size: 8, weight: 700, color: CREAM, spacing: 2 });
+    this.text('YOUR GAME, YOUR RULES', x + w - 9, y + 3, { size: 8, color: DIM, align: 'right' });
+    const rows = state.settingsRows ?? [];
+    for (let i = 0; i < rows.length; i++) {
+      const r = rows[i];
+      const ry = y + 30 + i * 20;
+      this.text(r.label, x + 12, ry, { size: 8, weight: 700, color: CREAM });
+      const label = r.on ? 'ON' : 'OFF';
+      const cw = this.measure(label, 8, 700) + 16;
+      const bx = x + w - cw - 12, by = ry - 3;
+      pxRect(c, bx, by, cw, 14, r.on ? ACCENT : SLAB);
+      pxBorder(c, bx, by, cw, 14, r.on ? CREAM : 'rgba(242,238,225,0.55)');
+      this.text(label, bx + cw / 2, by + 3, {
+        size: 8, weight: 700, color: r.on ? CREAM : DIM, align: 'center',
+      });
+      this.buttons.push({ id: `setting-${r.name}`, x: bx, y: by, w: cw, h: 14, label });
+    }
+    this.bSettings.label = 'CLOSE';
+    this.bSettings.w = 48;
+    this.bSettings.x = Math.round(x + w / 2 - 24);
+    this.bSettings.y = y + h - 22;
+    pxRect(c, this.bSettings.x, this.bSettings.y, this.bSettings.w, this.bSettings.h, SLAB);
+    pxBorder(c, this.bSettings.x, this.bSettings.y, this.bSettings.w, this.bSettings.h, 'rgba(242,238,225,0.6)');
+    this.text(this.bSettings.label, this.bSettings.x + this.bSettings.w / 2, this.bSettings.y + 3, {
+      size: 8, color: CREAM, align: 'center',
+    });
+    this.buttons.push(this.bSettings);
   }
 
   // Font glyphs read thin at this size, so arrows are drawn by hand.
