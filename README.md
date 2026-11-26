@@ -26,7 +26,7 @@ cool idea that I wanted to pursue.
 
 ## Future Features
 
-- More cars like the Tesla Roadster
+- More cars such as the Tesla Roadster
 - More maps
 - Multiplayer shouldn't be too far of a stretch, since accounts already exist
 - A progression system where you unlock cars and maps based on achievements
@@ -40,19 +40,20 @@ cool idea that I wanted to pursue.
 | **Group B** | Thunderclap | 3.5s of ×1.5 top speed and ×2.6 acceleration; 7s cooldown |
 | **Dune Runner** | Tunnel | Place the car anywhere within a 22 m radius; 9s cooldown |
 
-![Garage](docs/garage.png)
+<img width="3120" height="1769" alt="image" src="https://github.com/user-attachments/assets/24b8b4e6-839e-420b-81cd-1ff0e6dd635d" />
 
-![Pearl Drift](docs/power-pearl.png)
+<img width="3105" height="1761" alt="image" src="https://github.com/user-attachments/assets/4eebba8d-e5df-4826-a42b-6125c8f0cc58" />
 
-![Thunderclap](docs/power-rally.png)
+<img width="3094" height="1752" alt="image" src="https://github.com/user-attachments/assets/6d6c2ab2-b3ef-48c1-a26e-934ed9148bf1" />
+
 
 ## THREE CIRCUITS
 
 | | |
 | --- | --- |
-| **Saltmarsh Coast** — a technical circuit with a lake, pines and palms | **Frostbite Pass** — a big snow circuit with snow pines, a frozen lake and falling snow |
+| **Saltmarsh Coast** - a technical circuit with a lake, pines and palms | **Frostbite Pass** - a big snow circuit with snow pines, a frozen lake and falling snow |
 | ![coast](docs/coast.png) | ![ice](docs/alpine.png) |
-| **Sakura Circuit** — a Japanese-themed figure-eight with sakura trees, torii and an overpass | |
+| **Sakura Circuit** - a Japanese-themed figure-eight with sakura trees, torii and an overpass | |
 | ![sakura](docs/sakura.png) | |
 
 Pick a circuit on the title screen, or link straight to one:
