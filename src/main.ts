@@ -948,7 +948,17 @@ async function boot() {
     const trackDist = Math.hypot(car.x - np.x, car.z - np.z);
     car.onKerb = car.onRoad && trackDist > world.roadHalf - 1.0;
     const u = ((idx - startIdx + track.length) % track.length) / track.length;
-    const crossed = started && prevU > 0.8 && u < 0.2;
+    // signed forward travel along the circuit: a legit lap accrues ~1.0 by
+    // the time it crosses the line; a WORMHOLE aimed backwards past the line
+    // takes out what it wants to hand back, and the 0.85 below refuses it
+    let dIdx = idx - nearest;
+    if (dIdx > track.length / 2) dIdx -= track.length;
+    if (dIdx < -(track.length / 2)) dIdx += track.length;
+    progress += dIdx / track.length;
+    // a lap is one full forward circuit: the server always rejected a
+    // backwards-placement "lap", and now the client does not hand it a PB,
+    // the lap bar or the lifetime stats either
+    const crossed = started && prevU > 0.8 && u < 0.2 && progress > 0.85;
     prevU = u;
     nearest = idx;
     car.trackIndex = idx;
