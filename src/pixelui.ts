@@ -52,8 +52,9 @@ export interface UiState {
   powerInfo?: boolean;
   /** the player's own settings modal, from the title's SETTINGS button */
   settings?: boolean;
-  /** one chip row per player-tunable thing, hit id setting-${name} */
-  settingsRows?: { name: string; label: string; on: boolean }[];
+  /** one chip row per player-tunable thing, hit id setting-${name}; a row
+      with `value` is a cycler (chip shows the value, click advances it) */
+  settingsRows?: { name: string; label: string; on: boolean; value?: string }[];
   /** lifetime + personal numbers for the modal's stats block: seconds and ms
       per field, 0 best = none yet */
   stats?: {
@@ -1089,7 +1090,8 @@ export class PixelUI {
     this.buttons.length = 0;
     c.fillStyle = 'rgba(10,12,16,0.62)';
     c.fillRect(0, 0, this.w, this.h);
-    const w = 244, h = 228;
+    const rows = state.settingsRows ?? [];
+    const w = 244, h = 204 + rows.length * 20;
     const x = Math.round((this.w - w) / 2), y = Math.round((this.h - h) / 2);
     pxRect(c, x, y, w, h, SLAB);
     pxRect(c, x, y, w, 14, INK);
@@ -1097,18 +1099,18 @@ export class PixelUI {
     c.fillStyle = ACCENT;
     c.fillRect(x + 5, y + 4, 2, 8);
     this.text('SETTINGS', x + 12, y + 3, { size: 8, weight: 700, color: CREAM, spacing: 2 });
-    const rows = state.settingsRows ?? [];
     for (let i = 0; i < rows.length; i++) {
       const r = rows[i];
       const ry = y + 28 + i * 20;
       this.text(r.label, x + 12, ry, { size: 8, weight: 700, color: CREAM });
-      const label = r.on ? 'ON' : 'OFF';
-      const cw = this.measure(label, 8, 700) + 16;
+      const cycler = r.value !== undefined;      // the chip names the current pick
+      const label = r.value ?? (r.on ? 'ON' : 'OFF');
+      const cw = this.measure(label, 8, 700) + (cycler ? 18 : 16);
       const bx = x + w - cw - 12, by = ry - 3;
-      pxRect(c, bx, by, cw, 14, r.on ? ACCENT : SLAB);
-      pxBorder(c, bx, by, cw, 14, r.on ? CREAM : 'rgba(242,238,225,0.55)');
+      pxRect(c, bx, by, cw, 14, cycler ? SLAB : (r.on ? ACCENT : SLAB));
+      pxBorder(c, bx, by, cw, 14, cycler ? CREAM : (r.on ? CREAM : 'rgba(242,238,225,0.55)'));
       this.text(label, bx + cw / 2, by + 3, {
-        size: 8, weight: 700, color: r.on ? CREAM : DIM, align: 'center',
+        size: 8, weight: 700, color: cycler ? CREAM : (r.on ? CREAM : DIM), align: 'center',
       });
       this.buttons.push({ id: `setting-${r.name}`, x: bx, y: by, w: cw, h: 14, label });
     }

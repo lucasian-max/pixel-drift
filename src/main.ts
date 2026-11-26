@@ -174,10 +174,16 @@ async function boot() {
   };
   setGantryBanner(false);
   const car = await new Car().init(world);
-  // PEARL GT is always the car you start on; ?car=N is for previews and probes.
-  // (The last car you cycled to is deliberately not restored across reloads.)
+  // ?car=N stays for previews and probes; otherwise the player's DEFAULT CAR
+  // from SETTINGS is what they start on (PEARL GT until they pick one).
+  let defaultCar = 0;
+  try {
+    const savedCar = Number(localStorage.getItem('pixel-drift:car'));
+    if (Number.isInteger(savedCar) && savedCar >= 0 && savedCar < CAR_NAMES.length) defaultCar = savedCar;
+  } catch { /* private mode */ }
   const entryCar = Number(params.get('car') ?? 0);
   car.setVariant(Number.isFinite(entryCar) ? entryCar : 0);
+  if (!params.has('car')) car.setVariant(defaultCar);
   scene.add(car.group);
   const aimUI = createWormAimRing(CAR_POWERS.find((p) => p.blink)?.blink ?? 22);
   scene.add(aimUI.group);
@@ -487,6 +493,12 @@ async function boot() {
     else if (a === 'setting-board') {
       boardOn = !boardOn;
       try { localStorage.setItem(BOARD_KEY, boardOn ? '1' : '0'); } catch { /* private mode */ }
+    }
+    else if (a === 'setting-car') {
+      // point at the next real car and take it out for a spin on the spot
+      defaultCar = (defaultCar + 1) % CAR_NAMES.length;
+      car.setVariant(defaultCar);
+      try { localStorage.setItem('pixel-drift:car', String(defaultCar)); } catch { /* private mode */ }
     }
     else if (a === 'setting-reset') {
       // wipes every map's local best, the current one included
@@ -1126,6 +1138,7 @@ async function boot() {
         { name: 'sound', label: 'SOUND', on: !sound.muted },
         { name: 'ghost', label: 'GHOST CAR', on: ghostAllowed() },
         { name: 'board', label: 'LEADERBOARD', on: boardOn },
+        { name: 'car', label: 'DEFAULT CAR', on: true, value: CAR_NAMES[defaultCar] ?? 'PEARL GT' },
       ],
       stats: (() => {
         const maps = MAPS.map((m) => ({
