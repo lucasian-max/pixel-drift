@@ -26,7 +26,7 @@ cool idea that I wanted to pursue.
 
 ## Future Features
 
-- More cars — maybe like the Tesla Roadster
+- More cars like the Tesla Roadster
 - More maps
 - Multiplayer shouldn't be too far of a stretch, since accounts already exist
 - A progression system where you unlock cars and maps based on achievements
@@ -50,7 +50,7 @@ cool idea that I wanted to pursue.
 
 | | |
 | --- | --- |
-| **Saltmarsh Coast** — a technical circuit with a lake, pines and palms | **Frostbite Pass** — a big snow circuit with blue kerbs, snow pines, a frozen lake and falling snow |
+| **Saltmarsh Coast** — a technical circuit with a lake, pines and palms | **Frostbite Pass** — a big snow circuit with snow pines, a frozen lake and falling snow |
 | ![coast](docs/coast.png) | ![ice](docs/alpine.png) |
 | **Sakura Circuit** — a Japanese-themed figure-eight with sakura trees, torii and an overpass | |
 | ![sakura](docs/sakura.png) | |
@@ -61,13 +61,10 @@ Pick a circuit on the title screen, or link straight to one:
 ## PROBLEMS I HAD TO FIX
 
 - **Cheating.** Players could cut the circuit where it folds back on itself
-  and post times their car could never reach. The lap now has to come near
-  every stretch of the circuit — not just pass through its bounding box —
-  and tyre walls have been placed across the crossings the bounding box
-  missed.
-- **Lost laps.** A lap posted on a flaky connection just vanished — no time on
-  the board, no record anywhere. The game now keeps any unsent lap in the
-  browser and re-sends it after the next save.
+  and post times their car could never reach. To solve this a successful lap now has to come near
+  every stretch of the circuit, however this can cause problems with Dune Runner's ability tunnel and future teleporting powers.
+- **Lost laps.** A lap might not send due to connection issues which the game solves by unsent laps kept in the
+  browser and re-send it after the next save.
 
 ## RUN IT
 
@@ -91,7 +88,7 @@ npm run build
 npm test
 ```
 
-The game runs without the API — you just can't save lap times.
+The game runs without the API however you just can't save lap times.
 
 ### Controls
 
@@ -112,7 +109,5 @@ The game runs without the API — you just can't save lap times.
 
 ## AI DISCLOSURE
 
-AI was used heavily: most of the code — the game, the server, the accounts and
-leaderboard, the anti-cheat — was written with AI coding agents, and the
-screenshot gallery was captured headlessly by one. The design of the game was
-entirely mine.
+AI was used to help implement the server, the accounts and
+leaderboard. The design of the game was entirely mine.
