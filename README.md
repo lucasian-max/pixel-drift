@@ -1,19 +1,7 @@
 # Pixel Drift
 
-A pixel-art racer built on **sprite stacking**: every car and prop is a stack of
-flat pixel slices drawn one pixel apart, so a 2D sprite turns like a 3D model.
-
+A 2D pixel sprite art racer with powers.
 ![Pixel Drift](docs/title.png)
-
-As it plays — Pearl Drift holding a Sakura slide, Thunderclap lit up on
-Saltmarsh, the TUNNEL aim ring, and the tyre walls that now close Frostbite
-Pass's switchbacks:
-
-| | |
-| --- | --- |
-| ![pearl drift](shots/readme/03-drift.png) | ![thunderclap](shots/readme/04-thunder.png) |
-| ![tunnel aim](shots/readme/05-tunnel.png) | ![tyre wall](shots/readme/06-tyrewall.png) |
-
 
 ## Play
 
@@ -42,47 +30,6 @@ npm run dev      # http://127.0.0.1:5180
 The race camera sits behind the car and follows it around corners. Q/E,
 dragging or the wheel make it manual; T re-locks the chase.
 
-## Record runs for an AI model
-
-Every timed lap is recorded at 60 Hz (state + the exact controls), plus the
-launch from the grid, impact/power/reset events, player, input device and
-off-track time. Nothing about it is shown in the HUD. Developer keys: `V`
-toggles recording, `X` downloads all stored laps as JSONL; both only log to the
-console. Add `?rec=120` for 120 Hz samples.
-
-Every saved episode from signed-in players — complete or partial — uploads
-automatically to the game server, labelled with `complete`, `partial`,
-`launch`, stats and events. Guests stay local. The server only stages raw files
-until the **private Hugging Face dataset** sync runs every minute, then deletes
-the local copy. The browser also drops its copy after the server accepts it, so
-recordings don't pile up on either side.
-`tools/dataset/convert_runs.py` turns that into Parquet + NPZ with
-track-relative observations, episode metadata, normalisation stats and a
-train/val split; `tools/dataset/train_bc.py` is a ridge and MLP behaviour-
-cloning baseline. The admin panel can also **UPLOAD RUNS** manually; merge
-uploads with `tools/dataset/merge_runs.py` before converting. See
-[`tools/dataset/README.md`](tools/dataset/README.md) for the schema, storage,
-why Parquet (LeRobot-style), and training notes.
-
-Private Hugging Face sync:
-
-```bash
-echo 'hf_...' > server/data/hf-token && chmod 600 server/data/hf-token
-server/.venv/bin/python tools/hf_sync.py      # creates <you>/pixel-drift-runs privately
-ln -sf "$PWD/deploy/pixel-drift-hf-sync.service" ~/.config/systemd/user/
-ln -sf "$PWD/deploy/pixel-drift-hf-sync.timer" ~/.config/systemd/user/
-systemctl --user daemon-reload
-systemctl --user enable --now pixel-drift-hf-sync.timer
-```
-
-Runs land under `raw/<player>/` in the private dataset. Override the repo with
-`HF_DATASET=you/other-name` or `server/data/hf-dataset`.
-
-## Online rooms — archived
-
-Multiplayer is mothballed for this release. The complete implementation is on
-the `multiplayer` branch and `multiplayer-archive` tag (see
-[`docs/multiplayer.md`](docs/multiplayer.md)); the shipped build is solo only.
 
 ## Accounts and leaderboard
 
