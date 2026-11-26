@@ -220,7 +220,8 @@ export class Store {
   }
 
   /** The ghost car: the rank-1 line for one map, or null without a trace to
-   *  replay. Shape matches the stored trace (compact [x, z, t] triples). */
+   *  replay. Shape matches the stored trace: compact [x, z, t, heading, event?]
+   *  points (heading may be null on older lines). */
   ghostFor(map = DEFAULT_MAP) {
     const best = this.db.times
       .filter((t) => t.map === map)
@@ -355,14 +356,23 @@ export class Store {
     if (!Array.isArray(trace) || trace.length === 0) return null;
     const step = Math.max(1, Math.ceil(trace.length / 240));
     const out = [];
-    for (let i = 0; i < trace.length; i += step) {
-      const p = trace[i];
-      out.push([Math.round(p.x * 100) / 100, Math.round(p.z * 100) / 100, Math.round(p.t)]);
+    // [x, z, t, heading|null, event?] — heading feeds the ghost car's nose,
+    // event marks ('blink'/'power') every power it used. [3] stays aligned
+    // even when a point has no heading, so [4] keeps its meaning.
+    const push = (p) => {
+      const a = [Math.round(p.x * 100) / 100, Math.round(p.z * 100) / 100, Math.round(p.t)];
+      a.push(Number.isFinite(p.h) ? Math.round(p.h * 100) / 100 : null);
+      if (p.e) a.push(p.e);
+      out.push(a);
+    };
+    // event points ride along even when the step skips them; kept in t order
+    for (let i = 0; i < trace.length; i++) {
+      if (i % step === 0 || trace[i].e) push(trace[i]);
     }
     const last = trace[trace.length - 1];
     const prev = out[out.length - 1];
     if (!prev || prev[0] !== Math.round(last.x * 100) / 100 || prev[1] !== Math.round(last.z * 100) / 100) {
-      out.push([Math.round(last.x * 100) / 100, Math.round(last.z * 100) / 100, Math.round(last.t)]);
+      push(last);
     }
     return out;
   }

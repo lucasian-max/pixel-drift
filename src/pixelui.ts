@@ -67,6 +67,8 @@ export interface UiState {
   /** the lap just completed, in a small bar at the bottom: ms is the lap
       time, pb a new personal best, delta the gap to the old best */
   lapBar?: { ms: number; pb: boolean; delta: number | null; a: number };
+  /** the ghost line this race is chasing: n = how many powers that lap used */
+  ghost?: { on: boolean; n: number };
   offTrack?: boolean;
   bestFlash?: boolean;
   account?: AccountView;
@@ -369,6 +371,16 @@ export class PixelUI {
     }
 
     this.drawMuteChip(state, 66, 'left');
+
+    /* the record's power bill: nothing when the ghost is a clean line */
+    if (state.ghost?.on) {
+      const powered = state.ghost.n > 0;
+      const label = powered ? `GHOST · POWER ×${state.ghost.n}` : 'GHOST · NO POWER';
+      const gw = this.measure(label, 8, powered ? 700 : 400) + 12;
+      pxRect(c, 8, 103, gw, 14, powered ? 'rgba(224,81,63,0.16)' : SLAB);
+      pxBorder(c, 8, 103, gw, 14, powered ? 'rgba(224,81,63,0.75)' : LINE);
+      this.text(label, 14, 106, { size: 8, weight: powered ? 700 : 400, color: powered ? CREAM : DIM });
+    }
 
     if (state.warning) this.drawToast(state.warning, 78);
     else if (state.offTrack) {

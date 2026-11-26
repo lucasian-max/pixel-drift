@@ -9,8 +9,11 @@ export interface LapTracePoint {
   x: number;
   z: number;
   t: number;
-  /** power event mark; 'blink' is a WORMHOLE placement frame */
-  e?: 'blink';
+  /** nose heading at the sample, so the ghost doesn't drift to face chords */
+  h?: number;
+  /** power event mark: 'blink' is a WORMHOLE placement frame, 'power' any
+      other power firing */
+  e?: 'blink' | 'power';
 }
 
 export interface AccountResult { ok: boolean; error?: string }

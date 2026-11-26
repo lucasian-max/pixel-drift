@@ -11,7 +11,7 @@ import { loadSheet, shadowPatch } from './stack';
 import { Sound } from './sound';
 import { account } from './account';
 import type { LapTracePoint } from './account';
-import { buildGhostModel, sampleGhost } from './ghost';
+import { buildGhostModel, sampleGhost, ghostPowerTimes } from './ghost';
 import { Recorder } from './recorder';
 
 const gameCanvas = document.getElementById('game') as HTMLCanvasElement;
@@ -239,6 +239,7 @@ async function boot() {
   const ghostParam = params.get('ghost');
   const ghostAllowed = () => ghostParam !== '0' && (ghostParam === '1' || devOn('ghost'));
   let ghostModel: THREE.Group | null = null;
+  let ghostEventsSeen = 0;   // power marks the ghost clock has passed this lap
   const shadowDummy = new THREE.Object3D();
   const camera = new THREE.OrthographicCamera(-1, 1, 1, -1, 0.1, 600);
   const PITCH = THREE.MathUtils.degToRad(50);
@@ -577,7 +578,7 @@ async function boot() {
       recorder.markPower();
       recorder.noteEvent('power');
       lapTrace.push({
-        x: +car.x.toFixed(2), z: +car.z.toFixed(2),
+        x: +car.x.toFixed(2), z: +car.z.toFixed(2), h: +car.heading.toFixed(2),
         t: Math.round(lapTime * 1000), e: 'blink',
       });
     }
@@ -860,10 +861,11 @@ async function boot() {
           if (fired && !car.power.aim) {
             recorder.markPower();
             recorder.noteEvent('power');
-            // WORMHOLE lands the car instantly: mark the placement frame so
-            // the server can tell an aimed placement from a forged teleport
-            if (started && car.power.blink) {
-              lapTrace.push({ x: +car.x.toFixed(2), z: +car.z.toFixed(2), t: Math.round(lapTime * 1000), e: 'blink' });
+            if (started) {
+              // WORMHOLE lands the car instantly: mark the placement frame so
+              // the server can tell an aimed placement from a forged teleport
+              const mark = car.power.blink ? 'blink' : 'power';
+              lapTrace.push({ x: +car.x.toFixed(2), z: +car.z.toFixed(2), h: +car.heading.toFixed(2), t: Math.round(lapTime * 1000), e: mark });
               if (lapTrace.length > 600) lapTrace.splice(1, 1);
             }
           }
@@ -899,7 +901,7 @@ async function boot() {
     if (!started && Math.hypot(car.x - world.start.x, car.z - world.start.z) > 5) {
       started = true;
       resetTrace();
-      lapTrace.push({ x: car.x, z: car.z, t: 0 });
+      lapTrace.push({ x: car.x, z: car.z, t: 0, h: car.heading });
     }
     if (started && !car.aiming && !input.paused) {
       lapTime += dt;
@@ -911,14 +913,14 @@ async function boot() {
       traceIn -= dt;
       if (traceIn <= 0) {
         traceIn = 0.2;
-        lapTrace.push({ x: +car.x.toFixed(2), z: +car.z.toFixed(2), t: Math.round(lapTime * 1000) });
+        lapTrace.push({ x: +car.x.toFixed(2), z: +car.z.toFixed(2), h: +car.heading.toFixed(2), t: Math.round(lapTime * 1000) });
         if (lapTrace.length > 600) lapTrace.splice(1, 1);
       }
     }
 
     if (crossed) {
       const ms = Math.round(lapTime * 1000);
-      lapTrace.push({ x: car.x, z: car.z, t: ms });
+      lapTrace.push({ x: car.x, z: car.z, t: ms, h: car.heading });
       lastTrace = lapTrace.slice();
       const prevBest = bestTime;
       lapBar = {
@@ -998,18 +1000,31 @@ async function boot() {
     const ghostLap = account.map === mapId ? account.ghost : null;
     const ghostShown = !!ghostLap && ghostAllowed()
       && running && started && !input.paused && !garage && !car.aiming;
+    /* lines recorded before traces carried headings still need a true nose:
+       the circuit's tangent where the ghost sits, never a hairpin chord */
+    const ghostTangent = (x: number, z: number): number | null => {
+      const i = nearestIndexNear(x, z, nearest);
+      const a = track[i], b = track[(i + 1) % track.length];
+      if (!a || !b) return null;
+      return Math.atan2(-(b.x - a.x), -(b.z - a.z));
+    };
+    const ghostPowers = ghostShown ? ghostPowerTimes(ghostLap!.trace) : [];
     if (ghostShown) {
       const g = ghostLap!;
       if (!ghostModel) {
         ghostModel = buildGhostModel(typeof g.variant === 'number' ? g.variant : 0);
         scene.add(ghostModel);
       }
-      const s = sampleGhost(g.trace, lapTime * 1000);
+      const s = sampleGhost(g.trace, lapTime * 1000, ghostTangent);
       ghostModel.visible = s !== null;
       if (s) {
         ghostModel.position.set(s.x, 0, s.z);
         ghostModel.rotation.y = s.heading;
       }
+      // a power mark the ghost's clock just crossed: say it once
+      const passed = ghostPowers.filter((t) => t <= lapTime * 1000).length;
+      if (passed > ghostEventsSeen) note('GHOST USED POWER');
+      ghostEventsSeen = passed;
     } else if (ghostModel) {
       ghostModel.visible = false;
     }
@@ -1020,6 +1035,7 @@ async function boot() {
       paused: input.paused, laps,
       atLine: running && !started,
       camLocked: chase,
+      ghost: ghostShown ? { on: true, n: ghostPowers.length } : undefined,
       muted: sound.muted,
       aiming: car.aiming,
       maps: MAPS.map((m) => ({ id: m.id, name: m.name })),

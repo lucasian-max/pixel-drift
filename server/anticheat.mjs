@@ -168,9 +168,12 @@ export function validateLap(mapId, ms, trace) {
       return fail('malformed lap trace');
     }
     if (p.e !== undefined) {
-      if (p.e !== 'blink') return fail('unknown trace event');
-      marks++;
+      // 'blink' is a WORMHOLE placement with its own geometry rules; 'power'
+      // only says a power fired here and never loosens any check
+      if (p.e !== 'blink' && p.e !== 'power') return fail('unknown trace event');
+      if (p.e === 'blink') marks++;
     }
+    if (p.h !== undefined && !Number.isFinite(p.h)) return fail('malformed lap trace');
     if (p.t < 0 || p.t > ms + 5000) return fail('malformed lap trace');
     if (prev && p.t < prev.t - 1) return fail('lap trace timestamps jump');
     prev = p;
