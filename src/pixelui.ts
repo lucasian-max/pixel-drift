@@ -67,8 +67,6 @@ export interface UiState {
   /** the lap just completed, in a small bar at the bottom: ms is the lap
       time, pb a new personal best, delta the gap to the old best */
   lapBar?: { ms: number; pb: boolean; delta: number | null; a: number };
-  /** the ghost line this race is chasing: n = how many powers that lap used */
-  ghost?: { on: boolean; n: number };
   offTrack?: boolean;
   bestFlash?: boolean;
   account?: AccountView;
@@ -371,16 +369,6 @@ export class PixelUI {
     }
 
     this.drawMuteChip(state, 66, 'left');
-
-    /* the record's power bill: nothing when the ghost is a clean line */
-    if (state.ghost?.on) {
-      const powered = state.ghost.n > 0;
-      const label = powered ? `GHOST · POWER ×${state.ghost.n}` : 'GHOST · NO POWER';
-      const gw = this.measure(label, 8, powered ? 700 : 400) + 12;
-      pxRect(c, 8, 103, gw, 14, powered ? 'rgba(224,81,63,0.16)' : SLAB);
-      pxBorder(c, 8, 103, gw, 14, powered ? 'rgba(224,81,63,0.75)' : LINE);
-      this.text(label, 14, 106, { size: 8, weight: powered ? 700 : 400, color: powered ? CREAM : DIM });
-    }
 
     if (state.warning) this.drawToast(state.warning, 78);
     else if (state.offTrack) {
@@ -998,40 +986,70 @@ export class PixelUI {
     }
 
     if (acct && w >= 560) {
+      /* the board hangs off the top-right corner: an ink header with the panel's
+         name stacked over the track it belongs to, then one row per time. Ranks
+         sit in a fixed gutter and the time column is measured before the name is
+         cut, so a 14-character name truncates instead of running into it. The
+         leader gets a red plaque, your own row a cream tick: both read at a glance. */
       const lx = w - 188, pw = 180, py = 34;
-      const right = lx + pw - 10;
+      const pad = 9;
+      const right = lx + pw - pad;
+      const hh = 27;                          // ink header: panel name over track
+      const rh = 14;                          // row height
       const n = acct.offline ? 0 : Math.min(10, acct.times.length);
-      const rows = acct.offline || n === 0 ? 1 : n;
-      const rh = 13;                          // row height
-      const bh = 18 + rows * rh + 5;          // header + rows + bottom pad
+      const bh = n === 0 ? hh + 31 : hh + 3 + n * rh + 4;
       pxRect(c, lx, py, pw, bh, SLAB);
-      // title strip: the panel's address, map beside it
-      pxRect(c, lx, py, pw, 14, INK);
+      pxRect(c, lx, py, pw, hh, INK);
       pxBorder(c, lx, py, pw, bh, 'rgba(242,238,225,0.45)');
+      c.fillStyle = ACCENT;
+      c.fillRect(lx + 5, py + 5, 2, 9);
       let track = (state.mapName ?? '').toUpperCase();
       this.font(8, 700);
-      while (track.length > 1 && c.measureText(track).width > pw - 96) track = track.slice(0, -1);
-      this.text('LEADERBOARD', lx + 10, py + 3, { size: 8, weight: 700, color: CREAM, spacing: 2 });
-      this.text(track, right, py + 3, { size: 8, weight: 700, color: ACCENT, align: 'right', spacing: 1 });
-      c.fillStyle = LINE;
-      c.fillRect(lx, py + 14, pw, 1);
-      const rowY = (i: number) => py + 18 + i * rh;
-      if (acct.offline || n === 0) {
-        this.font(8);
-        this.text(acct.offline ? 'OFFLINE' : 'NO TIMES YET', right, rowY(0) + 7, { size: 8, color: DIM, align: 'right', spacing: 1 });
+      while (track.length > 1 && c.measureText(track).width > right - lx - 11) track = track.slice(0, -1);
+      this.text('LEADERBOARD', lx + 11, py + 4, { size: 8, weight: 700, color: CREAM, spacing: 2 });
+      this.text(track, lx + 11, py + 15, { size: 8, weight: 700, color: ACCENT });
+      if (n === 0) {
+        // nothing to rank: one line for the state, one for what to do about it
+        this.text(acct.offline ? 'OFFLINE' : 'NO TIMES YET', lx + pw / 2, py + hh + 10, {
+          size: 8, weight: acct.offline ? 700 : 400, color: HINT,
+          align: 'center', spacing: acct.offline ? 2 : 1,
+        });
+        this.text(acct.offline ? 'BOARD UNREACHABLE' : 'BE THE FIRST', lx + pw / 2, py + hh + 21,
+          { size: 8, color: DIM, align: 'center' });
       } else {
+        const nameX = lx + 24;
+        this.font(8, 700);
         const timeW = Math.ceil(c.measureText('00:00.00').width);
-        const nameMax = pw - 40 - timeW;
+        const nameMax = right - timeW - 6 - nameX;
+        const me = (acct.user?.username ?? '').toUpperCase();
         for (let i = 0; i < n; i++) {
           const t = acct.times[i];
-          if (i % 2 === 1) pxRect(c, lx + 1, rowY(i), pw - 2, rh, 'rgba(242,238,225,0.05)');
-          const y = rowY(i) + 7;
-          this.text(String(t.rank).padStart(2, '0'), lx + 10, y, { size: 8, color: t.rank === 1 ? ACCENT : DIM });
+          const ry = py + hh + 3 + i * rh;
+          const lead = t.rank === 1;
+          const mine = !lead && me !== '' && t.username.toUpperCase() === me;
+          if (lead) {
+            c.fillStyle = SEG_RED_OFF;
+            c.fillRect(lx + 3, ry, pw - 6, rh);
+            c.fillStyle = ACCENT;
+            c.fillRect(lx + 3, ry + 2, 2, rh - 4);
+          } else if (i % 2 === 1) {
+            c.fillStyle = 'rgba(242,238,225,0.05)';
+            c.fillRect(lx + 3, ry, pw - 6, rh);
+          }
+          if (mine) {
+            c.fillStyle = 'rgba(242,238,225,0.5)';
+            c.fillRect(lx + 3, ry + 2, 2, rh - 4);
+          }
+          const y = ry + 4;
+          this.text(String(t.rank).padStart(2, '0'), nameX - 4, y, {
+            size: 8, weight: lead ? 700 : 400, color: lead ? CREAM : DIM, align: 'right',
+          });
           let name = t.username.toUpperCase();
-          this.font(8, t.rank === 1 ? 700 : 400);
+          const weight = lead || mine ? 700 : 400;
+          this.font(8, weight);
           while (name.length > 1 && c.measureText(name).width > nameMax) name = name.slice(0, -1);
-          this.text(name, lx + 28, y, { size: 8, weight: t.rank === 1 ? 700 : 400, color: CREAM });
-          this.text(fmtMs(t.ms), right, y, { size: 8, color: CREAM, align: 'right' });
+          this.text(name, nameX, y, { size: 8, weight, color: CREAM });
+          this.text(fmtMs(t.ms), right, y, { size: 8, weight: 700, color: CREAM, align: 'right' });
         }
       }
     }

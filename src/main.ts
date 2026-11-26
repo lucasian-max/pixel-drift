@@ -11,7 +11,8 @@ import { loadSheet, shadowPatch } from './stack';
 import { Sound } from './sound';
 import { account } from './account';
 import type { LapTracePoint } from './account';
-import { buildGhostModel, sampleGhost, ghostPowerTimes } from './ghost';
+import { buildGhostModel, sampleGhost, ghostEvents } from './ghost';
+import { GhostFx } from './ghostFx';
 import { Recorder } from './recorder';
 
 const gameCanvas = document.getElementById('game') as HTMLCanvasElement;
@@ -239,7 +240,9 @@ async function boot() {
   const ghostParam = params.get('ghost');
   const ghostAllowed = () => ghostParam !== '0' && (ghostParam === '1' || devOn('ghost'));
   let ghostModel: THREE.Group | null = null;
-  let ghostEventsSeen = 0;   // power marks the ghost clock has passed this lap
+  let ghostFx: GhostFx | null = null;   // the ghost shows its powers, not a chip
+  let ghostEventsSeen = 0;               // power marks the ghost clock has passed
+  let ghostBurst = 0;                    // seconds of activation flash left
   const shadowDummy = new THREE.Object3D();
   const camera = new THREE.OrthographicCamera(-1, 1, 1, -1, 0.1, 600);
   const PITCH = THREE.MathUtils.degToRad(50);
@@ -1008,11 +1011,13 @@ async function boot() {
       if (!a || !b) return null;
       return Math.atan2(-(b.x - a.x), -(b.z - a.z));
     };
-    const ghostPowers = ghostShown ? ghostPowerTimes(ghostLap!.trace) : [];
+    const ghostPowers = ghostShown ? ghostEvents(ghostLap!.trace) : [];
     if (ghostShown) {
       const g = ghostLap!;
+      const gv = typeof g.variant === 'number' ? g.variant : 0;
       if (!ghostModel) {
-        ghostModel = buildGhostModel(typeof g.variant === 'number' ? g.variant : 0);
+        ghostModel = buildGhostModel(gv);
+        ghostFx = new GhostFx(ghostModel, gv);
         scene.add(ghostModel);
       }
       const s = sampleGhost(g.trace, lapTime * 1000, ghostTangent);
@@ -1021,13 +1026,20 @@ async function boot() {
         ghostModel.position.set(s.x, 0, s.z);
         ghostModel.rotation.y = s.heading;
       }
-      // a power mark the ghost's clock just crossed: say it once
-      const passed = ghostPowers.filter((t) => t <= lapTime * 1000).length;
-      if (passed > ghostEventsSeen) note('GHOST USED POWER');
+      // the record's powers replay on the ghost body itself: the clock inside
+      // a mark's window lights the rig up, a freshly crossed mark flashes it
+      const tMs = lapTime * 1000;
+      const hold = (CAR_POWERS[gv]?.duration ?? 0) * 1000;
+      const on = ghostPowers.some((ev) =>
+        tMs >= ev.t && tMs < ev.t + (ev.e === 'blink' ? 500 : hold));
+      const passed = ghostPowers.filter((ev) => ev.t <= tMs).length;
+      if (passed > ghostEventsSeen) ghostBurst = 0.38;
       ghostEventsSeen = passed;
+      ghostFx?.update(dt, on, ghostBurst);
     } else if (ghostModel) {
       ghostModel.visible = false;
     }
+    ghostBurst = Math.max(0, ghostBurst - dt);
 
     renderer.render(scene, camera);
     ui.draw({
@@ -1035,7 +1047,6 @@ async function boot() {
       paused: input.paused, laps,
       atLine: running && !started,
       camLocked: chase,
-      ghost: ghostShown ? { on: true, n: ghostPowers.length } : undefined,
       muted: sound.muted,
       aiming: car.aiming,
       maps: MAPS.map((m) => ({ id: m.id, name: m.name })),

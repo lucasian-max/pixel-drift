@@ -91,9 +91,10 @@ export function sampleGhost(trace: TraceLike, tMs: number, tangentAt?: TangentAt
   return { x: last.x, z: last.z, heading: headingFor(pts[pts.length - 2], last, 1, last, tangentAt) };
 }
 
-/** When the record fired a power, as lap timestamps. */
-export function ghostPowerTimes(trace: TraceLike): number[] {
-  return readPoints(trace).filter((p) => p.e).map((p) => p.t);
+/** When the record fired a power: 'blink' is a TUNNEL placement, 'power' any
+    other firing. Reads the marks the trace carried from submission. */
+export function ghostEvents(trace: TraceLike): { t: number; e: 'blink' | 'power' }[] {
+  return readPoints(trace).filter((p) => p.e).map((p) => ({ t: p.t, e: p.e! }));
 }
 
 /** A ghost body: the requested car, every material dulled to see-through. */
