@@ -17,6 +17,38 @@ export interface AccountResult { ok: boolean; error?: string }
 export interface SubmitResult { ok: boolean; rank?: number; improved?: boolean; error?: string }
 export interface AdminResult { ok: boolean; removed?: number; error?: string }
 
+/* Laps the server never answered. A dropped connection, a redeploy or a session
+   that expired mid-race used to lose the lap outright — the driver saw a
+   two-second warning and the time was gone. They wait here and go out again on
+   the next login or the next saved lap; a lap the server actually *rejected* is
+   answered business, not retried. */
+interface PendingLap {
+  ms: number;
+  trace: LapTracePoint[];
+  map: string;
+  car?: string;
+  variant?: number;
+}
+
+const PENDING_KEY = 'pixel-drift:pending-laps';
+const PENDING_MAX = 8;   // a session's worth; older laps age out first
+
+function readPending(): PendingLap[] {
+  try {
+    const raw = localStorage.getItem(PENDING_KEY);
+    const list = raw ? (JSON.parse(raw) as unknown) : [];
+    return Array.isArray(list) ? (list as PendingLap[]) : [];
+  } catch {
+    return [];   // unreadable (private mode, hand-edited): start clean
+  }
+}
+
+function writePending(list: PendingLap[]): void {
+  try {
+    localStorage.setItem(PENDING_KEY, JSON.stringify(list.slice(-PENDING_MAX)));
+  } catch { /* private mode: the lap is lost, same as before */ }
+}
+
 /* server rules (server/store.mjs) */
 const USERNAME_RE = /^[a-z0-9_]{3,16}$/;
 const PASSWORD_MIN = 8;
@@ -152,6 +184,12 @@ export const account = {
     );
     if (!r.ok) {
       if (r.status === 401) this.user = null;   // session expired mid-race
+      // no answer at all (offline, redeploy) or signed out mid-lap: the lap is
+      // still a lap, so keep it and send it again rather than dropping it
+      if (r.status === 0 || r.status === 401 || r.status >= 500) {
+        writePending([...readPending(), { ms, trace, map: lapMap, car: meta?.car, variant: meta?.variant }]);
+        return { ok: false, error: 'LAP NOT SAVED · WILL RETRY' };
+      }
       const reason = typeof r.body?.reason === 'string' ? r.body.reason : 'lap not saved';
       return { ok: false, error: `LAP NOT SAVED · ${reason.toUpperCase()}` };
     }
@@ -160,6 +198,29 @@ export const account = {
     this.times = times;
     const mine = times.find((t) => t.username === name && t.ms === ms);
     return { ok: true, rank: mine?.rank, improved: previousBest === undefined || ms < previousBest };
+  },
+
+  /** Send the laps that never got an answer. Returns how many landed. */
+  async flushPending(): Promise<number> {
+    if (!this.user) return 0;      // they wait for a session that can carry them
+    const list = readPending();
+    if (!list.length) return 0;
+    const left: PendingLap[] = [];
+    let landed = 0;
+    for (const lap of list) {
+      const r = await request<{ times?: TimeEntry[] }>('/api/times', 'POST', lap);
+      if (r.ok) {
+        landed++;
+        // the response carries the board for the lap's own map: only take it
+        // when that is the board on screen
+        if (lap.map === this.map) this.times = r.body?.times ?? this.times;
+        continue;
+      }
+      // still no answer: keep it. An answered rejection is a finished lap.
+      if (r.status === 0 || r.status === 401 || r.status >= 500) left.push(lap);
+    }
+    writePending(left);
+    return landed;
   },
 };
 

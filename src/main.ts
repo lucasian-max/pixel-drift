@@ -649,6 +649,13 @@ async function boot() {
     notice = text;
     noticeUntil = performance.now() / 1000 + sec;
   };
+  // laps that never reached the board (offline, redeploy, expired session)
+  // are kept client-side and sent again here
+  const flushLaps = () => {
+    void account.flushPending().then((late) => {
+      if (late > 0) note(`${late} LAP${late === 1 ? '' : 'S'} SAVED LATE`);
+    });
+  };
   const resetTrace = () => {
     lapTrace = [];
     traceIn = 0;
@@ -905,6 +912,7 @@ async function boot() {
         else if (r.rank) note(`LAP SAVED · RANK ${r.rank}`);
         else if (r.improved) note('LAP SAVED');
         else note('LAP SAVED · BEST KEPT');
+        if (r.ok) flushLaps();   // an older lap may still be waiting
       });
       laps++;
       console.log(`lap ${laps} ${(ms / 1000).toFixed(2)}s`);
@@ -1004,6 +1012,7 @@ async function boot() {
     sound.update(car, controls.throttle, input.paused);
   };
   frame();
+  void sessionReady.then(() => { if (account.user) flushLaps(); });
 
   (window as unknown as { game: unknown }).game = {
     car, world, camera, renderer, scene, account, recorder, ui,
