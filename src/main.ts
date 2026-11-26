@@ -358,7 +358,7 @@ async function boot() {
      top speed of 72 u/s, minus the same 0.85 mercy as the circuit gate. Any
      stored best below them predates the gate and came from the
      backwards-WORMHOLE trick — it is dropped, for every player, on load */
-  const LAP_FLOOR: Record<string, number> = { coast: 4230, alpine: 4960, sakura: 4840 };
+  const LAP_FLOOR: Record<string, number> = { coast: 4230, alpine: 4960, sakura: 4840, mesa: 8420 };
   for (const m of MAPS) {
     const floor = LAP_FLOOR[m.id];
     if (!floor) continue;
