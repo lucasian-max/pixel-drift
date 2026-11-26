@@ -61,9 +61,6 @@ export interface UiState {
   adminPanel?: boolean;
   adminConfirm?: boolean;
   adminUpload?: string;
-  /** gated features with their PUBLIC state: one row per feature in the
-      admin panel, clickable to flip it for everyone */
-  features?: { name: string; on: boolean }[];
   warning?: string;
   notice?: string;
   /** the lap just completed, in a small bar at the bottom: ms is the lap
@@ -106,7 +103,7 @@ function pxBorder(c: CanvasRenderingContext2D, x: number, y: number, w: number, 
 export type HitId = 'prev-map' | 'next-map' | 'prev-car' | 'next-car' | 'solo' | 'login' | 'logout'
   | 'power-info' | 'garage' | 'garage-back' | 'menu'
   | 'admin' | 'admin-close' | 'admin-clear' | 'admin-dashboard' | 'admin-upload' | `admin-del-${number}`
-  | 'settings' | `setting-${string}` | `admin-feature-${string}`;
+  | 'settings' | `setting-${string}`;
 
 interface Button { id: HitId; x: number; y: number; w: number; h: number; label: string }
 
@@ -535,24 +532,6 @@ export class PixelUI {
       this.text('NO TIMES ON THIS BOARD', x + w / 2, y + 80, {
         size: 8, color: DIM, align: 'center', spacing: 1,
       });
-    }
-
-    /* gated features: one row each, the public state on the right in a chip
-       that flips it — same slab as every other control in the panel */
-    const feats = state.features ?? [];
-    for (let i = 0; i < feats.length; i++) {
-      const f = feats[i];
-      const fy = y + h - 84 + i * 16;
-      this.text(`FEATURE · ${f.name.toUpperCase()}`, x + 14, fy + 4, { size: 8, color: DIM });
-      const label = f.on ? 'PUBLIC ON' : 'PUBLIC OFF';
-      const cw = this.measure(label, 8, 700) + 14;
-      const bx = x + w - cw - 12, by = fy;
-      pxRect(c, bx, by, cw, 14, f.on ? ACCENT : SLAB);
-      pxBorder(c, bx, by, cw, 14, f.on ? CREAM : 'rgba(242,238,225,0.55)');
-      this.text(label, bx + cw / 2, by + 3, {
-        size: 8, weight: 700, color: f.on ? CREAM : DIM, align: 'center',
-      });
-      this.buttons.push({ id: `admin-feature-${f.name}`, x: bx, y: by, w: cw, h: 14, label });
     }
 
     this.bAdminClear.label = state.adminConfirm ? 'SURE? CLEAR' : 'CLEAR BOARD';

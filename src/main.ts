@@ -482,14 +482,6 @@ async function boot() {
     else if (a === 'admin-dashboard') {
       window.open('/dashboard.html', '_blank', 'noopener');
     }
-    else if (a.startsWith('admin-feature-')) {
-      const name = a.slice('admin-feature-'.length);
-      const enabled = account.features?.[name] !== true;
-      void account.adminSetFeature(name, enabled).then((r) => {
-        if (!r.ok) warn(r.error ?? 'FEATURE FAILED');
-        else note(`${name.toUpperCase()} ${enabled ? 'PUBLIC' : 'HIDDEN'}`);
-      });
-    }
     else if (a === 'admin-upload') {
       const started = performance.now() / 1000;
       adminUploadMsg = 'UPLOADING…';
@@ -1087,7 +1079,6 @@ async function boot() {
       mapName: MAPS[mapIndex]?.name,
       account,
       adminPanel: adminPanel && account.user?.role === 'admin',
-      features: ['ghost', 'lapbar'].map((name) => ({ name, on: account.features?.[name] === true })),
       adminConfirm: now / 1000 < adminConfirmUntil,
       adminUpload: now / 1000 < adminUploadUntil ? adminUploadMsg : undefined,
       garage,

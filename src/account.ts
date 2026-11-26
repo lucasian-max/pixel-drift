@@ -179,18 +179,6 @@ export const account = {
     return this.adminPost('/api/admin/clear-map', { map });
   },
 
-  /** Admin only: flip one gated feature's public availability. */
-  async adminSetFeature(feature: string, enabled: boolean): Promise<AdminResult> {
-    const r = await request<{ features?: Features }>('/api/admin/feature', 'POST', { feature, enabled });
-    if (r.status === 401) this.user = null;
-    if (!r.ok) {
-      const error = r.status === 403 ? 'admin only' : 'request failed';
-      return { ok: false, error };
-    }
-    this.features = r.body?.features ?? this.features;
-    return { ok: true };
-  },
-
   async adminPost(path: string, body: Record<string, string>): Promise<AdminResult> {
     const r = await request<{ times?: TimeEntry[]; removed?: number }>(path, 'POST', body);
     if (r.status === 401) this.user = null;
