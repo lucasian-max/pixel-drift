@@ -200,7 +200,6 @@ export class Recorder {
   private savedTracks = new Set<string>();
   private sessionLaps = 0;
   private sessionSamples = 0;
-  private lastLapMs: number | null = null;
 
   constructor(map: RunMap, opts: { fps?: number } = {}) {
     this.map = map;
@@ -251,12 +250,6 @@ export class Recorder {
       start: this.map.start,
       points: this.map.track.map((p) => [q2(p.x), q2(p.z)]),
     });
-  }
-
-  /** call when the map changes (currently that reloads the page, so only once) */
-  setMap(map: RunMap) {
-    this.map = map;
-    void this.saveTrack();
   }
 
   /** A press of the power key that actually activated a power. */
@@ -320,7 +313,7 @@ export class Recorder {
     this.completed.push(ep);
     this.sessionSamples += samples;
     if (complete) this.sessionLaps++;
-    if (complete && lapMs) this.lastLapMs = lapMs;
+
     void put(this.db, STORE_RUNS, ep).then(() => this.onEpisode?.(ep));
   }
 
@@ -357,19 +350,6 @@ export class Recorder {
   setEnabled(on: boolean) {
     this.on = on;
     if (!on) this.endLap(this.current?.lapMs ?? null, false);
-  }
-
-  stats() {
-    const live = this.current ? this.current.obs.length / OBS_FIELDS.length : 0;
-    const samples = this.sessionSamples + live;
-    return {
-      on: this.on,
-      laps: this.sessionLaps,
-      samples,
-      seconds: samples / this.fps,
-      lapsStored: this.completed.length,
-      lastLapMs: this.lastLapMs,
-    };
   }
 
   /** Everything recorded on this device, as one JSONL string. */
@@ -549,6 +529,6 @@ export class Recorder {
     this.completed = [];
     this.sessionLaps = 0;
     this.sessionSamples = 0;
-    this.lastLapMs = null;
+
   }
 }

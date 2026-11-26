@@ -91,7 +91,6 @@ export function createWormAimRing(radius = 22): WormAimRing {
     blending: THREE.AdditiveBlending, toneMapped: false,
   });
   for (let i = 0; i < 4; i++) {
-    const span = 0.34;                                   // radians of arc per chevron
     const arc = new THREE.ShapeGeometry(new THREE.Shape([
       new THREE.Vector2(radius * 0.52, 0),              // tip: points at the rim's forward sector
       new THREE.Vector2(radius * 0.88, 0.30),

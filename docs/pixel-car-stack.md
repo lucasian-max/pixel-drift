@@ -5,13 +5,13 @@ description: Add a playable pixel-art car to Pixel Drift from a four-view sheet,
 
 # Pixel-car stack / new car
 
-Pixel Drift has three car paths. Pick deliberately:
+Pixel Drift has two car paths. Pick deliberately:
 
 1. **3D player car** — what actually ships. `src/carModel.ts::buildCarModel(variant)` returns the low-poly car; the rally car lives in `src/rallyCar.ts`. A new playable car normally means a new `buildXCar()` module plus a variant slot.
-2. **Sprite-stack atlas** — the game's namesake, used for props and (historically) the first hero car. A four-view sheet is carved into slices for `src/stack.ts::SpriteStack`. Good for static cars, billboards and experiments; bad for the live player car because the sheet's wheels cannot steer or spin.
-3. **Procedural sheet library** — `scripts/gen-assets.mjs` emits clean four-view cars at `48 × 76 × 28` for previews and static props.
+2. **Sprite-stack atlas** — the game's namesake, used for props (trees, rocks, lamps, buildings). A four-view sheet is carved into slices for `src/stack.ts::instancedStack`. Good for static props and experiments; bad for the live player car because the sheet's wheels cannot steer or spin.
+   (The retired `SpriteStack`/`DirectionalCar` classes and the procedural car-sheet generator were removed; `git log` keeps them if an experiment ever needs them back.)
 
-The original hero went atlas → directional billboard → 3D. The 3D model is the one that stayed. A new playable car should therefore be authored as a 3D model first; make an atlas only if the request is about the stack itself.
+The original hero went atlas → directional billboard → 3D. The 3D model is the one that stayed. A new playable car should therefore be authored as a 3D model first.
 
 ## A. Four-view sheet → 3D player car (the shipping path)
 
@@ -98,17 +98,16 @@ mkdir -p art/build
 - `--side-nose left` if the side view faces left; otherwise the car is mirrored.
 - `--flat` flattens side livery; it also destroys multi-colour side art, so inspect the result.
 - The converter removes near-white (`>250` RGB), not all off-whites. If `find_views` says `found 1 drawings`, lower to 248/245 or clean manually.
-- Row preview is ground-first; `SpriteStack` wants the vertical atlas, top-first. `four_view_car.py` writes both.
+- Row preview is ground-first; the vertical atlas is top-first. `four_view_car.py` writes both.
 - **Reality check:** a 2000 px AI sheet downsampled to 36 px turns livery into noise and repeats side art down every slice. The rally sheet at 36 px was not usable. Prefer the 3D path for a playable car; use 48+ px and manual cleanup for a static stack. The rally car ships as `src/rallyCar.ts` and a `Rally` variant in `src/carModel.ts`.
 
 ## D. Procedural sheet library
 
-`scripts/gen-assets.mjs`:
-
-1. Add a `CAR_SPECS` entry: `shape`, `livery`, `extra`, `paint`.
-2. Implement the livery in `carAtlas`'s top/side passes.
-3. Add the roof extra in `EXTRA` and `extraColor`.
-4. `npm run assets`; inspect `preview/car-<name>-stack.png`.
+`scripts/gen-assets.mjs` generates the prop sheets (pine, sakura, palm, rock,
+buildings, lamp, tyres, shadow); `npm run assets` regenerates them and writes
+flattened previews to `preview/`. The car-sheet half of the library was
+retired with the atlas path: playable cars are 3D models, so there are no
+`CAR_SPECS`/`carAtlas` entry points anymore.
 
 ## E. Superpowers
 
@@ -187,7 +186,7 @@ xvfb-run -a -s "-screen 0 1280x720x24" chromium \
 13. **Variants**: use `CAR_VARIANTS`, never a hardcoded modulo.
 14. **Outlines on thin parts**: the bbox scale of a thin beam can produce a thick black ghost. Outline the body, cabin, wing and flares; leave beams alone.
 15. **Too much detail at low resolution**: at 360 lines, bold colour blocks and chunky lamps read; hairlines, thin grilles and subtle bevels turn to noise.
-16. **Atlas order**: `preview_stack.py` expects a row (ground first); `SpriteStack` expects a vertical atlas (top first).
+16. **Atlas order**: `preview_stack.py` expects a row (ground first); a vertical atlas is top-first.
 17. **Power state belongs to the car, not the model**: reset `powerTime`, `powerCd`, ghost and glow when the variant changes or the race resets, or the old FX carries over.
 18. **Lightning inside the body is invisible**: keep bolt radii outside the ~2.0 m body and thicken each segment to ~0.14 m at the game's 360-line scale.
 19. **F must only fire while running**: consume the key but gate `activatePower()` on `running`, or the title car starts a cooldown behind the overlay.

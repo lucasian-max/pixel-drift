@@ -1,7 +1,6 @@
 import * as THREE from 'three';
 
 export interface StackDef {
-  url?: string;
   layers: number;
   sheetW: number;
   sheetH: number;
@@ -59,24 +58,6 @@ function sliceMaterial(sheet: THREE.Texture, layers: number, i: number, tint?: T
 
 export const SLICE_GEO = new THREE.PlaneGeometry(1, 1);
 SLICE_GEO.rotateX(-Math.PI / 2);
-
-/** A stack that can be rotated and moved every frame (the player car). */
-export class SpriteStack extends THREE.Group {
-  private parts: THREE.Mesh[] = [];
-  constructor(sheet: THREE.Texture, def: StackDef) {
-    super();
-    const w = def.worldW;
-    const d = (def.worldW * def.sheetH) / def.sheetW;
-    for (let i = 0; i < def.layers; i++) {
-      const m = new THREE.Mesh(SLICE_GEO, sliceMaterial(sheet, def.layers, i));
-      m.scale.set(w, 1, d);
-      m.position.y = i * def.lift;
-      m.frustumCulled = false;
-      this.add(m);
-      this.parts.push(m);
-    }
-  }
-}
 
 export interface Placement {
   x: number;
@@ -144,57 +125,4 @@ export function shadowPatch(sheet: THREE.Texture, placements: Placement[], size 
   });
   mesh.instanceMatrix.needsUpdate = true;
   return mesh;
-}
-
-/**
- * A stack baked into N pre-rendered directions. The sheet is split into one
- * texture per direction at load, so the mesh swaps maps instead of doing atlas
- * UV math — no filtering bleed, no repeat/offset bugs.
- */
-export class DirectionalCar extends THREE.Mesh {
-  readonly dirs: number;
-  private frames: THREE.Texture[] = [];
-  private idx = -1;
-
-  constructor(sheet: THREE.Texture, dirs: number, worldWidth: number, frameW: number, frameH: number) {
-    const img = sheet.image as CanvasImageSource & { width: number; height: number };
-    const canvas = document.createElement('canvas');
-    canvas.width = frameW;
-    canvas.height = frameH;
-    const ctx = canvas.getContext('2d')!;
-    const frames: THREE.Texture[] = [];
-    for (let i = 0; i < dirs; i++) {
-      ctx.clearRect(0, 0, frameW, frameH);
-      ctx.drawImage(img, i * frameW, 0, frameW, frameH, 0, 0, frameW, frameH);
-      const t = new THREE.CanvasTexture(canvas.width ? canvas : canvas);
-      const c2 = document.createElement('canvas');
-      c2.width = frameW; c2.height = frameH;
-      c2.getContext('2d')!.drawImage(canvas, 0, 0);
-      const tex = new THREE.CanvasTexture(c2);
-      tex.magFilter = THREE.NearestFilter;
-      tex.minFilter = THREE.NearestFilter;
-      tex.generateMipmaps = false;
-      tex.colorSpace = THREE.SRGBColorSpace;
-      frames.push(tex);
-      t.dispose();
-    }
-
-    const geo = new THREE.PlaneGeometry(1, 1);
-    geo.translate(0, 0.5, 0);          // pivot at the wheels
-    super(geo, new THREE.MeshBasicMaterial({
-      map: frames[0], alphaTest: 0.5, side: THREE.DoubleSide, toneMapped: false,
-    }));
-    this.dirs = dirs;
-    this.frames = frames;
-    this.idx = 0;
-    this.scale.set(worldWidth, (worldWidth * frameH) / frameW, 1);
-    this.frustumCulled = false;
-  }
-
-  setFrame(i: number) {
-    const n = ((i % this.dirs) + this.dirs) % this.dirs;
-    if (n === this.idx) return;
-    this.idx = n;
-    (this.material as THREE.MeshBasicMaterial).map = this.frames[n];
-  }
 }

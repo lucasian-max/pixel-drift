@@ -16,15 +16,12 @@ export interface Collider { x: number; z: number; r: number }
 
 export interface World {
   group: THREE.Group;
-  name: string;
-  mapId: string;
   sky: string;
   roadHalf: number;
   update(): void;
   colliders: Collider[];
   roadAt(x: number, z: number): boolean;
   kerbAt(x: number, z: number): boolean;
-  nearbyRoad(x: number, z: number, dist: number): boolean;
   start: { x: number; z: number; heading: number };
   addSkid(x: number, z: number, angle: number, strength: number): void;
   clearSkid(): void;
@@ -684,30 +681,25 @@ export async function buildWorld(scene: THREE.Scene, mapId?: string): Promise<Wo
     skidDirty = true;
   };
 
-  const [pineTex, sakuraTex, snowTex, palmTex, rockTex, lampTex, tyreTex, bldA, bldB, bldC, shadowTex,
-    cactusTex, mesaTex, pylonTex] = await Promise.all([
+  const [pineTex, sakuraTex, snowTex, palmTex, rockTex, lampTex, tyreTex, bldA, bldB, bldC, shadowTex] = await Promise.all([
     loadSheet('/sprites/pine.png'), loadSheet('/sprites/sakura.png'),
     loadSheet('/sprites/pine-snow.png'), loadSheet('/sprites/palm.png'),
     loadSheet('/sprites/rock.png'), loadSheet('/sprites/lamp.png'), loadSheet('/sprites/tyres.png'),
     loadSheet('/sprites/building-a.png'), loadSheet('/sprites/building-b.png'),
     loadSheet('/sprites/building-c.png'), loadSheet('/sprites/shadow.png'),
-    loadSheet('/sprites/cactus.png'), loadSheet('/sprites/mesa.png'), loadSheet('/sprites/pylon.png'),
   ]);
 
   const defs: Record<string, StackDef> = {
-    pine: { url: '', layers: 18, sheetW: 40, sheetH: 40, worldW: 3.1, lift: 0.125 },
-    sakura: { url: '', layers: 18, sheetW: 40, sheetH: 40, worldW: 3.1, lift: 0.125 },
-    palm: { url: '', layers: 18, sheetW: 40, sheetH: 40, worldW: 3.4, lift: 0.135 },
-    rock: { url: '', layers: 10, sheetW: 28, sheetH: 28, worldW: 1.9, lift: 0.09 },
-    lamp: { url: '', layers: 26, sheetW: 16, sheetH: 16, worldW: 1.0, lift: 0.075 },
-    tyres: { url: '', layers: 12, sheetW: 24, sheetH: 24, worldW: 1.5, lift: 0.072 },
-    cactus: { url: '', layers: 12, sheetW: 24, sheetH: 24, worldW: 1.7, lift: 0.062 },
-    mesa: { url: '', layers: 10, sheetW: 40, sheetH: 40, worldW: 6.0, lift: 0.17 },
-    pylon: { url: '', layers: 24, sheetW: 16, sheetH: 16, worldW: 1.2, lift: 0.058 },
-    snowpine: { url: '', layers: 18, sheetW: 40, sheetH: 40, worldW: 3.1, lift: 0.125 },
-    bldA: { url: '', layers: 14, sheetW: 64, sheetH: 64, worldW: 7.0, lift: 0.30 },
-    bldB: { url: '', layers: 14, sheetW: 64, sheetH: 64, worldW: 7.0, lift: 0.30 },
-    bldC: { url: '', layers: 14, sheetW: 64, sheetH: 64, worldW: 7.0, lift: 0.30 },
+    pine: { layers: 18, sheetW: 40, sheetH: 40, worldW: 3.1, lift: 0.125 },
+    sakura: { layers: 18, sheetW: 40, sheetH: 40, worldW: 3.1, lift: 0.125 },
+    palm: { layers: 18, sheetW: 40, sheetH: 40, worldW: 3.4, lift: 0.135 },
+    rock: { layers: 10, sheetW: 28, sheetH: 28, worldW: 1.9, lift: 0.09 },
+    lamp: { layers: 26, sheetW: 16, sheetH: 16, worldW: 1.0, lift: 0.075 },
+    tyres: { layers: 12, sheetW: 24, sheetH: 24, worldW: 1.5, lift: 0.072 },
+    snowpine: { layers: 18, sheetW: 40, sheetH: 40, worldW: 3.1, lift: 0.125 },
+    bldA: { layers: 14, sheetW: 64, sheetH: 64, worldW: 7.0, lift: 0.30 },
+    bldB: { layers: 14, sheetW: 64, sheetH: 64, worldW: 7.0, lift: 0.30 },
+    bldC: { layers: 14, sheetW: 64, sheetH: 64, worldW: 7.0, lift: 0.30 },
   };
 
   const colliders: Collider[] = [];
@@ -1166,10 +1158,8 @@ export async function buildWorld(scene: THREE.Scene, mapId?: string): Promise<Wo
       addBox(lift, 0.32, 0.34, 0.32, red, 64.4, 8.0, z);
       addBox(lift, 0.32, 0.34, 0.32, red, 67.6, 8.0, z);
     }
-    for (const z of [-11, 11]) {
-      addBox(lift, 0.12, 0.12, 44, ink, 64.5, 8.1, 0);
-      addBox(lift, 0.12, 0.12, 44, ink, 67.5, 8.1, 0);
-    }
+    addBox(lift, 0.12, 0.12, 44, ink, 64.5, 8.1, 0);
+    addBox(lift, 0.12, 0.12, 44, ink, 67.5, 8.1, 0);
     for (const z of [-16, -5, 6, 17]) {
       addBox(lift, 0.08, 1.0, 0.08, ink, 66, 7.5, z);
       addBox(lift, 1.0, 1.15, 1.15, red, 66, 6.7, z);
@@ -1443,10 +1433,8 @@ export async function buildWorld(scene: THREE.Scene, mapId?: string): Promise<Wo
   }
 
   return {
-    group, colliders, roadAt, kerbAt, nearbyRoad, start, addSkid, clearSkid,
+    group, colliders, roadAt, kerbAt, start, addSkid, clearSkid,
     roadHalf: ROAD_HALF,
-    name: map.name,
-    mapId: map.id,
     sky: map.sky ?? '#4e7a45',
     minimapPath: track.filter((_, i) => i % 2 === 0),
     track,

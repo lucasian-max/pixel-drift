@@ -8,7 +8,6 @@ import { CAR_POWERS, powerColour } from './powers';
 import { Input } from './input';
 import { PixelUI } from './pixelui';
 import { loadSheet, shadowPatch } from './stack';
-import type { StackDef } from './stack';
 import { Sound } from './sound';
 import { account } from './account';
 import type { LapTracePoint } from './account';
@@ -19,7 +18,6 @@ const uiCanvas = document.getElementById('ui') as HTMLCanvasElement;
 const bootError = document.getElementById('boot-error') as HTMLDivElement;
 
 const BASE_HEIGHT = 360;
-const CAR_DEF: StackDef = { layers: 17, sheetW: 28, sheetH: 53, worldW: 2.0, lift: 0.072 };
 
 /* ---- login / signup overlay (DOM; pixel-styled, CSS injected from TS) -----
    Flat dark panel, cream Silkscreen text. While hidden it is display:none,
@@ -624,7 +622,6 @@ async function boot() {
   const track = world.track;
   let nearest = 0, progress = 0, lapTime = 0, started = false;
   let prevU = 0;
-  const lapHistory: number[] = [];
   const bestKey = `pixel-drift:best:${mapId}`;
   let bestTime = Number(
     localStorage.getItem(bestKey) ?? localStorage.getItem(`sprite-drift:best:${mapId}`) ?? 0,
@@ -898,8 +895,6 @@ async function boot() {
       const ms = Math.round(lapTime * 1000);
       lapTrace.push({ x: car.x, z: car.z, t: ms });
       lastTrace = lapTrace.slice();
-      lapHistory.unshift(lapTime);
-      if (lapHistory.length > 5) lapHistory.length = 5;
       if (bestTime === 0 || lapTime < bestTime) {
         bestTime = lapTime;
         try { localStorage.setItem(bestKey, String(bestTime)); } catch { /* private mode */ }
@@ -970,7 +965,7 @@ async function boot() {
     renderer.render(scene, camera);
     ui.draw({
       car, lapTime: started ? lapTime : 0, bestTime, started: running,
-      paused: input.paused, throttle: controls.throttle, laps,
+      paused: input.paused, laps,
       atLine: running && !started,
       camLocked: chase,
       muted: sound.muted,
@@ -979,7 +974,6 @@ async function boot() {
       carNames: CAR_NAMES,
       carStatRows: carStatRows(car.variant),
       carClass: CAR_CLASS[car.variant] ?? '',
-      carPowers: CAR_POWERS.map((p) => p.name),
       power: {
         name: car.power.name,
         active: car.powerActive,
@@ -991,14 +985,12 @@ async function boot() {
         color: powerColour(car.variant),
         charge: car.power.exitBoost ? Math.min(1, car.powerCharge / 40) : undefined,
       },
-      lapHistory: [...lapHistory],
       warning: warning && now < warningUntil ? warning : undefined,
       notice: notice && now < noticeUntil ? notice : undefined,
       offTrack: started && trackDist > world.roadHalf + 1.2,
       mapIndex,
       mapName: MAPS[mapIndex]?.name,
       account,
-      admin: account.user?.role === 'admin',
       adminPanel: adminPanel && account.user?.role === 'admin',
       adminConfirm: now / 1000 < adminConfirmUntil,
       adminUpload: now / 1000 < adminUploadUntil ? adminUploadMsg : undefined,

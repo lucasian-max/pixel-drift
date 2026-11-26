@@ -5,7 +5,7 @@
 
 Writes:
   <out>-row.png     horizontal slice strip, ground slice first
-  <out>-atlas.png   vertical atlas for src/stack.ts SpriteStack (top slice first)
+  <out>-atlas.png   vertical atlas for src/stack.ts slice stacks (top slice first)
 
 The sheet can have a white or transparent background. Views are expected as
 top / side / front / back; side facing left or right (see --side-nose).

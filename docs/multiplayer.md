@@ -12,8 +12,8 @@
 > ```
 >
 > Re-enabling means restoring the client entry point, room UI, WebSocket
-> transport in the API, and the `ws` dependency. The server-side track checks
-> and the solo leaderboard checks share `server/track.mjs`.
+> transport in the API, and the `ws` dependency. The solo leaderboard's lap
+> checks live in `server/anticheat.mjs` against `server/track-data.json`.
 
 Casual same-circuit racing. A room is a four-character code in the URL
 (`?room=FNXZ`); the title screen showed it so the link could be shared.

@@ -11,10 +11,9 @@ export class Input {
   paused = false;
   device: 'keyboard' | 'gamepad' | 'mixed' = 'keyboard';
 
-  constructor(private onAnyKey?: () => void) {
+  constructor() {
     addEventListener('keydown', (e) => {
       if (['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'Space'].includes(e.code)) e.preventDefault();
-      if (!this.keys.has(e.code)) this.onAnyKey?.();
       this.keys.add(e.code);
       if (e.code === 'KeyR') this.resetPressed = true;
     });

@@ -233,18 +233,6 @@ export function buildCarModel(variant = 0): THREE.Group {
   const teal: V2[] = [[0.4, 0.34], [-0.45, 0.34], [-0.85, 0.62], [-0.67, 0.62], [-0.36, 0.42], [0.4, 0.42]];
   const mag: V2[] = [[0.4, 0.26], [-0.55, 0.26], [-1.02, 0.62], [-0.85, 0.62], [-0.45, 0.34], [0.4, 0.34]];
 
-  const archPts = (zc: number): V2[] => {
-    const r = WHEEL_R + 0.05;
-    const cap = bodyAt(zc).ys - 0.03;
-    const pts: V2[] = [];
-    for (let i = 0; i <= 12; i++) {
-      const a = (i / 12) * Math.PI;
-      pts.push([zc + r * Math.cos(a), Math.min(WHEEL_R + r * Math.sin(a), cap)]);
-    }
-    pts.push([zc - r, WHEEL_R - 0.05], [zc + r, WHEEL_R - 0.05]);
-    return pts;
-  };
-
   for (const s of [1, -1] as const) {
     sidePanel(teal, s, 0.98 + 0.006, M.teal);
     sidePanel(mag, s, 0.98 + 0.006, M.magenta);

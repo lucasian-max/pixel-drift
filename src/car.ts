@@ -75,7 +75,7 @@ export class Car {
 
   async init(world: World) {
     this.group.add(this.tilt);
-    await this.setSkin('car-dirs');
+    await this.setSkin();
     this.initFx();
     this.x = world.start.x;
     this.z = world.start.z;
@@ -83,7 +83,7 @@ export class Car {
     return this;
   }
 
-  async setSkin(_file: string) {
+  async setSkin() {
     if (this.model) this.tilt.remove(this.model);
     this.model = buildCarModel(this.variant);
     this.model.rotation.y = Math.PI;   // the model is built nose toward +Z
@@ -99,7 +99,7 @@ export class Car {
     this.powerCharge = 0;
     this.aiming = false;
     this.clearWormFx();
-    void this.setSkin('car');
+    void this.setSkin();
   }
 
   activatePower(world?: World): boolean {

@@ -29,7 +29,6 @@ export interface UiState {
   bestTime: number;
   started: boolean;
   paused: boolean;
-  throttle: number;
   laps: number;
   /** parked on the line before the lap timer starts: C may swap cars */
   atLine?: boolean;
@@ -47,7 +46,6 @@ export interface UiState {
   carStatRows?: { label: string; rating: number; best: boolean }[];
   /** one-word identity shown beside the power name in the garage */
   carClass?: string;
-  carPowers?: string[];
   power?: {
     name: string; active: boolean; ready: boolean;
     cd: number; time: number; duration: number; cooldown: number; color: string; charge?: number;
@@ -58,8 +56,6 @@ export interface UiState {
   powerEffect?: string;
   powerDuration?: number;
   powerCooldown?: number;
-  lapHistory?: number[];
-  admin?: boolean;
   adminPanel?: boolean;
   adminConfirm?: boolean;
   adminUpload?: string;
@@ -223,12 +219,12 @@ export class PixelUI {
     c.imageSmoothingEnabled = false;
 
     if (state.adminPanel) {
-      this.drawAdminPanel(time, state);
+      this.drawAdminPanel(state);
       return;
     }
 
     if (!state.started) {
-      if (state.garage) this.drawGarage(time, state);
+      if (state.garage) this.drawGarage(state);
       else this.drawTitle(time, state);
       return;
     }
@@ -465,7 +461,7 @@ export class PixelUI {
     }
   }
 
-  private drawAdminPanel(time: number, state: UiState) {
+  private drawAdminPanel(state: UiState) {
     const c = this.ctx;
     this.buttons.length = 0;
     c.fillStyle = 'rgba(10,12,16,0.72)';
@@ -605,7 +601,7 @@ export class PixelUI {
     this.buttons.push(this.bInfo);
   }
 
-  private drawGarage(time: number, state: UiState) {
+  private drawGarage(state: UiState) {
     const c = this.ctx;
     this.buttons.length = 0;
     const w = this.w;
