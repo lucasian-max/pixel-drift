@@ -1,4 +1,10 @@
 import * as THREE from 'three';
+// https-only: a clean single-scheme site is what web filters and review
+// processes expect; the plain-http copy serves nothing they can use
+if (location.protocol === 'http:' && location.hostname !== 'localhost' && location.hostname !== '127.0.0.1') {
+  location.replace(`https://${location.host}${location.pathname}${location.search}${location.hash}`);
+}
+
 import { buildWorld, MAPS } from './world';
 import { createWormAimRing } from './wormFx';
 import { Car } from './car';
