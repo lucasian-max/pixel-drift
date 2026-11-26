@@ -99,8 +99,13 @@ export function ghostPowerTimes(trace: TraceLike): number[] {
 /** A ghost body: the requested car, every material dulled to see-through. */
 export function buildGhostModel(variant = 0): THREE.Group {
   const v = Number.isInteger(variant) && variant >= 0 && variant < CAR_VARIANTS ? variant : 0;
-  const ghost = buildCarModel(v);
+  // buildCarModel() builds nose toward +Z; Car flips it π inside its group
+  // (src/car.ts). The ghost needs the same flip or it drives in reverse.
+  const car = buildCarModel(v);
+  car.rotation.y = Math.PI;
+  const ghost = new THREE.Group();
   ghost.name = 'ghost';
+  ghost.add(car);
   const materials = new Set<THREE.Material>();
   ghost.traverse((o) => {
     const mesh = o as THREE.Mesh;

@@ -998,34 +998,39 @@ export class PixelUI {
     }
 
     if (acct && w >= 560) {
-      const lx = w - 188, pw = 180, py = 46;
-      const right = lx + pw - 8;
+      const lx = w - 188, pw = 180, py = 34;
+      const right = lx + pw - 10;
       const n = acct.offline ? 0 : Math.min(10, acct.times.length);
       const rows = acct.offline || n === 0 ? 1 : n;
-      const bh = 46 + rows * 12;
+      const rh = 13;                          // row height
+      const bh = 18 + rows * rh + 5;          // header + rows + bottom pad
       pxRect(c, lx, py, pw, bh, SLAB);
+      // title strip: the panel's address, map beside it
+      pxRect(c, lx, py, pw, 14, INK);
       pxBorder(c, lx, py, pw, bh, 'rgba(242,238,225,0.45)');
-      this.text('LEADERBOARD', right, py + 10, { size: 8, weight: 700, color: CREAM, align: 'right', spacing: 2 });
       let track = (state.mapName ?? '').toUpperCase();
       this.font(8, 700);
-      while (track.length > 1 && c.measureText(track).width > pw - 16) track = track.slice(0, -1);
-      this.text(track, right, py + 22, { size: 8, weight: 700, color: ACCENT, align: 'right', spacing: 1 });
+      while (track.length > 1 && c.measureText(track).width > pw - 96) track = track.slice(0, -1);
+      this.text('LEADERBOARD', lx + 10, py + 3, { size: 8, weight: 700, color: CREAM, spacing: 2 });
+      this.text(track, right, py + 3, { size: 8, weight: 700, color: ACCENT, align: 'right', spacing: 1 });
       c.fillStyle = LINE;
-      c.fillRect(lx + 8, py + 30, pw - 16, 1);
-      this.font(8);
+      c.fillRect(lx, py + 14, pw, 1);
+      const rowY = (i: number) => py + 18 + i * rh;
       if (acct.offline || n === 0) {
-        this.text(acct.offline ? 'OFFLINE' : 'NO TIMES YET', right, py + 44, { size: 8, color: DIM, align: 'right', spacing: 1 });
-      } else {
         this.font(8);
+        this.text(acct.offline ? 'OFFLINE' : 'NO TIMES YET', right, rowY(0) + 7, { size: 8, color: DIM, align: 'right', spacing: 1 });
+      } else {
         const timeW = Math.ceil(c.measureText('00:00.00').width);
-        const nameMax = pw - 42 - timeW;
+        const nameMax = pw - 40 - timeW;
         for (let i = 0; i < n; i++) {
           const t = acct.times[i];
-          const y = py + 44 + i * 12;
-          this.text(String(t.rank).padStart(2, '0'), lx + 8, y, { size: 8, color: DIM });
+          if (i % 2 === 1) pxRect(c, lx + 1, rowY(i), pw - 2, rh, 'rgba(242,238,225,0.05)');
+          const y = rowY(i) + 7;
+          this.text(String(t.rank).padStart(2, '0'), lx + 10, y, { size: 8, color: t.rank === 1 ? ACCENT : DIM });
           let name = t.username.toUpperCase();
+          this.font(8, t.rank === 1 ? 700 : 400);
           while (name.length > 1 && c.measureText(name).width > nameMax) name = name.slice(0, -1);
-          this.text(name, lx + 26, y, { size: 8, color: CREAM });
+          this.text(name, lx + 28, y, { size: 8, weight: t.rank === 1 ? 700 : 400, color: CREAM });
           this.text(fmtMs(t.ms), right, y, { size: 8, color: CREAM, align: 'right' });
         }
       }

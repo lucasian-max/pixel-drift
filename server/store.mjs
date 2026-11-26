@@ -65,11 +65,13 @@ export function verifyPassword(password, saltHex, hashHex) {
   return expected.length === actual.length && crypto.timingSafeEqual(expected, actual);
 }
 
-/** Every gated feature, all-false by default: a db written before the gate
- *  existed simply has no features map, and the missing ones stay off. */
+/** Every feature name the game knows. Features are PUBLIC by default (the
+ *  owner ships straight to players); the map only exists to turn one OFF,
+ *  so a value of false (or a db from before this map) still hides it only
+ *  when explicitly demanded. */
 function readFeatures(raw) {
   const out = {};
-  for (const name of FEATURES) out[name] = !!raw && typeof raw === 'object' && raw[name] === true;
+  for (const name of FEATURES) out[name] = !(raw && typeof raw === 'object' && raw[name] === false);
   return out;
 }
 
