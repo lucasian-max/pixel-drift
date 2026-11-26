@@ -985,63 +985,84 @@ export class PixelUI {
       }
     }
 
-    if (acct && w >= 560) {
-      /* the board hangs off the top-right corner: an ink header with the panel's
-         name stacked over the track it belongs to, then one row per time. Ranks
-         sit in a fixed gutter and the time column is measured before the name is
-         cut, so a 14-character name truncates instead of running into it. The
-         leader gets a red plaque, your own row a cream tick: both read at a glance. */
-      const lx = w - 188, pw = 180, py = 34;
+    /* the board hugs the corner but never over the track selector: its right
+       arrow reaches as deep as the longest map name is wide, so the panel's
+       left edge starts past it (and the board hides if there is no room) */
+    const trackArrowRight = Math.round(w / 2 + nameW / 2 + 10) + 24;
+    const boardLx = Math.max(w - 188, trackArrowRight + 6);
+    if (acct && w >= 560 && w - 8 - boardLx >= 116) {
+      /* the board hangs off the top-right corner: an ink header naming the panel
+         over the track it belongs to, then a real little table — rank gutter,
+         player, time — under dim column labels and a hairline. The winner is
+         painted in accent so the top of the board reads before the numbers do;
+         your own row gets a cream tick and a lifted fill. Ranks sit in a fixed
+         gutter and the time column is measured before the name is cut, so a
+         14-character name truncates instead of running into it. */
+      const lx = boardLx, pw = w - 8 - boardLx, py = 34;
       const pad = 9;
       const right = lx + pw - pad;
-      const hh = 27;                          // ink header: panel name over track
+      const hh = 26;                          // ink header: panel name over track
       const rh = 14;                          // row height
       const n = acct.offline ? 0 : Math.min(10, acct.times.length);
-      const bh = n === 0 ? hh + 31 : hh + 3 + n * rh + 4;
+      const labelH = n === 0 ? 0 : 13;        // column labels only label rows
+      const bh = n === 0 ? hh + 32 : hh + labelH + n * rh + 5;
       pxRect(c, lx, py, pw, bh, SLAB);
       pxRect(c, lx, py, pw, hh, INK);
       pxBorder(c, lx, py, pw, bh, 'rgba(242,238,225,0.45)');
       c.fillStyle = ACCENT;
-      c.fillRect(lx + 5, py + 5, 2, 9);
+      c.fillRect(lx + 5, py + 4, 2, 15);
       let track = (state.mapName ?? '').toUpperCase();
       this.font(8, 700);
-      while (track.length > 1 && c.measureText(track).width > right - lx - 11) track = track.slice(0, -1);
-      this.text('LEADERBOARD', lx + 11, py + 4, { size: 8, weight: 700, color: CREAM, spacing: 2 });
-      this.text(track, lx + 11, py + 15, { size: 8, weight: 700, color: ACCENT });
+      while (track.length > 1 && c.measureText(track).width > right - lx - 14) track = track.slice(0, -1);
+      this.text('LEADERBOARD', lx + 12, py + 4, { size: 8, weight: 700, color: CREAM, spacing: 2 });
+      this.text(track, lx + 12, py + 14, { size: 8, weight: 700, color: ACCENT, spacing: 1 });
+
+      const nameX = lx + 30;
+      const rankX = nameX - 8;
+      this.font(8, 700);
+      const timeW = Math.ceil(c.measureText('00:00.00').width);
+      const nameMax = right - timeW - 8 - nameX;
+
       if (n === 0) {
-        // nothing to rank: one line for the state, one for what to do about it
-        this.text(acct.offline ? 'OFFLINE' : 'NO TIMES YET', lx + pw / 2, py + hh + 10, {
-          size: 8, weight: acct.offline ? 700 : 400, color: HINT,
-          align: 'center', spacing: acct.offline ? 2 : 1,
+        // nothing ranked: the state at full weight, then what it means for you
+        this.text(acct.offline ? 'OFFLINE' : 'NO TIMES YET', lx + pw / 2, py + hh + 11, {
+          size: 8, weight: 700, color: acct.offline ? ACCENT : CREAM,
+          align: 'center', spacing: 2,
         });
-        this.text(acct.offline ? 'BOARD UNREACHABLE' : 'BE THE FIRST', lx + pw / 2, py + hh + 21,
+        this.text(acct.offline ? 'BOARD UNREACHABLE' : 'BE THE FIRST', lx + pw / 2, py + hh + 22,
           { size: 8, color: DIM, align: 'center' });
       } else {
-        const nameX = lx + 24;
-        this.font(8, 700);
-        const timeW = Math.ceil(c.measureText('00:00.00').width);
-        const nameMax = right - timeW - 6 - nameX;
+        /* without the labels the rank gutter and the time column read as loose
+           numbers; one dim line and a hairline turn them into a table */
+        this.text('RK', rankX, py + hh + 2, { size: 8, color: DIM, align: 'right' });
+        this.text('PLAYER', nameX, py + hh + 2, { size: 8, color: DIM });
+        this.text('TIME', right, py + hh + 2, { size: 8, color: DIM, align: 'right' });
+        c.fillStyle = LINE;
+        c.fillRect(lx + 6, py + hh + 11, pw - 12, 1);
+
         const me = (acct.user?.username ?? '').toUpperCase();
         for (let i = 0; i < n; i++) {
           const t = acct.times[i];
-          const ry = py + hh + 3 + i * rh;
+          const ry = py + hh + labelH + i * rh;
           const lead = t.rank === 1;
-          const mine = !lead && me !== '' && t.username.toUpperCase() === me;
+          const mine = me !== '' && t.username.toUpperCase() === me;
           if (lead) {
-            c.fillStyle = SEG_RED_OFF;
+            // the leader is painted, not tinted: the board's answer at a glance
+            pxRect(c, lx + 3, ry, pw - 6, rh, ACCENT);
+          } else if (mine) {
+            c.fillStyle = 'rgba(242,238,225,0.1)';
             c.fillRect(lx + 3, ry, pw - 6, rh);
-            c.fillStyle = ACCENT;
-            c.fillRect(lx + 3, ry + 2, 2, rh - 4);
           } else if (i % 2 === 1) {
-            c.fillStyle = 'rgba(242,238,225,0.05)';
+            c.fillStyle = 'rgba(242,238,225,0.045)';
             c.fillRect(lx + 3, ry, pw - 6, rh);
           }
           if (mine) {
-            c.fillStyle = 'rgba(242,238,225,0.5)';
+            // your line, wherever it sits: tick in the rank gutter
+            c.fillStyle = 'rgba(242,238,225,0.75)';
             c.fillRect(lx + 3, ry + 2, 2, rh - 4);
           }
           const y = ry + 4;
-          this.text(String(t.rank).padStart(2, '0'), nameX - 4, y, {
+          this.text(String(t.rank).padStart(2, '0'), rankX, y, {
             size: 8, weight: lead ? 700 : 400, color: lead ? CREAM : DIM, align: 'right',
           });
           let name = t.username.toUpperCase();
