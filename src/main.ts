@@ -11,6 +11,7 @@ import { loadSheet, shadowPatch } from './stack';
 import { Sound } from './sound';
 import { account } from './account';
 import type { LapTracePoint } from './account';
+import { buildGhostModel, sampleGhost } from './ghost';
 import { Recorder } from './recorder';
 
 const gameCanvas = document.getElementById('game') as HTMLCanvasElement;
@@ -138,6 +139,9 @@ const loginForm = (() => {
 
 async function boot() {
   const params = new URLSearchParams(location.search);
+  /* gated features: public on the server, or always on for an admin session */
+  const devOn = (name: string) =>
+    account.features?.[name] === true || account.user?.role === 'admin';
   // Old multiplayer invites are inert now; drop the dead param from the URL.
   if (params.has('room')) {
     const clean = new URL(location.href);
@@ -226,6 +230,15 @@ async function boot() {
   const carShadow = shadowPatch(shadowTex, [{ x: 0, z: 0, rot: 0, scale: 1 }], 2.7);
   (carShadow.material as THREE.MeshBasicMaterial).opacity = 0.5;
   scene.add(carShadow);
+
+  /* ---- ghost car ----------------------------------------------------------
+     The map's best lap replayed as a see-through body, paced by the running
+     lap clock. Gated: visible while the server makes the feature public or
+     for an admin session. ?ghost=0 is the owner's kill switch, ?ghost=1
+     forces it on for visual probes. Built once, on the first visible frame. */
+  const ghostParam = params.get('ghost');
+  const ghostAllowed = () => ghostParam !== '0' && (ghostParam === '1' || devOn('ghost'));
+  let ghostModel: THREE.Group | null = null;
   const shadowDummy = new THREE.Object3D();
   const camera = new THREE.OrthographicCamera(-1, 1, 1, -1, 0.1, 600);
   const PITCH = THREE.MathUtils.degToRad(50);
@@ -449,6 +462,13 @@ async function boot() {
     }
     else if (a === 'admin-dashboard') {
       window.open('/dashboard.html', '_blank', 'noopener');
+    }
+    else if (a === 'admin-feature-ghost') {
+      const enabled = account.features?.ghost !== true;
+      void account.adminSetFeature('ghost', enabled).then((r) => {
+        if (!r.ok) warn(r.error ?? 'FEATURE FAILED');
+        else note(`GHOST ${enabled ? 'PUBLIC' : 'HIDDEN'}`);
+      });
     }
     else if (a === 'admin-upload') {
       const started = performance.now() / 1000;
@@ -962,6 +982,26 @@ async function boot() {
     carShadow.setMatrixAt(0, shadowDummy.matrix);
     carShadow.instanceMatrix.needsUpdate = true;
 
+    /* the ghost rides the same lap clock: no clock, no ghost */
+    const ghostLap = account.map === mapId ? account.ghost : null;
+    const ghostShown = !!ghostLap && ghostAllowed()
+      && running && started && !input.paused && !garage && !car.aiming;
+    if (ghostShown) {
+      const g = ghostLap!;
+      if (!ghostModel) {
+        ghostModel = buildGhostModel(typeof g.variant === 'number' ? g.variant : 0);
+        scene.add(ghostModel);
+      }
+      const s = sampleGhost(g.trace, lapTime * 1000);
+      ghostModel.visible = s !== null;
+      if (s) {
+        ghostModel.position.set(s.x, 0, s.z);
+        ghostModel.rotation.y = s.heading;
+      }
+    } else if (ghostModel) {
+      ghostModel.visible = false;
+    }
+
     renderer.render(scene, camera);
     ui.draw({
       car, lapTime: started ? lapTime : 0, bestTime, started: running,
@@ -992,6 +1032,7 @@ async function boot() {
       mapName: MAPS[mapIndex]?.name,
       account,
       adminPanel: adminPanel && account.user?.role === 'admin',
+      features: [{ name: 'ghost', on: account.features?.ghost === true }],
       adminConfirm: now / 1000 < adminConfirmUntil,
       adminUpload: now / 1000 < adminUploadUntil ? adminUploadMsg : undefined,
       garage,
@@ -1016,6 +1057,8 @@ async function boot() {
     get trace() { return lapTrace; },
     get lastTrace() { return lastTrace; },
     get warning() { return warning; },
+    get ghost() { return ghostModel; },
+    get ghostOn() { return ghostAllowed(); },
   };
 }
 

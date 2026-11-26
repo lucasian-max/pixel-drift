@@ -34,6 +34,7 @@ const KNOWN_PATHS = new Set([
   '/api/times',
   '/api/admin/delete-time',
   '/api/admin/clear-map',
+  '/api/admin/feature',
   '/api/admin/stats',
   '/api/runs',
   '/api/admin/runs',
@@ -164,14 +165,21 @@ async function handle(req, res, pathname) {
   if (pathname === '/api/me') {
     if (req.method !== 'GET') return send(res, 405, { error: 'method_not_allowed' });
     if (!user) return send(res, 401, { error: 'unauthorized' });
-    return send(res, 200, { user });
+    return send(res, 200, { user, features: store.features() });
   }
 
   if (pathname === '/api/times') {
     if (req.method === 'GET') {
       const asked = new URL(req.url, 'http://localhost').searchParams.get('map');
       const map = asked && MAP_RE.test(asked) ? asked : DEFAULT_MAP;
-      return send(res, 200, { map, times: store.topTimes(map) });
+      const board = { map, times: store.topTimes(map), features: store.features() };
+      // the ghost is payload, not just a flag: only a player who may see the
+      // feature receives the line, so a hidden feature leaks nothing
+      if (store.featureVisible('ghost', user)) {
+        const ghost = store.ghostFor(map);
+        if (ghost) board.ghost = ghost;
+      }
+      return send(res, 200, board);
     }
     if (req.method !== 'POST') return send(res, 405, { error: 'method_not_allowed' });
     if (!user) return send(res, 401, { error: 'unauthorized' });
@@ -231,6 +239,9 @@ async function handle(req, res, pathname) {
     const body = await readJsonBody(req);
     if (pathname === '/api/admin/delete-time') {
       return send(res, 200, store.deleteTime(body.map, body.username));
+    }
+    if (pathname === '/api/admin/feature') {
+      return send(res, 200, { features: store.setFeature(body.feature, body.enabled) });
     }
     // /api/admin/clear-map
     return send(res, 200, store.clearTimes(body.map));

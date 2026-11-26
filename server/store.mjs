@@ -16,6 +16,9 @@ export const DEFAULT_MAP = 'coast';
 export const MAP_RE = /^[a-z0-9_-]{1,32}$/;
 export const ROLE_ADMIN = 'admin';
 export const ROLE_PLAYER = 'player';
+/** Gated features: public availability lives in db.features, one flag each.
+ *  Add a name here to gate another one. */
+export const FEATURES = ['ghost'];
 
 /** Admin names come from SPRITE_ADMINS and/or server/data/admins.json,
  *  never from the client. The data folder is gitignored. */
@@ -62,8 +65,16 @@ export function verifyPassword(password, saltHex, hashHex) {
   return expected.length === actual.length && crypto.timingSafeEqual(expected, actual);
 }
 
+/** Every gated feature, all-false by default: a db written before the gate
+ *  existed simply has no features map, and the missing ones stay off. */
+function readFeatures(raw) {
+  const out = {};
+  for (const name of FEATURES) out[name] = !!raw && typeof raw === 'object' && raw[name] === true;
+  return out;
+}
+
 export function emptyDb() {
-  return { users: [], sessions: {}, times: [], laps: [] };
+  return { users: [], sessions: {}, times: [], laps: [], features: readFeatures(null) };
 }
 
 export class Store {
@@ -104,6 +115,7 @@ export class Store {
       sessions: {},
       times: Array.isArray(parsed.times) ? parsed.times : [],
       laps: Array.isArray(parsed.laps) ? parsed.laps : [],
+      features: readFeatures(parsed.features),
     };
     // seed the lap history once from pre-history best times
     if (!Array.isArray(parsed.laps) && this.db.times.length > 0) {
@@ -180,6 +192,47 @@ export class Store {
 
   isAdmin(user) {
     return !!user && this._roleFor(user.username) === ROLE_ADMIN;
+  }
+
+  /** Public availability of every gated feature. Never the admin's own view. */
+  features() {
+    return { ...readFeatures(this.db.features) };
+  }
+
+  /** A player sees a feature when it is public, or always as an admin. */
+  featureVisible(name, user) {
+    return this.features()[name] === true || this.isAdmin(user);
+  }
+
+  /** Admin: flip one feature's public availability. Creates the map on first
+   *  use, so a db from before the gate existed is only written when toggled. */
+  setFeature(name, enabled) {
+    if (!FEATURES.includes(name)) {
+      throw new StoreError(400, 'invalid_feature', `feature must be one of: ${FEATURES.join(', ')}`);
+    }
+    if (typeof enabled !== 'boolean') {
+      throw new StoreError(400, 'invalid_enabled', 'enabled must be true or false');
+    }
+    this.db.features = readFeatures(this.db.features);
+    this.db.features[name] = enabled;
+    this._scheduleSave();
+    return this.features();
+  }
+
+  /** The ghost car: the rank-1 line for one map, or null without a trace to
+   *  replay. Shape matches the stored trace (compact [x, z, t] triples). */
+  ghostFor(map = DEFAULT_MAP) {
+    const best = this.db.times
+      .filter((t) => t.map === map)
+      .sort((a, b) => a.ms - b.ms)[0];
+    if (!best || !Array.isArray(best.trace) || best.trace.length < 2) return null;
+    return {
+      username: best.username,
+      ms: best.ms,
+      trace: best.trace,
+      car: best.car ?? null,
+      variant: best.variant ?? null,
+    };
   }
 
   _userById(id) {

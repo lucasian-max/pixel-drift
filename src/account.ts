@@ -17,6 +17,19 @@ export interface AccountResult { ok: boolean; error?: string }
 export interface SubmitResult { ok: boolean; rank?: number; improved?: boolean; error?: string }
 export interface AdminResult { ok: boolean; removed?: number; error?: string }
 
+/** Public availability of the server's gated features (true = everyone sees it). */
+export interface Features { ghost?: boolean; [name: string]: boolean | undefined }
+
+/** The rank-1 lap for one map, replayed as a ghost car. Stored traces are
+    compact [x, z, t] triples; t is ms from the lap's start. */
+export interface GhostLap {
+  username: string;
+  ms: number;
+  trace: number[][] | LapTracePoint[];
+  car?: string | null;
+  variant?: number | null;
+}
+
 /* Laps the server never answered. A dropped connection, a redeploy or a session
    that expired mid-race used to lose the lap outright — the driver saw a
    two-second warning and the time was gone. They wait here and go out again on
@@ -95,6 +108,9 @@ export const account = {
   /** board the current `times` belong to; one board per map */
   map: 'coast',
   times: [] as TimeEntry[],
+  /** gated features the server made public, and this map's ghost payload */
+  features: null as Features | null,
+  ghost: null as GhostLap | null,
   offline: false,
   busy: false,
 
@@ -109,15 +125,23 @@ export const account = {
     let user: User | null = null;
     let times: TimeEntry[] = sameMap ? this.times : [];
 
-    const me = await request<{ user?: User | null }>('/api/me', 'GET');
+    const me = await request<{ user?: User | null; features?: Features }>('/api/me', 'GET');
     if (me.status === 0 || me.status >= 500) offline = true;
     else if (me.ok) user = me.body?.user ?? null;
 
-    const board = await request<{ times?: TimeEntry[] }>(
+    const board = await request<{ times?: TimeEntry[]; features?: Features; ghost?: GhostLap }>(
       `/api/times?map=${encodeURIComponent(boardMap)}`, 'GET',
     );
     if (board.status === 0 || board.status >= 500) offline = true;
-    else if (board.ok) times = board.body?.times ?? [];
+    else if (board.ok) {
+      times = board.body?.times ?? [];
+      // the board answers for one map: a missing ghost belongs to that map too
+      this.ghost = board.body?.ghost ?? null;
+      this.features = board.body?.features ?? me.body?.features ?? this.features;
+    } else if (me.ok) {
+      this.features = me.body?.features ?? this.features;
+      this.ghost = null;
+    }
 
     this.user = user;
     this.times = times;
@@ -152,6 +176,18 @@ export const account = {
     return this.adminPost('/api/admin/clear-map', { map });
   },
 
+  /** Admin only: flip one gated feature's public availability. */
+  async adminSetFeature(feature: string, enabled: boolean): Promise<AdminResult> {
+    const r = await request<{ features?: Features }>('/api/admin/feature', 'POST', { feature, enabled });
+    if (r.status === 401) this.user = null;
+    if (!r.ok) {
+      const error = r.status === 403 ? 'admin only' : 'request failed';
+      return { ok: false, error };
+    }
+    this.features = r.body?.features ?? this.features;
+    return { ok: true };
+  },
+
   async adminPost(path: string, body: Record<string, string>): Promise<AdminResult> {
     const r = await request<{ times?: TimeEntry[]; removed?: number }>(path, 'POST', body);
     if (r.status === 401) this.user = null;
@@ -160,6 +196,9 @@ export const account = {
       return { ok: false, error };
     }
     this.times = r.body?.times ?? [];
+    // the board moved and this answer carries no line: a ghost from the row
+    // that just went away must not keep racing until the next refresh
+    this.ghost = null;
     return { ok: true, removed: r.body?.removed };
   },
 
