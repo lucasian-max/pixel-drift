@@ -463,11 +463,12 @@ async function boot() {
     else if (a === 'admin-dashboard') {
       window.open('/dashboard.html', '_blank', 'noopener');
     }
-    else if (a === 'admin-feature-ghost') {
-      const enabled = account.features?.ghost !== true;
-      void account.adminSetFeature('ghost', enabled).then((r) => {
+    else if (a.startsWith('admin-feature-')) {
+      const name = a.slice('admin-feature-'.length);
+      const enabled = account.features?.[name] !== true;
+      void account.adminSetFeature(name, enabled).then((r) => {
         if (!r.ok) warn(r.error ?? 'FEATURE FAILED');
-        else note(`GHOST ${enabled ? 'PUBLIC' : 'HIDDEN'}`);
+        else note(`${name.toUpperCase()} ${enabled ? 'PUBLIC' : 'HIDDEN'}`);
       });
     }
     else if (a === 'admin-upload') {
@@ -666,6 +667,10 @@ async function boot() {
     notice = text;
     noticeUntil = performance.now() / 1000 + sec;
   };
+  // the lap bar at the bottom of the HUD: armed the instant a lap completes,
+  // independent of whether the server later accepts the trace
+  let lapBar: { ms: number; pb: boolean; delta: number | null } | null = null;
+  let lapBarUntil = 0;
   // laps that never reached the board (offline, redeploy, expired session)
   // are kept client-side and sent again here
   const flushLaps = () => {
@@ -915,6 +920,13 @@ async function boot() {
       const ms = Math.round(lapTime * 1000);
       lapTrace.push({ x: car.x, z: car.z, t: ms });
       lastTrace = lapTrace.slice();
+      const prevBest = bestTime;
+      lapBar = {
+        ms,
+        pb: prevBest === 0 || lapTime < prevBest,
+        delta: prevBest > 0 ? Math.round((lapTime - prevBest) * 1000) : null,
+      };
+      lapBarUntil = performance.now() / 1000 + 4;
       if (bestTime === 0 || lapTime < bestTime) {
         bestTime = lapTime;
         try { localStorage.setItem(bestKey, String(bestTime)); } catch { /* private mode */ }
@@ -1027,12 +1039,15 @@ async function boot() {
       },
       warning: warning && now < warningUntil ? warning : undefined,
       notice: notice && now < noticeUntil ? notice : undefined,
+      lapBar: devOn('lapbar') && lapBar && now < lapBarUntil && started
+        ? { ...lapBar, a: Math.max(0, Math.min(1, (lapBarUntil - now) / 0.5)) }
+        : undefined,
       offTrack: started && trackDist > world.roadHalf + 1.2,
       mapIndex,
       mapName: MAPS[mapIndex]?.name,
       account,
       adminPanel: adminPanel && account.user?.role === 'admin',
-      features: [{ name: 'ghost', on: account.features?.ghost === true }],
+      features: ['ghost', 'lapbar'].map((name) => ({ name, on: account.features?.[name] === true })),
       adminConfirm: now / 1000 < adminConfirmUntil,
       adminUpload: now / 1000 < adminUploadUntil ? adminUploadMsg : undefined,
       garage,

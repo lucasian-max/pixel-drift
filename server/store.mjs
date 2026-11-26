@@ -18,7 +18,7 @@ export const ROLE_ADMIN = 'admin';
 export const ROLE_PLAYER = 'player';
 /** Gated features: public availability lives in db.features, one flag each.
  *  Add a name here to gate another one. */
-export const FEATURES = ['ghost'];
+export const FEATURES = ['ghost', 'lapbar'];
 
 /** Admin names come from SPRITE_ADMINS and/or server/data/admins.json,
  *  never from the client. The data folder is gitignored. */

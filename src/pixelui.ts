@@ -64,6 +64,9 @@ export interface UiState {
   features?: { name: string; on: boolean }[];
   warning?: string;
   notice?: string;
+  /** the lap just completed, in a small bar at the bottom: ms is the lap
+      time, pb a new personal best, delta the gap to the old best */
+  lapBar?: { ms: number; pb: boolean; delta: number | null; a: number };
   offTrack?: boolean;
   bestFlash?: boolean;
   account?: AccountView;
@@ -450,6 +453,26 @@ export class PixelUI {
       pxRect(c, hx, hy, hw, 14, SLAB);
       pxBorder(c, hx, hy, hw, 14, LINE);
       this.text(msg, this.w / 2, hy + 3, { size: 8, color: 'rgba(242,238,225,0.8)', align: 'center' });
+    }
+
+    if (state.lapBar && !state.aiming) {
+      const lb = state.lapBar;
+      const left = `LAP ${fmtMs(lb.ms)}`;
+      const tag = lb.pb ? 'NEW PB' : lb.delta == null ? '' : `+${(lb.delta / 1000).toFixed(2)}`;
+      const lw = this.measure(left, 8, 700);
+      const tw = tag ? this.measure(tag, 8, 700) + 12 : 0;
+      const bw = lw + tw + 26;
+      const bx = Math.round(this.w / 2 - bw / 2), by = this.h - 18;
+      c.globalAlpha = lb.a;
+      pxRect(c, bx, by, bw, 14, SLAB);
+      pxBorder(c, bx, by, bw, 14, lb.pb ? ACCENT : LINE);
+      this.text(left, bx + 13, by + 3, { size: 8, weight: 700, color: CREAM });
+      if (tag) {
+        this.text(tag, bx + 13 + lw + 12, by + 3, {
+          size: 8, weight: 700, color: lb.pb ? ACCENT : DIM,
+        });
+      }
+      c.globalAlpha = 1;
     }
 
     if (state.paused) {
