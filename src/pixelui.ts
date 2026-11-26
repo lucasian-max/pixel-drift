@@ -54,6 +54,17 @@ export interface UiState {
   settings?: boolean;
   /** one chip row per player-tunable thing, hit id setting-${name} */
   settingsRows?: { name: string; label: string; on: boolean }[];
+  /** lifetime + personal numbers for the modal's stats block: seconds and ms
+      per field, 0 best = none yet */
+  stats?: {
+    maps: { map: string; best: number }[];
+    pbAvg: number;          // mean of the bests that exist
+    laps: number;           // completed laps, lifetime
+    driveMs: number;        // summed lap clocks, lifetime
+    favCar: string;         // the car with the most laps, '—' before any
+  };
+  /** the title leaderboard panel is a choice now: false hides it */
+  board?: boolean;
   powerBlurb?: string;
   powerEffect?: string;
   powerDuration?: number;
@@ -77,6 +88,16 @@ const fmt = (t: number) => {
   const s = Math.floor(t % 60);
   const cs = Math.floor((t * 100) % 100);
   return `${m}:${s.toString().padStart(2, '0')}.${cs.toString().padStart(2, '0')}`;
+};
+
+/** hours:minutes:seconds, minutes:seconds under an hour — lifetime driving time */
+const fmtDur = (ms: number) => {
+  if (!Number.isFinite(ms) || ms <= 0) return '0:00';
+  const s = Math.floor(ms / 1000);
+  const h = Math.floor(s / 3600);
+  const m = Math.floor((s % 3600) / 60);
+  const ss = String(s % 60).padStart(2, '0');
+  return h > 0 ? `${h}:${String(m).padStart(2, '0')}:${ss}` : `${m}:${ss}`;
 };
 
 const fmtMs = (ms: number) => {
@@ -964,7 +985,7 @@ export class PixelUI {
        left edge starts past it (and the board hides if there is no room) */
     const trackArrowRight = Math.round(w / 2 + nameW / 2 + 10) + 24;
     const boardLx = Math.max(w - 188, trackArrowRight + 6);
-    if (acct && w >= 560 && w - 8 - boardLx >= 116) {
+    if (acct && w >= 560 && state.board !== false && w - 8 - boardLx >= 116) {
       /* the board hangs off the top-right corner: an ink header naming the panel
          over the track it belongs to, then a real little table — rank gutter,
          player, time — under dim column labels and a hairline. The winner is
@@ -1059,15 +1080,16 @@ export class PixelUI {
     if (state.settings) this.drawSettings(state);
   }
 
-  /** The player's own switches: sound now, the ghost car the same way. A
-      modal like POWER INFO — dimmed world, this.buttons cleared so only the
-      panel can be hit, and its own relabelled CLOSE. */
+  /** The player's own switches and their record: toggles up top, per-map bests
+      under a section label, then the reset chip. A modal like POWER INFO —
+      dimmed world, this.buttons cleared so only the panel can be hit, and its
+      own relabelled CLOSE. */
   private drawSettings(state: UiState) {
     const c = this.ctx;
     this.buttons.length = 0;
     c.fillStyle = 'rgba(10,12,16,0.62)';
     c.fillRect(0, 0, this.w, this.h);
-    const w = 226, h = 118;
+    const w = 244, h = 228;
     const x = Math.round((this.w - w) / 2), y = Math.round((this.h - h) / 2);
     pxRect(c, x, y, w, h, SLAB);
     pxRect(c, x, y, w, 14, INK);
@@ -1075,11 +1097,10 @@ export class PixelUI {
     c.fillStyle = ACCENT;
     c.fillRect(x + 5, y + 4, 2, 8);
     this.text('SETTINGS', x + 12, y + 3, { size: 8, weight: 700, color: CREAM, spacing: 2 });
-    this.text('YOUR GAME, YOUR RULES', x + w - 9, y + 3, { size: 8, color: DIM, align: 'right' });
     const rows = state.settingsRows ?? [];
     for (let i = 0; i < rows.length; i++) {
       const r = rows[i];
-      const ry = y + 30 + i * 20;
+      const ry = y + 28 + i * 20;
       this.text(r.label, x + 12, ry, { size: 8, weight: 700, color: CREAM });
       const label = r.on ? 'ON' : 'OFF';
       const cw = this.measure(label, 8, 700) + 16;
@@ -1091,6 +1112,51 @@ export class PixelUI {
       });
       this.buttons.push({ id: `setting-${r.name}`, x: bx, y: by, w: cw, h: 14, label });
     }
+    const toggles = rows.length;
+    c.fillStyle = LINE;
+    c.fillRect(x + 10, y + 38 + toggles * 20, w - 20, 1);
+    const s = state.stats;
+    const c1 = x + 12;                  // bests column
+    const c2 = x + 140;                 // lifetime column
+    const labelY = y + 50 + toggles * 20;
+    this.text('YOUR BESTS', c1, labelY, { size: 8, color: DIM, spacing: 1 });
+    this.text('LIFETIME', c2, labelY, { size: 8, color: DIM, spacing: 1 });
+    const base = labelY + 14;
+    if (s) {
+      for (let i = 0; i < s.maps.length; i++) {
+        const m = s.maps[i];
+        const my = base + i * 13;
+        const has = m.best > 0;
+        this.text(m.map, c1, my, { size: 8, color: has ? CREAM : DIM });
+        this.text(has ? fmtMs(m.best * 1000) : '—', x + 124, my, {
+          size: 8, weight: has ? 700 : 400, color: has ? CREAM : DIM, align: 'right',
+        });
+      }
+      const avgY = base + s.maps.length * 13;
+      const hasAvg = s.pbAvg > 0;
+      this.text('PB AVG', c1, avgY, { size: 8, color: DIM });
+      this.text(hasAvg ? fmtMs(s.pbAvg * 1000) : '—', x + 124, avgY, {
+        size: 8, weight: hasAvg ? 700 : 400, color: hasAvg ? ACCENT : DIM, align: 'right',
+      });
+      this.text('LAPS', c2, base, { size: 8, color: CREAM });
+      this.text(String(s.laps), x + w - 12, base, { size: 8, weight: 700, color: CREAM, align: 'right' });
+      this.text('ON TRACK', c2, base + 13, { size: 8, color: CREAM });
+      this.text(fmtDur(s.driveMs), x + w - 12, base + 13, { size: 8, weight: 700, color: CREAM, align: 'right' });
+      this.text('FAV CAR', c2, base + 26, { size: 8, color: CREAM });
+      this.font(8, 400);
+      let fav = s.favCar || '—';
+      while (fav.length > 1 && c.measureText(fav).width > x + w - 12 - c2 - 6) fav = fav.slice(0, -1);
+      this.text(fav, x + w - 12, base + 26, { size: 8, weight: 700, color: ACCENT, align: 'right' });
+    }
+    // the reset sits with the numbers it wipes, not with the safe toggles
+    const ry = y + h - 56;
+    this.text('BEST TIMES', x + 12, ry, { size: 8, color: CREAM });
+    const rw = this.measure('RESET', 8, 700) + 18;
+    const rx = x + w - rw - 12;
+    pxRect(c, rx, ry - 3, rw, 14, 'rgba(224,81,63,0.16)');
+    pxBorder(c, rx, ry - 3, rw, 14, 'rgba(224,81,63,0.75)');
+    this.text('RESET', rx + rw / 2, ry, { size: 8, weight: 700, color: ACCENT, align: 'center' });
+    this.buttons.push({ id: 'setting-reset', x: rx, y: ry - 3, w: rw, h: 14, label: 'RESET' });
     this.bSettings.label = 'CLOSE';
     this.bSettings.w = 48;
     this.bSettings.x = Math.round(x + w / 2 - 24);

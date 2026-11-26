@@ -328,6 +328,24 @@ async function boot() {
   const GHOST_KEY = 'sprite-drift:ghost';
   let playerGhost = true;
   try { playerGhost = localStorage.getItem(GHOST_KEY) !== '0'; } catch { /* private mode */ }
+  /* same for the title's leaderboard panel: on until a player wants a clean title */
+  const BOARD_KEY = 'pixel-drift:board';
+  let boardOn = true;
+  try { boardOn = localStorage.getItem(BOARD_KEY) !== '0'; } catch { /* private mode */ }
+  /* lifetime numbers, one bump per completed lap: laps, lap clocks summed into
+     time-on-track, and laps per car for the favourite. Counting starts with
+     this build — nothing tracked the laps before it. */
+  const STATS_KEY = 'pixel-drift:stats';
+  let statsLaps = 0;
+  let statsMs = 0;
+  const carLaps: Record<string, number> = {};
+  try {
+    const raw = JSON.parse(localStorage.getItem(STATS_KEY) ?? 'null') as
+      { laps?: number; ms?: number; cars?: Record<string, number> } | null;
+    statsLaps = Number(raw?.laps) || 0;
+    statsMs = Number(raw?.ms) || 0;
+    for (const [k, v] of Object.entries(raw?.cars ?? {})) carLaps[k] = Number(v) || 0;
+  } catch { /* private mode */ }
   let adminPanel = false;
   let adminConfirmUntil = 0;
   let adminUploadMsg = '';
@@ -465,6 +483,21 @@ async function boot() {
       playerGhost = !playerGhost;
       ghostEventsSeen = 0;
       try { localStorage.setItem(GHOST_KEY, playerGhost ? '1' : '0'); } catch { /* private mode */ }
+    }
+    else if (a === 'setting-board') {
+      boardOn = !boardOn;
+      try { localStorage.setItem(BOARD_KEY, boardOn ? '1' : '0'); } catch { /* private mode */ }
+    }
+    else if (a === 'setting-reset') {
+      // wipes every map's local best, the current one included
+      for (const m of MAPS) {
+        try {
+          localStorage.removeItem(`pixel-drift:best:${m.id}`);
+          localStorage.removeItem(`sprite-drift:best:${m.id}`);
+        } catch { /* private mode */ }
+      }
+      bestTime = 0;
+      note('BESTS CLEARED');
     }
     else if (a === 'garage') setGarage(true);
     else if (a === 'garage-back') setGarage(false);
@@ -959,6 +992,12 @@ async function boot() {
       resetTrace();
       recorder.endLap(ms, true);
       recorder.beginLap(lapInfo());
+      // lifetime stats: one lap, its clock, one tick for the car that drove it
+      statsLaps++; statsMs += ms;
+      const carName = CAR_NAMES[car.variant] ?? 'PEARL GT';
+      carLaps[carName] = (carLaps[carName] ?? 0) + 1;
+      try { localStorage.setItem(STATS_KEY, JSON.stringify({ laps: statsLaps, ms: statsMs, cars: carLaps })); }
+      catch { /* private mode */ }
     }
     world.update();
 
@@ -1086,7 +1125,27 @@ async function boot() {
       settingsRows: [
         { name: 'sound', label: 'SOUND', on: !sound.muted },
         { name: 'ghost', label: 'GHOST CAR', on: ghostAllowed() },
+        { name: 'board', label: 'LEADERBOARD', on: boardOn },
       ],
+      stats: (() => {
+        const maps = MAPS.map((m) => ({
+          map: m.id.toUpperCase(),
+          best: Number(
+            localStorage.getItem(`pixel-drift:best:${m.id}`)
+            ?? localStorage.getItem(`sprite-drift:best:${m.id}`) ?? 0,
+          ) || 0,
+        }));
+        const bests = maps.filter((m) => m.best > 0).map((m) => m.best);
+        const fav = Object.entries(carLaps).sort((a, b) => b[1] - a[1])[0];
+        return {
+          maps,
+          pbAvg: bests.length ? bests.reduce((a, b) => a + b) / bests.length : 0,
+          laps: statsLaps,
+          driveMs: statsMs,
+          favCar: fav?.[0] ?? '—',
+        };
+      })(),
+      board: boardOn,
       powerInfo,
       powerBlurb: car.power.blurb,
       powerEffect: car.power.effect,
