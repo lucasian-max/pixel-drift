@@ -34,8 +34,6 @@ export interface UiState {
   atLine?: boolean;
   /** chase camera lock state: false means the player orbited away */
   camLocked?: boolean;
-  /** sound off: the chip reads MUTED so a silent game never looks broken */
-  muted?: boolean;
   /** TUNNEL aim mode: the sim is frozen, the player is placing the car */
   aiming?: boolean;
   maps?: { id: string; name: string }[];
@@ -106,7 +104,7 @@ function pxBorder(c: CanvasRenderingContext2D, x: number, y: number, w: number, 
 }
 
 export type HitId = 'prev-map' | 'next-map' | 'prev-car' | 'next-car' | 'solo' | 'login' | 'logout'
-  | 'power-info' | 'garage' | 'garage-back' | 'menu' | 'mute'
+  | 'power-info' | 'garage' | 'garage-back' | 'menu'
   | 'admin' | 'admin-close' | 'admin-clear' | 'admin-dashboard' | 'admin-upload' | `admin-del-${number}`
   | 'settings' | `setting-${string}` | `admin-feature-${string}`;
 
@@ -131,7 +129,6 @@ export class PixelUI {
   private bSettings: Button = { id: 'settings', x: 0, y: 0, w: 66, h: 14, label: 'SETTINGS' };
   private bSolo: Button = { id: 'solo', x: 0, y: 0, w: 148, h: 28, label: 'SOLO' };
   private bMenu: Button = { id: 'menu', x: 0, y: 0, w: 66, h: 18, label: 'M MENU' };
-  private bMute: Button = { id: 'mute', x: 0, y: 0, w: 60, h: 14, label: 'SOUND ON' };
   private bLogin: Button = { id: 'login', x: 0, y: 0, w: 72, h: 14, label: 'SIGN IN' };
   private bLogout: Button = { id: 'logout', x: 0, y: 0, w: 72, h: 14, label: 'SIGN OUT' };
   private bAdmin: Button = { id: 'admin', x: 0, y: 0, w: 62, h: 14, label: 'ADMIN' };
@@ -372,8 +369,6 @@ export class PixelUI {
         color: unlocked ? CREAM : HINT,
       });
     }
-
-    this.drawMuteChip(state, 66, 'left');
 
     if (state.warning) this.drawToast(state.warning, 78);
     else if (state.offTrack) {
@@ -748,21 +743,6 @@ export class PixelUI {
     if (state.powerInfo) this.drawPowerInfo(state);
   }
 
-  private drawMuteChip(state: UiState, y: number, side: 'left' | 'right' = 'right') {
-    const c = this.ctx;
-    const muted = state.muted === true;
-    const label = muted ? 'MUTED' : 'SOUND ON';
-    const w = Math.max(this.measure('SOUND ON', 8, 400), this.measure('MUTED', 8, 700)) + 12;
-    const b = this.bMute;
-    b.label = label; b.w = w; b.x = side === 'left' ? 8 : this.w - 8 - w; b.y = y;
-    pxRect(c, b.x, b.y, b.w, b.h, muted ? INK : CREAM);
-    pxBorder(c, b.x, b.y, b.w, b.h, muted ? 'rgba(242,238,225,0.4)' : INK);
-    this.text(label, b.x + b.w / 2, b.y + 4, {
-      size: 8, weight: muted ? 400 : 700, color: muted ? CREAM : INK, align: 'center',
-    });
-    this.buttons.push(b);
-  }
-
   private drawNotice(text: string, y: number) {
     const c = this.ctx;
     this.font(8, 700);
@@ -929,12 +909,11 @@ export class PixelUI {
       this.text(b.label, b.x + b.w / 2, b.y + 2, { size: 8, color: CREAM, align: 'center' });
       this.buttons.push(b);
     }
-    this.drawMuteChip(state, this.h - 44);
-    // the player's own switches live one reach above the sound chip
+    // the player's own switches own this corner: mute lives in SETTINGS and N
     this.bSettings.label = 'SETTINGS';
     this.bSettings.w = 66;
     this.bSettings.x = this.w - 8 - this.bSettings.w;
-    this.bSettings.y = this.h - 62;
+    this.bSettings.y = this.h - 44;
     pxRect(c, this.bSettings.x, this.bSettings.y, this.bSettings.w, this.bSettings.h, SLAB);
     pxBorder(c, this.bSettings.x, this.bSettings.y, this.bSettings.w, this.bSettings.h, 'rgba(242,238,225,0.55)');
     this.text(this.bSettings.label, this.bSettings.x + this.bSettings.w / 2, this.bSettings.y + 3, {

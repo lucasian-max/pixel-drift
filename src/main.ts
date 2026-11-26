@@ -456,7 +456,6 @@ async function boot() {
     else if (a === 'prev-car') cycleCar(-1);
     else if (a === 'next-car') cycleCar(1);
     else if (a === 'power-info') powerInfo = !powerInfo;
-    else if (a === 'mute') sound.toggleMute();
     else if (a === 'settings') {
       settings = !settings;
       if (settings) powerInfo = false;
@@ -543,9 +542,8 @@ async function boot() {
     if (loginForm.isOpen()) return;
     const hit = ui.hit(e.clientX, e.clientY);
     if (!hit) return;
-    if (running) {                 // mid-race only the menu and the mute chip are wired
+    if (running) {                 // mid-race the only wired chip is the menu
       if (hit === 'menu') backToTitle();
-      else if (hit === 'mute') sound.toggleMute();
       return;
     }
     ui.onAction?.(hit);   // only the PLAY button starts a race
@@ -1063,7 +1061,6 @@ async function boot() {
       paused: input.paused, laps,
       atLine: running && !started,
       camLocked: chase,
-      muted: sound.muted,
       aiming: car.aiming,
       maps: MAPS.map((m) => ({ id: m.id, name: m.name })),
       carNames: CAR_NAMES,
