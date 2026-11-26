@@ -5,6 +5,16 @@ flat pixel slices drawn one pixel apart, so a 2D sprite turns like a 3D model.
 
 ![Pixel Drift](docs/title.png)
 
+As it plays — Pearl Drift holding a Sakura slide, Thunderclap lit up on
+Saltmarsh, the TUNNEL aim ring, and the tyre walls that now close Frostbite
+Pass's switchbacks:
+
+| | |
+| --- | --- |
+| ![pearl drift](shots/readme/03-drift.png) | ![thunderclap](shots/readme/04-thunder.png) |
+| ![tunnel aim](shots/readme/05-tunnel.png) | ![tyre wall](shots/readme/06-tyrewall.png) |
+
+
 ## Play
 
 ```bash
