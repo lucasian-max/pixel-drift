@@ -36,9 +36,9 @@ cool idea that I wanted to pursue.
 
 | Car | Power | What it does |
 | --- | --- | --- |
-| **Pearl GT** | Pearl Drift | 4.5s of loose rear grip and a ×3.5 drift score; 8s cooldown |
-| **Group B** | Thunderclap | 3.5s of ×1.5 top speed and ×2.6 acceleration; 7s cooldown |
-| **Dune Runner** | Tunnel | Place the car anywhere within a 22 m radius; 9s cooldown |
+| **Pearl GT** | Pearl Drift | 5s of loose rear grip and a ×3.5 drift score; 9.2s cooldown |
+| **Group B** | Thunderclap | 3s of ×1.38 top speed and ×2.2 acceleration; 8s cooldown |
+| **Dune Runner** | Tunnel | Place the car anywhere within a 22 m radius; 7.2s cooldown |
 
 <img width="3120" height="1769" alt="image" src="https://github.com/user-attachments/assets/24b8b4e6-839e-420b-81cd-1ff0e6dd635d" />
 

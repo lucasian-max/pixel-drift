@@ -24,13 +24,13 @@ export interface CarStats {
 export const CAR_STATS: CarStats[] = [
   // PEARL GT — the tidy one: best grip, quickest lock. The price is its drift
   // power taking the longest to come back, which is the whole point of the car.
-  { top: 30, accel: 22, grip: 1.12, steer: 1.06, power: 1.30 },
+  { top: 31, accel: 24, grip: 1.16, steer: 1.08, power: 1.15 },
   // GROUP B — the loud one: nobody else has this top end or this launch, and
   // nobody else slides this much either. Point it before you squeeze it.
-  { top: 33, accel: 26, grip: 0.80, steer: 0.90, power: 1.00 },
+  { top: 33, accel: 26, grip: 0.78, steer: 0.88, power: 1.00 },
   // DUNE RUNNER — slower on its own wheels because the tunnel does the
   // travelling; planted grip, and the biggest power in the game.
-  { top: 26, accel: 19, grip: 1.04, steer: 0.95, power: 1.00 },
+  { top: 28, accel: 21, grip: 1.08, steer: 0.97, power: 0.90 },
 ];
 
 /** One-word identity, shown next to the power name in the garage. */
