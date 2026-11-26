@@ -1,137 +1,166 @@
 # Pixel Drift
 
-A 2D pixel sprite art racer with powers.
+A 2D pixel sprite art racer with powers. Every car, tree and building is a
+**sprite stack** — a pile of flat pixel slices drawn one pixel apart — so the
+2D sprites turn like 3D models. Three circuits, three cars, one superpower
+each, real accounts and a leaderboard that refuses to believe your shortcuts.
+
+Play it live at **[drift.lucasian.tech](https://drift.lucasian.tech)** (it runs
+off my laptop, so it's up when the laptop is).
+
 ![Pixel Drift](docs/title.png)
 
-## Play
+| | |
+| --- | --- |
+| ![pearl drift](shots/readme/03-drift.png) | ![thunderclap](shots/readme/04-thunder.png) |
+| ![tunnel aim](shots/readme/05-tunnel.png) | ![tyre wall](shots/readme/06-tyrewall.png) |
 
-```bash
+## WHY THIS EXISTS
+
+I wanted a 3D-looking racer that could run in a browser tab without downloading
+a single 3D model — everything generated in code, everything on one pixel grid.
+The sprite-stack trick became the whole identity of the game: you get real
+depth, real shadows and a chase camera out of flat images.
+
+## THE CARS AND THEIR POWERS
+
+| Car | Power | What it does |
+| --- | --- | --- |
+| **Pearl GT** | Pearl Drift | 4.5s of loose rear grip, a ×3.5 drift score and a boost on exit; 8s cooldown |
+| **Group B** | Thunderclap | 3.5s of ×1.5 top speed, ×2.6 acceleration and a launch burst; 7s cooldown |
+| **Dune Runner** | Tunnel | Time stops and you place the car anywhere within 22 m — across the apex, over a kerb, wherever; 9s cooldown |
+
+![Garage](docs/garage.png)
+
+![hero car](preview/hero-big.png)
+
+![Pearl Drift](docs/power-pearl.png)
+
+![Thunderclap](docs/power-rally.png)
+
+## THREE CIRCUITS
+
+| | |
+| --- | --- |
+| **Saltmarsh Coast** — green, a lake, pines and palms | **Frostbite Pass** — a big snow circuit with blue kerbs and a wide infield hairpin, snow pines, a frozen lake with ice huts, a ski lift, snow cannons and falling snow |
+| ![coast](docs/coast.png) | ![ice](docs/alpine.png) |
+| **Sakura Circuit** — a Japanese forest figure-eight with sakura trees, kanji signage, torii, a pagoda, a red garden bridge and a drivable overpass | |
+| ![sakura](docs/sakura.png) | |
+
+Pick a circuit on the title screen, or link straight to one:
+`?map=coast|alpine|sakura`. Same trick for cars: `?car=0|1|2`.
+
+![Sakura tree](docs/sakura-tree.png)
+
+![Sakura overpass](docs/sakura-overpass.png)
+
+## HOW THIS WAS MADE
+
+- **TypeScript + three.js** for the game; every sprite is a vertical atlas of
+  slices that `src/stack.ts` draws as offset planes with nearest-neighbour
+  sampling.
+- **The art is authored in code**: `scripts/gen-assets.mjs` describes each
+  object as four orthographic views (top/side/front/back); a voxel exists only
+  where all four agree, then the volume is emitted slice by slice. Everything
+  renders at 360 lines and upscales, so world, cars and HUD share one pixel
+  grid.
+- **The server is plain Node** — no framework, an HTTP API on `127.0.0.1:8790`
+  with a JSON file store, sessions, a leaderboard, and a lap validator that
+  checks every submission against the real circuit geometry. Vite proxies
+  `/api` to it.
+- **It runs itself**: two systemd user services (web + API) and a Cloudflare
+  tunnel put the whole thing on the public internet from my laptop.
+
+## PROBLEMS I HAD TO FIX
+
+- **Impossible leaderboard times.** Friends were posting laps faster than the
+  car's top speed could explain. I measured the track geometry and found the
+  circuit passes within 18.2 m of itself at three places — exactly the
+  off-road tolerance the anti-cheat allowed — so a driver could cross between
+  two branches and skip 71 to 152 m of road while every sample still looked
+  "near the track". Fixed in the world (tyre walls across all three crossings)
+  and in the validator (a lap now has to come near every stretch of the
+  circuit, not just 90% of its bounding box).
+- **The anti-cheat flagged the one honest teleport.** Dune Runner's TUNNEL
+  placement marks the lap trace, and the validator dropped the whole segment
+  after the mark — so every blink cost the lap ~14 m of credit and perfect
+  TUNNEL laps died as "route too short". The fix was one line: count the
+  segment leaving the mark, capped at one sample of rolling.
+- **Laps that disappeared.** A lap posted while the connection dropped was
+  gone forever — no record, nothing on the board, only a 2.2-second warning.
+  Now the browser keeps any unsent lap in localStorage and re-posts it after
+  the next save or sign-in; rejections still stick (they got their answer).
+
+## RUN IT
+
+```sh
+# 1. clone the repo
+git clone https://github.com/lucasian-max/pixel-drift.git && cd pixel-drift
+
+# 2. install
 npm install
-npm run dev      # http://127.0.0.1:5180
+
+# 3. start the API (accounts, leaderboard, lap validator)
+npm run api        # 127.0.0.1:8790
+
+# 4. start the game (in another terminal)
+npm run dev        # http://127.0.0.1:5180
+
+# or build the production bundle
+npm run build
+
+# or run the test suite (validator fixtures + car stats)
+npm test
 ```
+
+The game runs without the API — you just can't save lap times.
+
+### Controls
 
 | Action | Keys |
 | --- | --- |
 | Drive | WASD / arrows |
 | Handbrake drift | Space |
 | Superpower | F |
-| Look around (manual orbit) | Q / E or drag |
+| Look around | Q / E or drag |
 | Re-lock the chase camera | T |
 | Zoom | mouse wheel |
 | Pick car / circuit on the title | Up/Down, Left/Right |
-| Swap car at the start line | C (before the lap timer starts) |
-| Back to the title, mid-run too | M |
-| View the car turntable | VIEW CAR on the title |
-| Read the selected power | POWER INFO on the title |
+| Swap car at the start line | C |
+| Back to the title | M |
 | Reset | R |
 | Pause | P or Esc |
 | Mute | N |
 
-The race camera sits behind the car and follows it around corners. Q/E,
-dragging or the wheel make it manual; T re-locks the chase.
+## ACCOUNTS AND THE LEADERBOARD
 
+Sign in on the title screen to post times. Each circuit keeps one best lap per
+player, top 10 on the board. Nothing is trusted: every submission carries the
+recorded position trace, and the server replays it against its own copy of the
+circuit before the time counts — it must start and finish at the line, cover
+the route, stay near the road and never exceed a speed any car can reach. Cuts,
+teleports and edited clocks are rejected with a reason, and the reason is shown
+to the player, not just logged.
 
-## Accounts and leaderboard
-
-Sign in on the title to post lap times. Each circuit has its own board: the
-best lap per player, top 10. Times are trusted as submitted; a position trace
-is kept for replays but is not used to reject a lap.
-
-Admin names come from `SPRITE_ADMINS` or the gitignored
-`server/data/admins.json`; admin accounts get an **ADMIN** button on the title
-for deleting a time or clearing a circuit board, plus a **DASHBOARD** link to
-`/dashboard.html`.
+Admins (from `SPRITE_ADMINS` or `server/data/admins.json`) get an **ADMIN**
+panel for deleting a time or clearing a board, and a **DASHBOARD** at
+`/dashboard.html`. Details: [`server/README.md`](server/README.md).
 
 ![Admin panel](docs/admin.png)
 
-See [`server/README.md`](server/README.md#admin-accounts).
-
-New laps are checked server-side against the circuit before they reach the
-board: the lap trace is required and must start/finish at the line, cover the
-route, stay near the road and contain no impossible speeds. Shortcuts and
-teleports are rejected with a reason.
-
-The API runs as a local user service on `127.0.0.1:8790` (Vite proxies `/api`
-to it). Use `SPRITE_API=http://host:port` to point a dev server elsewhere. See
-[`server/README.md`](server/README.md).
-
-## Data desk
-
-Signed-in admins can open `/dashboard.html`, or hit **DASHBOARD** in the in-game
-admin panel. It shows the laps gathered so far: per-circuit boards, total
-laps and drivers, the fastest lap, recent submissions and the local 60 Hz
-recorder runs from this browser. New laps are validated server-side against
-the real circuit — the rules are in
-[`server/README.md`](server/README.md#lap-submission-and-anti-cheat).
-
 ![Data desk](docs/dashboard.png)
 
-## Three circuits
+## AI DISCLOSURE
 
-| | |
-| --- | --- |
-| **Saltmarsh Coast** — green, a lake, pines and palms | **Frostbite Pass** — a big snow circuit with blue kerbs and a wide infield hairpin, snow pines, a frozen lake with ice huts, a ski lift, snow cannons, a snowcat and falling snow |
-| ![coast](docs/coast.png) | ![ice](docs/alpine.png) |
-| **Sakura Circuit** — a Japanese forest figure-eight with sakura trees, kanji signage, torii, a pagoda, a red garden bridge and a drivable overpass | |
-| ![sakura](docs/sakura.png) | |
+This project used AI heavily, and here is exactly where:
 
-Pick a circuit on the title screen with the arrows, or link straight to one:
-`?map=coast|alpine|sakura`.
+- most of the code — the game, the server, the anti-cheat and the tooling —
+  was written with AI coding agents;
+- the maths-heavy debugging was AI-assisted: measuring the circuit geometry
+  that proved the corner-cut, working out why TUNNEL laps were rejected,
+  building the validator tests;
+- the screenshots in this README were captured headlessly in a browser by an
+  agent told where to stand the car.
 
-Sakura detail: sakura trees, kanji boards and the drivable overpass.
-
-![Sakura tree](docs/sakura-tree.png)
-
-![Sakura overpass](docs/sakura-overpass.png)
-
-## The cars and their powers
-
-The garage is being cut to three. Right now it holds Pearl GT and the Group B
-rally car; the third slot is waiting for the car chosen from the next sheet.
-Choose with the car arrows on the title. Every car has one power on the `F`
-key; the HUD card shows READY, ACTIVE and the cooldown. VIEW CAR opens a white
-studio turntable.
-`VIEW CAR` opens a turntable, and `POWER INFO` explains the selected power.
-
-![Garage](docs/garage.png)
-
-| Car | Power | What it does |
-| --- | --- | --- |
-| **Pearl GT** | Pearl Drift | 4.5s of loose rear grip, a ×3.5 drift score and a boost on exit; 8s cooldown |
-| **Group B** | Thunderclap | 3.5s of ×1.5 top speed, ×2.6 acceleration and a launch burst; 7s cooldown |
-
-The hero is a pearl-white GT with a twin racing stripe, a roof roundel, framed
-glass, mirrors, vented bonnet, a ducktail spoiler and chrome exhausts.
-
-![hero car](preview/hero-big.png)
-
-The Group B car is a yellow-and-white rally coupe built from a four-view sheet:
-boxy flares, a six-lamp pod, roof scoop, mudflaps and a tall rear wing.
-
-![rally car](docs/rally.png)
-
-![Pearl Drift](docs/power-pearl.png)
-
-![Thunderclap](docs/power-rally.png)
-
-Adding a car? The project copy of the agent skill is
-[`docs/pixel-car-stack.md`](docs/pixel-car-stack.md): the four-view sheet → 3D model
-contract, the stack-atlas path, the Opus 5.5 prompt, and the screenshot/verification
-recipe.
-
-## How the art works
-
-`scripts/gen-assets.mjs` authors each object as four orthographic views
-(top, side, front, back). A voxel exists only where all four agree: the top face
-takes the top view's colour, and exposed side faces take the colour of the view
-they face. The volume is emitted as a vertical atlas — one slice per pixel of
-height — which `src/stack.ts` draws as offset planes with nearest-neighbour
-sampling.
-
-Everything renders at 360 lines and is upscaled, so the world, the cars and the
-HUD share one pixel grid.
-
-```bash
-npm run assets    # regenerate every sprite + flattened previews
-npm run build     # typecheck + production build
-```
+The design is mine — the three cars, the powers, the circuits, the HUD, what
+stays and what gets cut — and every lap on my board was driven by a human.
