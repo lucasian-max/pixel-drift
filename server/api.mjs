@@ -190,9 +190,16 @@ async function handle(req, res, pathname) {
     const variant = Number.isInteger(body.variant) && body.variant >= 0 && body.variant <= 9
       ? body.variant
       : null;
-    return send(res, 200, {
-      times: store.submitTime(user, body.ms, map, body.trace, verdict.summary, car, variant),
-    });
+    const times = store.submitTime(user, body.ms, map, body.trace, verdict.summary, car, variant);
+    // the board side of the journal: a lap that was never sent and a lap that
+    // was sent and accepted have to look different to whoever reads the log
+    const s = verdict.summary;
+    console.log(
+      `[times] ${user.username} ${map} ${body.ms}ms ${car ?? 'unknown car'} · ` +
+      `${s.pathLength} m · ${s.blinks} blink${s.blinks === 1 ? '' : 's'} · ` +
+      `off ${s.maxOffTrack} m · ${s.samples} samples`,
+    );
+    return send(res, 200, { times });
   }
 
   if (pathname === '/api/runs') {
