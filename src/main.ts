@@ -339,9 +339,11 @@ async function boot() {
   let boardOn = true;
   try { boardOn = localStorage.getItem(BOARD_KEY) !== '0'; } catch { /* private mode */ }
   /* lifetime numbers, one bump per completed lap: laps, lap clocks summed into
-     time-on-track, and laps per car for the favourite. Counting starts with
-     this build — nothing tracked the laps before it. */
-  const STATS_KEY = 'pixel-drift:stats';
+     time-on-track, and laps per car for the favourite. The key is versioned:
+     everything counted before the circuit gate (fcd5601) is suspect — those
+     backwards-WORMHOLE laps were never real — so @2 starts everyone clean. */
+  const STATS_KEY = 'pixel-drift:stats@2';
+  try { localStorage.removeItem('pixel-drift:stats'); } catch { /* private mode */ }
   let statsLaps = 0;
   let statsMs = 0;
   const carLaps: Record<string, number> = {};
@@ -352,6 +354,21 @@ async function boot() {
     statsMs = Number(raw?.ms) || 0;
     for (const [k, v] of Object.entries(raw?.cars ?? {})) carLaps[k] = Number(v) || 0;
   } catch { /* private mode */ }
+  /* honest lap floors: track metres (server/track-data.json) at the validator's
+     top speed of 72 u/s, minus the same 0.85 mercy as the circuit gate. Any
+     stored best below them predates the gate and came from the
+     backwards-WORMHOLE trick — it is dropped, for every player, on load */
+  const LAP_FLOOR: Record<string, number> = { coast: 4230, alpine: 4960, sakura: 4840 };
+  for (const m of MAPS) {
+    const floor = LAP_FLOOR[m.id];
+    if (!floor) continue;
+    try {
+      for (const key of [`pixel-drift:best:${m.id}`, `sprite-drift:best:${m.id}`]) {
+        const v = Number(localStorage.getItem(key));
+        if (v > 0 && v * 1000 < floor) localStorage.removeItem(key);
+      }
+    } catch { /* private mode */ }
+  }
   let adminPanel = false;
   let adminConfirmUntil = 0;
   let adminUploadMsg = '';
@@ -1151,13 +1168,18 @@ async function boot() {
         { name: 'car', label: 'DEFAULT CAR', on: true, value: CAR_NAMES[defaultCar] ?? 'PEARL GT' },
       ],
       stats: (() => {
-        const maps = MAPS.map((m) => ({
-          map: m.id.toUpperCase(),
-          best: Number(
+        // the board is the source of truth: a signed-in player's bests are
+        // the anticheat-validated times off their account, not whatever the
+        // browser still has in local storage. Signed out (or a map they
+        // never submitted): fall back to the local lap records.
+        const maps = MAPS.map((m) => {
+          const server = account.bests?.[m.id];
+          const local = Number(
             localStorage.getItem(`pixel-drift:best:${m.id}`)
-            ?? localStorage.getItem(`sprite-drift:best:${m.id}`) ?? 0,
-          ) || 0,
-        }));
+              ?? localStorage.getItem(`sprite-drift:best:${m.id}`) ?? 0,
+          ) || 0;
+          return { map: m.id.toUpperCase(), best: server != null ? server / 1000 : local };
+        });
         const bests = maps.filter((m) => m.best > 0).map((m) => m.best);
         const fav = Object.entries(carLaps).sort((a, b) => b[1] - a[1])[0];
         return {

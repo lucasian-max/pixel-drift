@@ -165,7 +165,7 @@ async function handle(req, res, pathname) {
   if (pathname === '/api/me') {
     if (req.method !== 'GET') return send(res, 405, { error: 'method_not_allowed' });
     if (!user) return send(res, 401, { error: 'unauthorized' });
-    return send(res, 200, { user, features: store.features() });
+    return send(res, 200, { user, features: store.features(), bests: store.bestsFor(user.id) });
   }
 
   if (pathname === '/api/times') {
@@ -207,7 +207,9 @@ async function handle(req, res, pathname) {
       `${s.pathLength} m · ${s.blinks} blink${s.blinks === 1 ? '' : 's'} · ` +
       `off ${s.maxOffTrack} m · ${s.samples} samples`,
     );
-    return send(res, 200, { times });
+    // every submit answers with the player's own board-validated bests, so
+    // the stats page reads anticheat data instead of local guesses
+    return send(res, 200, { times, bests: store.bestsFor(user.id) });
   }
 
   if (pathname === '/api/runs') {

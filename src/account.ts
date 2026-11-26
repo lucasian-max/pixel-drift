@@ -113,6 +113,9 @@ export const account = {
   times: [] as TimeEntry[],
   /** gated features the server made public, and this map's ghost payload */
   features: null as Features | null,
+  /** the signed-in player's server-validated best ms per map — the source
+      the stats page shows instead of whatever the browser claims locally */
+  bests: null as Record<string, number> | null,
   ghost: null as GhostLap | null,
   offline: false,
   busy: false,
@@ -127,10 +130,16 @@ export const account = {
     let offline = false;
     let user: User | null = null;
     let times: TimeEntry[] = sameMap ? this.times : [];
+    let bests: Record<string, number> | null = null;
 
-    const me = await request<{ user?: User | null; features?: Features }>('/api/me', 'GET');
+    const me = await request<{
+      user?: User | null; features?: Features; bests?: Record<string, number>;
+    }>('/api/me', 'GET');
     if (me.status === 0 || me.status >= 500) offline = true;
-    else if (me.ok) user = me.body?.user ?? null;
+    else if (me.ok) {
+      user = me.body?.user ?? null;
+      bests = me.body?.bests ?? null;
+    }
 
     const board = await request<{ times?: TimeEntry[]; features?: Features; ghost?: GhostLap }>(
       `/api/times?map=${encodeURIComponent(boardMap)}`, 'GET',
@@ -148,6 +157,7 @@ export const account = {
 
     this.user = user;
     this.times = times;
+    this.bests = user ? bests : null;
     this.offline = offline;
     this.busy = false;
   },
@@ -166,6 +176,7 @@ export const account = {
     this.busy = false;
     if (!r.ok) return { ok: false, error: OFFLINE_MSG };
     this.user = null;
+    this.bests = null;
     return { ok: true };
   },
 
@@ -209,7 +220,7 @@ export const account = {
     const lapMap = map ?? this.map;
     const name = this.user.username;
     const previousBest = this.times.find((t) => t.username === name)?.ms;
-    const r = await request<{ times?: TimeEntry[]; error?: string; reason?: string }>(
+    const r = await request<{ times?: TimeEntry[]; error?: string; reason?: string; bests?: Record<string, number> }>(
       '/api/times', 'POST', { ms, trace, map: lapMap, car: meta?.car, variant: meta?.variant },
     );
     if (!r.ok) {
@@ -226,6 +237,7 @@ export const account = {
     const times = r.body?.times ?? [];
     this.map = lapMap;
     this.times = times;
+    this.bests = r.body?.bests ?? this.bests;
     const mine = times.find((t) => t.username === name && t.ms === ms);
     return { ok: true, rank: mine?.rank, improved: previousBest === undefined || ms < previousBest };
   },
@@ -238,9 +250,10 @@ export const account = {
     const left: PendingLap[] = [];
     let landed = 0;
     for (const lap of list) {
-      const r = await request<{ times?: TimeEntry[] }>('/api/times', 'POST', lap);
+      const r = await request<{ times?: TimeEntry[]; bests?: Record<string, number> }>('/api/times', 'POST', lap);
       if (r.ok) {
         landed++;
+        this.bests = r.body?.bests ?? this.bests;
         // the response carries the board for the lap's own map: only take it
         // when that is the board on screen
         if (lap.map === this.map) this.times = r.body?.times ?? this.times;

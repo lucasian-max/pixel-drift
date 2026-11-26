@@ -504,4 +504,14 @@ export class Store {
       .slice(0, limit)
       .map((t, i) => ({ rank: i + 1, username: t.username, ms: t.ms, at: t.at }));
   }
+
+  /** A player's own anticheat-validated best ms per map: the source of truth
+      for the stats page, which never trusts the browser's local values. */
+  bestsFor(userId) {
+    const bests = {};
+    for (const t of this.db.times) {
+      if (t.userId === userId && !(t.map in bests)) bests[t.map] = t.ms;
+    }
+    return bests;
+  }
 }
