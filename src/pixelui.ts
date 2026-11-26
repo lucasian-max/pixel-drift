@@ -364,8 +364,8 @@ export class PixelUI {
     this.drawMuteChip(state, 66, 'left');
 
     if (state.warning) this.drawToast(state.warning, 78);
-    else if (state.offTrack && (time * 2) % 1 < 0.7) {
-      this.drawToast('OFF TRACK', 78);
+    else if (state.offTrack) {
+      this.drawOffChip(time);
     } else if (state.notice) {
       this.drawNotice(state.notice, 78);
     }
@@ -731,6 +731,23 @@ export class PixelUI {
     pxRect(c, x, y, w, 15, ACCENT);
     pxBorder(c, x, y, w, 15, 'rgba(242,238,225,0.85)');
     this.text(text, this.w / 2, y + 4, { size: 8, weight: 700, color: CREAM, align: 'center' });
+  }
+
+  /* OFF TRACK: a chip docked in the left HUD column under the mute chip — the
+     old centred toast read as a red banner floating over the world. The base
+     chip holds still so the warning never vanishes while the car is off the
+     road; only the border and lettering pulse, on the beat the toast blinked */
+  private drawOffChip(time: number) {
+    const c = this.ctx;
+    const label = 'OFF TRACK';
+    const w = this.measure(label, 8, 700) + 22;
+    const x = 8, y = 84, h = 15;
+    const on = (time * 2) % 1 < 0.7;
+    pxRect(c, x, y, w, h, SLAB);
+    pxBorder(c, x, y, w, h, on ? ACCENT : SEG_RED_OFF);
+    c.fillStyle = ACCENT;
+    c.fillRect(x + 1, y + 3, 3, h - 6);
+    this.text(label, x + 10, y + 4, { size: 8, weight: 700, color: on ? ACCENT : DIM });
   }
 
   private drawMap(car: Car, x: number, y: number, size: number) {
