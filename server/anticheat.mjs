@@ -200,6 +200,14 @@ export function validateLap(mapId, ms, trace) {
   let covered = 0;     // trace clock the samples span
   let still = 0;       // consecutive samples within SAME_POINT of the last
   let lastBlinkAt = -Infinity;
+  // "barely moves" is measured against what a lap of *this* circuit has to
+  // advance per 200 ms sample: a tight technical circuit crawls through its
+  // corners at a couple of metres per sample, and an absolute threshold would
+  // reject the honest lap. A parked car or a frozen trace moves nothing at
+  // all, so a fifth of the expected step is still more than enough to see it,
+  // and the absolute floor keeps fast circuits at least as strict as before.
+  const expectedStep = track.length / Math.max(1, ms / 200);
+  const stuckStep = Math.min(SAME_POINT, expectedStep * 0.2);
   const route = [];
   for (let i = 0; i < trace.length; i++) {
     const p = trace[i];
@@ -213,7 +221,7 @@ export function validateLap(mapId, ms, trace) {
     const d = Math.hypot(dx, dz);
     const dt = (p.t - a.t) / 1000;
     covered += dt;
-    if (d < SAME_POINT && dt > 0) {
+    if (d < stuckStep && dt > 0) {
       slowSegments++;
       still++;
     } else {
