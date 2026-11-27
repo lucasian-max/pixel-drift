@@ -132,6 +132,24 @@ test('the audit needs more than one repeated lap time', () => {
   assert.equal(report.suspect, false);
 });
 
+test('a partial episode with no input is not a lap and not a signal', () => {
+  // a crash, a reset, or the menu: the car coasts with no keys and the episode
+  // never finished. Two of djbravo's 94 real uploads look exactly like this.
+  const lines = [HEADER, TRACK, JSON.stringify({
+    kind: 'episode', id: 'partial', index: 0, map: 'alpine', car: 'PEARL GT', variant: 0,
+    power: 'PEARL DRIFT', driver: 'human', player: 'djbravo', input: 'keyboard', launch: false,
+    createdAt: '2026-11-27T03:18:18.812Z', lapMs: 0, samples: 92, complete: false,
+    partial: true, stats: null, events: [],
+  })];
+  for (let s = 0; s < 92; s++) {
+    const o = [0, 0, 0, 0, 0, 18, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0];
+    lines.push(JSON.stringify({ e: 0, s, o, a: [0, 0, 0, 0] }));
+  }
+  const [report] = auditPlayers(scanJsonlText(lines.join('\n') + '\n', { file: 'partial.jsonl' }));
+  assert.equal(report.suspectEpisodes, 0);
+  assert.equal(report.suspect, false);
+});
+
 test('the audit attributes episodes by their player field, not the folder', () => {
   const file = runFile([{
     index: 0, player: 'srihari', lapMs: 14566, samples: 900, steer: 280, throttle: 860,
