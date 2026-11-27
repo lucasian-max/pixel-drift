@@ -84,6 +84,7 @@ function humanError(status: number, code?: string): string {
       if (code === 'invalid_password') return 'password must be at least 8 characters';
       return 'invalid input';
     case 401: return 'wrong username or password';
+    case 403: return code === 'human_check_failed' ? 'human check failed — try again' : 'not allowed';
     case 409: return 'that username is taken';
     case 429: return 'too many attempts, wait a minute';
     default: return 'server error, try again';
@@ -178,8 +179,8 @@ export const account = {
     return authPost('/api/login', username, password);
   },
 
-  async signup(username: string, password: string): Promise<AccountResult> {
-    return authPost('/api/signup', username, password);
+  async signup(username: string, password: string, turnstileToken?: string): Promise<AccountResult> {
+    return authPost('/api/signup', username, password, turnstileToken);
   },
 
   async logout(): Promise<AccountResult> {
@@ -282,7 +283,12 @@ export const account = {
   },
 };
 
-async function authPost(path: string, username: string, password: string): Promise<AccountResult> {
+async function authPost(
+  path: string,
+  username: string,
+  password: string,
+  turnstileToken?: string,
+): Promise<AccountResult> {
   /* validate up front for instant feedback (mirrors the server rules) */
   if (!USERNAME_RE.test(username)) {
     return { ok: false, error: 'username must be 3-16 chars: a-z, 0-9, _' };
@@ -293,6 +299,7 @@ async function authPost(path: string, username: string, password: string): Promi
   account.busy = true;
   const r = await request<{ user?: User; error?: string }>(path, 'POST', {
     username, password,
+    ...(turnstileToken ? { turnstileToken } : {}),
   });
   account.busy = false;
   if (!r.ok) {

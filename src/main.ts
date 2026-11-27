@@ -30,6 +30,20 @@ const BASE_HEIGHT = 360;
 /* ---- login / signup overlay (DOM; pixel-styled, CSS injected from TS) -----
    Flat dark panel, cream Silkscreen text. While hidden it is display:none,
    so it is out of the accessibility tree, holds no focus and steals no keys. */
+
+/* Cloudflare Turnstile: an invisible-until-needed human check rendered into
+ * the signup form. The site key is public by design (it identifies the
+ * widget, it does not verify anything); the secret lives server-side. */
+const TURNSTILE_SITEKEY = '0x4AAAAAAGWSXQab4CExjYpd';
+interface TurnstileApi {
+  render: (el: HTMLElement, opts: Record<string, unknown>) => string;
+  getResponse: (id?: string) => string | undefined;
+  reset: (id?: string) => void;
+}
+declare global {
+  interface Window { turnstile?: TurnstileApi; }
+}
+
 const loginForm = (() => {
   const style = document.createElement('style');
   style.textContent = `
@@ -47,6 +61,8 @@ const loginForm = (() => {
 #login-overlay input:focus { outline: none; border-color: #f2eee1; }
 #login-overlay button:focus-visible { outline: 2px solid #e0513f; outline-offset: 2px; }
 #login-error { min-height: 1.2em; margin: 0.7em 0 0; color: #e0513f; }
+#login-turnstile { min-height: 4.2em; margin: 0.7em 0 0; }
+#login-turnstile:empty { min-height: 0; margin: 0; }
 .login-row { display: flex; gap: 0.5em; margin-top: 0.9em; }
 .login-row button { flex: 1; font: inherit; padding: 0.55em 0.2em; cursor: pointer;
   border: 2px solid #f2eee1; }
@@ -69,6 +85,7 @@ const loginForm = (() => {
       <label for="login-pass">PASSWORD</label>
       <input id="login-pass" type="password" autocomplete="current-password" />
       <p id="login-error" aria-live="polite"></p>
+      <div id="login-turnstile"></div>
       <div class="login-row">
         <button type="submit" id="login-go">SIGN IN</button>
         <button type="button" id="login-new">CREATE ACCOUNT</button>
@@ -81,9 +98,44 @@ const loginForm = (() => {
   const userEl = overlay.querySelector<HTMLInputElement>('#login-user')!;
   const passEl = overlay.querySelector<HTMLInputElement>('#login-pass')!;
   const errEl = overlay.querySelector<HTMLElement>('#login-error')!;
+  const turnstileEl = overlay.querySelector<HTMLElement>('#login-turnstile')!;
   const newBtn = overlay.querySelector<HTMLButtonElement>('#login-new')!;
   const cancelBtn = overlay.querySelector<HTMLButtonElement>('#login-cancel')!;
   const allBtns = Array.from(overlay.querySelectorAll<HTMLButtonElement>('button'));
+
+  /* Turnstile: loaded on first open, rendered once. Tokens are one-use, so a
+     failed signup resets the widget to mint a fresh one for the retry. */
+  let widgetId: string | null = null;
+  function loadTurnstile() {
+    if (window.turnstile) {
+      if (!widgetId) widgetId = window.turnstile.render(turnstileEl, {
+        sitekey: TURNSTILE_SITEKEY, theme: 'dark',
+      });
+      return;
+    }
+    if (document.querySelector('script[data-turnstile]')) return;
+    const s = document.createElement('script');
+    s.src = 'https://challenges.cloudflare.com/turnstile/v0/api.js?render=explicit';
+    s.async = true;
+    s.defer = true;
+    s.setAttribute('data-turnstile', '');
+    s.addEventListener('load', () => {
+      if (window.turnstile && !widgetId) {
+        widgetId = window.turnstile.render(turnstileEl, {
+          sitekey: TURNSTILE_SITEKEY, theme: 'dark',
+        });
+      }
+    });
+    document.head.appendChild(s);
+  }
+  function turnstileToken(): string | undefined {
+    return window.turnstile && widgetId !== null
+      ? window.turnstile.getResponse(widgetId) || undefined
+      : undefined;
+  }
+  function resetTurnstile() {
+    if (window.turnstile && widgetId !== null) window.turnstile.reset(widgetId);
+  }
 
   /* match the HUD grid: 8px Silkscreen at the canvas upscale factor */
   const rescale = () => {
@@ -113,11 +165,28 @@ const loginForm = (() => {
   let working = false;
   async function submit(mode: 'login' | 'signup') {
     if (working) return;
-    working = true;
     errEl.textContent = '';
+    if (mode === 'signup') {
+      const t = turnstileToken();
+      if (!t) {
+        errEl.textContent = window.turnstile
+          ? 'human check still running — try again in a second'
+          : 'human check is loading — try again in a second';
+        return;
+      }
+      working = true;
+      for (const b of allBtns) b.disabled = true;
+      const r = await account.signup(userEl.value.trim().toLowerCase(), passEl.value, t);
+      working = false;
+      for (const b of allBtns) b.disabled = false;
+      if (r.ok) { close(); passEl.value = ''; return; }
+      errEl.textContent = r.error ?? 'something went wrong';
+      resetTurnstile();   // the token was spent: mint a fresh one for the retry
+      return;
+    }
+    working = true;
     for (const b of allBtns) b.disabled = true;
-    const r = await (mode === 'login' ? account.login : account.signup)(
-      userEl.value.trim().toLowerCase(), passEl.value);
+    const r = await account.login(userEl.value.trim().toLowerCase(), passEl.value);
     working = false;
     for (const b of allBtns) b.disabled = false;
     if (r.ok) { close(); passEl.value = ''; return; }
@@ -128,6 +197,7 @@ const loginForm = (() => {
     errEl.textContent = '';
     overlay.classList.add('open');
     rescale();
+    loadTurnstile();
     /* defer: the opening click's default focus action would otherwise win */
     setTimeout(() => userEl.focus(), 0);
   }

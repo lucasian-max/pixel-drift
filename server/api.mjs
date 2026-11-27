@@ -8,6 +8,7 @@
 // `multiplayer` branch / `multiplayer-archive` tag.
 
 import http from 'node:http';
+import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import {
@@ -23,6 +24,36 @@ import { saveRun, listRuns, RUN_UPLOAD_LIMIT } from './runs.mjs';
 
 const HOST = '127.0.0.1';
 const PORT = 8790;
+
+/* Turnstile (Cloudflare's CAPTCHA-free human check) on account creation.
+ * The secret file is the switch: a data dir without it (dev copies,
+ * sandboxes) creates accounts exactly as before. The widget lives in the
+ * game's signup overlay; the token it mints is verified here, so a script
+ * must run Cloudflare's browser challenge to make an account. */
+const here = path.dirname(fileURLToPath(import.meta.url));   // shared: statics + data
+const TURNSTILE_SECRET_FILE = path.join(here, 'data', 'turnstile-secret');
+let turnstileSecret = null;
+try {
+  turnstileSecret = fs.readFileSync(TURNSTILE_SECRET_FILE, 'utf8').trim() || null;
+} catch {
+  /* not configured */
+}
+
+async function verifyTurnstile(token) {
+  if (typeof token !== 'string' || !token) return false;
+  try {
+    const res = await fetch('https://challenges.cloudflare.com/turnstile/v0/siteverify', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ secret: turnstileSecret, response: token }),
+    });
+    const data = await res.json();
+    return data.success === true;
+  } catch {
+    return false; // verification unreachable: refuse rather than open the gate
+  }
+}
+
 const BODY_LIMIT_BYTES = 32768; // lap traces (kept for replays) need the headroom
 const AUTH_WINDOW_MS = 60_000; // 10 signup/login attempts per IP per 60s
 const AUTH_MAX = 10;
@@ -41,7 +72,6 @@ const KNOWN_PATHS = new Set([
   '/api/admin/runs',
 ]);
 
-const here = path.dirname(fileURLToPath(import.meta.url));
 const store = new Store(path.join(here, 'data', 'db.json'));
 function send(res, status, body) {
   res.statusCode = status;
@@ -297,6 +327,13 @@ async function handle(req, res, pathname) {
   const body = await readJsonBody(req);
 
   if (pathname === '/api/signup') {
+    if (turnstileSecret) {
+      const human = await verifyTurnstile(body.turnstileToken);
+      if (!human) {
+        console.log(`[turnstile] reject signup for ${body.username}: ${body.turnstileToken ? 'token failed' : 'no token'}`);
+        return send(res, 403, { error: 'human_check_failed' });
+      }
+    }
     const created = store.signup(body.username, body.password); // StoreError -> status/code
     res.setHeader('Set-Cookie', sessionCookie(store.createSession(created.id)));
     return send(res, 200, { user: created });
