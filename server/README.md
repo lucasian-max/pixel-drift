@@ -99,20 +99,27 @@ recorder therefore sends a few counters with each lap:
 ```
 
 `server/botguard.mjs` reads them and calls a lap a bot when the proof is
-present and either it never steered on a lap longer than 4 s, or it shows no
-input at all across more than 50 samples.
+present and any of these hold:
+
+- it never steered on a lap longer than 4 s;
+- it shows no input at all across more than 50 samples;
+- its sample count fits neither recorder clock for the claimed time — the
+  recorder samples at a fixed 60 Hz (120 behind `?rec=120`) on the same
+  simulation clock the lap time runs on, so a real lap carries
+  `ms x fps / 1000` samples within ~12%, and a forged counter cannot.
 
 The `botguard` feature flag decides what happens. It is **off by default**
 (`FEATURES_DEFAULT_OFF` in `server/store.mjs`, unlike the cosmetic flags) and
 until an admin turns it on, the gate only logs:
 
-- off: a bot-like proof is accepted and logged as
+- off: a bot-like lap is accepted and logged as
   `[botguard] would-reject <user> <map> <ms>: <reason>`;
-- on: the same proof is refused with
-  `422 {error:"suspected_bot", reason}` before it reaches the board, and a lap
-  with no proof at all is still accepted and logged as `[botguard] no-proof`
-  — a tab opened before the recorder sent proofs cannot do better, and
-  refusing it would break live players for a rule that could not be checked.
+- on: the same lap is refused with `422 {error:"suspected_bot", reason}`
+  before it reaches the board. While on, the gate also refuses a lap with no
+  proof at all (`input proof missing` — every client built since the recorder
+  ships one) and the same millisecond time submitted a third time for the
+  same map (`repeated lap time`, checked against the lap journal in
+  `store.identicalLapCount`; a genuine submit retry lands once, maybe twice).
 
 `server/scripts/audit-bots.mjs` finds the same pattern in stored runs after the
 fact: `node server/scripts/audit-bots.mjs server/data/runs`, or

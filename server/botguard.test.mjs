@@ -35,18 +35,39 @@ test('zero input of any kind is a bot on a long episode', () => {
 });
 
 test('a human proof is accepted', () => {
-  const verdict = checkProof({ samples: 620, steer: 312, throttle: 604 }, 11912);
+  // 11912ms at the recorder's 60Hz is 714 samples
+  const verdict = checkProof({ samples: 715, steer: 312, throttle: 604 }, 11912);
   assert.equal(verdict.state, 'human');
 });
 
 test('a human proof that lifted and coasted a little is accepted', () => {
-  const verdict = checkProof({ samples: 620, steer: 61, throttle: 480 }, 11912);
+  const verdict = checkProof({ samples: 715, steer: 61, throttle: 480 }, 11912);
+  assert.equal(verdict.state, 'human');
+});
+
+test('a 120Hz proof (?rec=120) is accepted at its own rate', () => {
+  // 11912ms at 120Hz is 1429 samples
+  const verdict = checkProof({ samples: 1430, steer: 600, throttle: 1400 }, 11912);
+  assert.equal(verdict.state, 'human');
+});
+
+test('a sample count no recorder clock can produce is a bot', () => {
+  // the shape srihari2_0's forged proofs had: plausible-looking inputs, a
+  // sample count that fits neither 60Hz nor 120Hz for the claimed time
+  const verdict = checkProof({ samples: 500, steer: 250, throttle: 400 }, 11912);
+  assert.equal(verdict.state, 'bot');
+  assert.equal(verdict.reason, 'implausible input sample count');
+});
+
+test('a sample count inside the drift tolerance is accepted', () => {
+  // 630 vs an expected 715 is 11.9% off — within the 12% drift allowance
+  const verdict = checkProof({ samples: 630, steer: 300, throttle: 600 }, 11912);
   assert.equal(verdict.state, 'human');
 });
 
 test('a short lap is not judged by the steering rule', () => {
   // an off-the-line blast can be 3 s without touching the wheel
-  const verdict = checkProof({ samples: 180, steer: 0, throttle: 175 }, BOTGUARD.MIN_LAP_MS);
+  const verdict = checkProof({ samples: 240, steer: 0, throttle: 235 }, BOTGUARD.MIN_LAP_MS);
   assert.equal(verdict.state, 'human');
 });
 

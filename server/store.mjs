@@ -326,6 +326,20 @@ export class Store {
   destroySession(token) {
     if (typeof token === 'string' && this.sessions.delete(token)) this._scheduleSave();
   }
+
+  /** How many times this exact millisecond time is already in the lap journal
+   *  for this player and map. A human cannot land the same lap twice to the
+   *  millisecond — srihari2_0 posted 9183ms twelve times. A genuine client
+   *  retry (the board answered but the response was lost) lands once, maybe
+   *  twice; the guard refuses the third. */
+  identicalLapCount(userId, map, ms) {
+    let n = 0;
+    for (const l of this.db.laps) {
+      if (l.userId === userId && l.map === map && l.ms === ms) n++;
+    }
+    return n;
+  }
+
   // Records a finish time; keeps only each user's best (lowest) ms per map.
   // Returns the current top-10 board for that map.
   submitTime(user, ms, map = DEFAULT_MAP, trace = null, summary = null, car = null, variant = null) {

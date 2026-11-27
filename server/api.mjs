@@ -203,20 +203,26 @@ async function handle(req, res, pathname) {
       return send(res, 422, { error: 'invalid_trace', reason: verdict.reason });
     }
     // Bot gate: the line was clean, but a script can drive a clean line with no
-    // hands. DORMANT unless an admin turns `botguard` on — an accepted lap can
-    // be deleted later, a rejected one is gone. A lap with no proof (any tab
-    // opened before the recorder sent one) is accepted and noted: refusing it
-    // would break every player mid-session for a rule we cannot check yet.
+    // hands. Three verdicts, all under the `botguard` flag — an accepted lap can
+    // be deleted later, a rejected one is gone, so the flag stays the switch:
+    //   no input            — the proof shows a lap nobody steered
+    //   implausible count   — the proof's sample count fits no recorder clock
+    //   repeated lap time    — the same millisecond time, over and over
+    // A lap without a proof is refused too: every client built since the
+    // recorder ships one, so only an old tab or a non-client script sends none.
+    const guardOn = store.features().botguard === true;
     const proof = readProof(body.proof);
     const bot = checkProof(proof, body.ms);
-    if (bot.state === 'bot') {
-      if (store.features().botguard === true) {
-        console.log(`[botguard] reject ${user.username} ${map} ${body.ms}ms: ${bot.reason}`);
-        return send(res, 422, { error: 'suspected_bot', reason: bot.reason });
+    let botReason = null;
+    if (bot.state === 'bot') botReason = bot.reason;
+    else if (!proof) botReason = 'input proof missing';
+    else if (store.identicalLapCount(user.id, map, body.ms) >= 2) botReason = 'repeated lap time';
+    if (botReason) {
+      if (guardOn) {
+        console.log(`[botguard] reject ${user.username} ${map} ${body.ms}ms: ${botReason}`);
+        return send(res, 422, { error: 'suspected_bot', reason: botReason });
       }
-      console.log(`[botguard] would-reject ${user.username} ${map} ${body.ms}ms: ${bot.reason}`);
-    } else if (!proof && store.features().botguard === true) {
-      console.log(`[botguard] no-proof ${user.username} ${map} ${body.ms}ms`);
+      console.log(`[botguard] would-reject ${user.username} ${map} ${body.ms}ms: ${botReason}`);
     }
     const car = typeof body.car === 'string' && body.car.trim()
       ? body.car.trim().slice(0, 32)

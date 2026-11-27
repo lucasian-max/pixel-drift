@@ -20,6 +20,25 @@ export const BOTGUARD = {
   MIN_SAMPLES: 50,
 };
 
+/** The recorder samples at a fixed rate — RUN_FPS, 60 by default, 120 behind
+ *  ?rec=120 — and the lap clock runs on the same simulation time, so a real
+ *  lap carries ms x fps / 1000 samples within a small drift. A forged proof
+ *  can claim any steer count it likes, but it cannot make an arbitrary sample
+ *  count plausible for the time it claims: srihari2_0's post-guard times came
+ *  with proofs whose counts no clock can produce. */
+const SAMPLE_TOLERANCE = 0.12;
+const SAMPLE_EPSILON = 8;
+
+function sampleRateFits(proof, ms) {
+  for (const fps of [60, 120]) {
+    const expected = (ms * fps) / 1000;
+    if (Math.abs(proof.samples - expected) <= Math.max(SAMPLE_EPSILON, SAMPLE_TOLERANCE * expected)) {
+      return true;
+    }
+  }
+  return false;
+}
+
 const isCount = (v) => Number.isInteger(v) && v >= 0;
 
 /** Read a submitted proof from a request body.
@@ -42,14 +61,15 @@ export function readProof(raw) {
 /** Judge a proof against the lap it came with.
  *
  *  'bot'     — the evidence is there and it is impossible for a human lap:
- *              no steering at all on a lap long enough to need some, or no
- *              input of any kind over a whole lap.
+ *              no steering at all on a lap long enough to need some, no
+ *              input of any kind over a whole lap, or a sample count no
+ *              recorder clock can produce for the claimed time.
  *  'human'   — the proof shows input that a driver made.
  *  'unknown' — no usable proof (missing or malformed).
  *
  *  Unknown is not a pass: callers decide what to do with it, and the API
- *  accepts it because a client tab opened before this shipped cannot send
- *  anything else.
+ *  refuses it while the guard is on — every client built since the recorder
+ *  ships its proof with every lap.
  */
 export function checkProof(proof, ms) {
   if (!proof) return { state: 'unknown' };
@@ -58,6 +78,9 @@ export function checkProof(proof, ms) {
   }
   if (proof.steer + proof.throttle === 0 && proof.samples > BOTGUARD.MIN_SAMPLES) {
     return { state: 'bot', reason: 'no input at all', proof };
+  }
+  if (!sampleRateFits(proof, ms)) {
+    return { state: 'bot', reason: 'implausible input sample count', proof };
   }
   return { state: 'human', proof };
 }
