@@ -884,10 +884,10 @@ export class PixelUI {
 
     const cx = Math.round(w / 2);
 
-    this.text('PIXEL', cx + 3, 49, { size: 48, weight: 700, color: SHADOW, align: 'center' });
-    this.text('PIXEL', cx, 46, { size: 48, weight: 700, color: CREAM, align: 'center' });
-    this.text('DRIFT', cx + 3, 101, { size: 48, weight: 700, color: SHADOW, align: 'center' });
-    this.text('DRIFT', cx, 98, { size: 48, weight: 700, color: ACCENT, align: 'center' });
+    this.text('PIXEL', cx + 3, 41, { size: 48, weight: 700, color: SHADOW, align: 'center' });
+    this.text('PIXEL', cx, 38, { size: 48, weight: 700, color: CREAM, align: 'center' });
+    this.text('DRIFT', cx + 3, 93, { size: 48, weight: 700, color: SHADOW, align: 'center' });
+    this.text('DRIFT', cx, 90, { size: 48, weight: 700, color: ACCENT, align: 'center' });
 
     const carNames = state.carNames ?? ['CAR'];
     const ci = ((state.car.variant % carNames.length) + carNames.length) % carNames.length;
@@ -913,8 +913,8 @@ export class PixelUI {
 
     const maps = state.maps ?? [{ id: 'x', name: state.mapName ?? 'Pixel Drift' }];
     const mi = Math.max(0, Math.min(maps.length - 1, state.mapIndex ?? 0));
-    this.text('TRACK', cx + 1, 167, { size: 8, color: SHADOW, align: 'center', spacing: 3 });
-    this.text('TRACK', cx, 166, { size: 8, color: 'rgba(242,238,225,0.85)', align: 'center', spacing: 3 });
+    this.text('TRACK', cx + 1, 155, { size: 8, color: SHADOW, align: 'center', spacing: 3 });
+    this.text('TRACK', cx, 154, { size: 8, color: 'rgba(242,238,225,0.85)', align: 'center', spacing: 3 });
     /* the picker lays every circuit on the table at once: the arrows cycled
        blind, one reload at a time. Each map is a tab, the current one painted,
        and one click lands there. Short labels are the ids (what SETTINGS
@@ -927,7 +927,7 @@ export class PixelUI {
     const gap = 10;
     const rowW = tabs.reduce((a, t) => a + t.w, 0) + gap * Math.max(0, tabs.length - 1);
     let tabX = Math.round(cx - rowW / 2);
-    const tabY = 180, tabH = 14;
+    const tabY = 172, tabH = 14;
     for (let i = 0; i < tabs.length; i++) {
       const on = i === mi;
       pxRect(c, tabX, tabY, tabs[i].w, tabH, on ? ACCENT : SLAB);
