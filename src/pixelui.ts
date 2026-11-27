@@ -863,20 +863,20 @@ export class PixelUI {
 
     const cx = Math.round(w / 2);
 
-    this.text('PIXEL', cx + 3, 61, { size: 48, weight: 700, color: SHADOW, align: 'center' });
-    this.text('PIXEL', cx, 58, { size: 48, weight: 700, color: CREAM, align: 'center' });
-    this.text('DRIFT', cx + 3, 113, { size: 48, weight: 700, color: SHADOW, align: 'center' });
-    this.text('DRIFT', cx, 110, { size: 48, weight: 700, color: ACCENT, align: 'center' });
+    this.text('PIXEL', cx + 3, 49, { size: 48, weight: 700, color: SHADOW, align: 'center' });
+    this.text('PIXEL', cx, 46, { size: 48, weight: 700, color: CREAM, align: 'center' });
+    this.text('DRIFT', cx + 3, 101, { size: 48, weight: 700, color: SHADOW, align: 'center' });
+    this.text('DRIFT', cx, 98, { size: 48, weight: 700, color: ACCENT, align: 'center' });
 
     const carNames = state.carNames ?? ['CAR'];
     const ci = ((state.car.variant % carNames.length) + carNames.length) % carNames.length;
     const carName = (carNames[ci] ?? 'CAR').toUpperCase();
-    this.text('CAR', cx + 1, 203, { size: 8, color: SHADOW, align: 'center', spacing: 3 });
-    this.text('CAR', cx, 202, { size: 8, color: 'rgba(242,238,225,0.85)', align: 'center', spacing: 3 });
+    this.text('CAR', cx + 1, 211, { size: 8, color: SHADOW, align: 'center', spacing: 3 });
+    this.text('CAR', cx, 210, { size: 8, color: 'rgba(242,238,225,0.85)', align: 'center', spacing: 3 });
     this.font(16, 700);
     const carW = Math.ceil(c.measureText(carName).width);
-    this.text(carName, cx + 2, 216, { size: 16, weight: 700, color: SHADOW, align: 'center' });
-    this.text(carName, cx, 214, { size: 16, weight: 700, color: CREAM, align: 'center' });
+    this.text(carName, cx + 2, 224, { size: 16, weight: 700, color: SHADOW, align: 'center' });
+    this.text(carName, cx, 222, { size: 16, weight: 700, color: CREAM, align: 'center' });
     const arrowButton = (b: Button, dir: number) => {
       pxRect(c, b.x, b.y, b.w, b.h, SLAB);
       pxBorder(c, b.x, b.y, b.w, b.h, 'rgba(242,238,225,0.55)');
@@ -884,9 +884,9 @@ export class PixelUI {
       this.buttons.push(b);
     };
     this.bCarPrev.x = Math.round(cx - carW / 2 - 34);
-    this.bCarPrev.y = 208;
+    this.bCarPrev.y = 216;
     this.bCarNext.x = Math.round(cx + carW / 2 + 10);
-    this.bCarNext.y = 208;
+    this.bCarNext.y = 216;
     arrowButton(this.bCarPrev, -1);
     arrowButton(this.bCarNext, 1);
 
@@ -903,10 +903,10 @@ export class PixelUI {
       const label = (m.id || m.name).toUpperCase();
       return { label, w: Math.ceil(c.measureText(label).width) + 16 };
     });
-    const gap = 6;
+    const gap = 10;
     const rowW = tabs.reduce((a, t) => a + t.w, 0) + gap * Math.max(0, tabs.length - 1);
     let tabX = Math.round(cx - rowW / 2);
-    const tabY = 174, tabH = 14;
+    const tabY = 180, tabH = 14;
     for (let i = 0; i < tabs.length; i++) {
       const on = i === mi;
       pxRect(c, tabX, tabY, tabs[i].w, tabH, on ? ACCENT : SLAB);
@@ -923,9 +923,9 @@ export class PixelUI {
 
     this.bInfo.label = 'POWER INFO';
     this.bInfo.x = Math.round(cx - 74);
-    this.bInfo.y = 238;
+    this.bInfo.y = 246;
     this.bGarage.x = Math.round(cx + 4);
-    this.bGarage.y = 238;
+    this.bGarage.y = 246;
     for (const b of [this.bInfo, this.bGarage]) {
       pxRect(c, b.x, b.y, b.w, b.h, SLAB);
       pxBorder(c, b.x, b.y, b.w, b.h, 'rgba(242,238,225,0.45)');
@@ -947,7 +947,7 @@ export class PixelUI {
     this.bSolo.label = 'PLAY';
     this.bSolo.w = 104;
     this.bSolo.x = Math.round(cx - 52);
-    this.bSolo.y = 258;
+    this.bSolo.y = 266;
     const key = (b: Button, fill: string) => {
       pxRect(c, b.x + 2, b.y + 2, b.w, b.h, SHADOW);
       pxRect(c, b.x, b.y, b.w, b.h, fill);
@@ -964,16 +964,16 @@ export class PixelUI {
     key(this.bSolo, ACCENT);
 
     const acct = state.account;
-    let blinkY = 296;
+    let blinkY = 304;
     if (acct) {
       if (acct.user) {
         const admin = acct.user.role === 'admin';
-        this.text((admin ? 'ADMIN · ' : '') + 'SIGNED IN AS ' + acct.user.username.toUpperCase(), cx, 290, {
+        this.text((admin ? 'ADMIN · ' : '') + 'SIGNED IN AS ' + acct.user.username.toUpperCase(), cx, 298, {
           size: 8, color: admin ? ACCENT : 'rgba(242,238,225,0.8)', align: 'center', spacing: 1,
         });
         if (admin) {
           this.bAdmin.x = Math.round(cx - 71);
-          this.bAdmin.y = 302;
+          this.bAdmin.y = 310;
           pxRect(c, this.bAdmin.x, this.bAdmin.y, this.bAdmin.w, this.bAdmin.h, ACCENT);
           pxBorder(c, this.bAdmin.x, this.bAdmin.y, this.bAdmin.w, this.bAdmin.h, CREAM);
           this.text(this.bAdmin.label, this.bAdmin.x + this.bAdmin.w / 2, this.bAdmin.y + 3,
@@ -984,22 +984,22 @@ export class PixelUI {
           this.bLogout.x = Math.round(cx - this.bLogout.w / 2);
         }
         this.bLogout.label = acct.busy ? '...' : 'SIGN OUT';
-        this.bLogout.y = 302;
+        this.bLogout.y = 310;
         pxRect(c, this.bLogout.x, this.bLogout.y, this.bLogout.w, this.bLogout.h, SLAB);
         pxBorder(c, this.bLogout.x, this.bLogout.y, this.bLogout.w, this.bLogout.h, 'rgba(242,238,225,0.55)');
         this.text(this.bLogout.label, this.bLogout.x + this.bLogout.w / 2, this.bLogout.y + 3,
           { size: 8, color: CREAM, align: 'center' });
         this.buttons.push(this.bLogout);
-        blinkY = 320;
+        blinkY = 328;
       } else {
         this.bLogin.label = acct.busy ? '...' : 'SIGN IN';
         this.bLogin.x = Math.round(cx - this.bLogin.w / 2);
-        this.bLogin.y = 292;
+        this.bLogin.y = 300;
         pxRect(c, this.bLogin.x, this.bLogin.y, this.bLogin.w, this.bLogin.h, SLAB);
         pxBorder(c, this.bLogin.x, this.bLogin.y, this.bLogin.w, this.bLogin.h, 'rgba(242,238,225,0.55)');
         this.text(this.bLogin.label, cx, this.bLogin.y + 3, { size: 8, color: CREAM, align: 'center' });
         this.buttons.push(this.bLogin);
-        blinkY = 312;
+        blinkY = 320;
       }
     }
 
