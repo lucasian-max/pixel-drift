@@ -1146,6 +1146,7 @@ async function boot() {
       return Math.atan2(-(b.x - a.x), -(b.z - a.z));
     };
     const ghostPowers = ghostShown ? ghostEvents(ghostLap!.trace) : [];
+    let ghostPowerName: string | undefined;
     if (ghostShown) {
       const g = ghostLap!;
       const gv = typeof g.variant === 'number' ? g.variant : 0;
@@ -1166,6 +1167,7 @@ async function boot() {
       const hold = (CAR_POWERS[gv]?.duration ?? 0) * 1000;
       const on = ghostPowers.some((ev) =>
         tMs >= ev.t && tMs < ev.t + (ev.e === 'blink' ? 500 : hold));
+      ghostPowerName = on ? (CAR_POWERS[gv]?.name ?? 'POWER') : undefined;
       const passed = ghostPowers.filter((ev) => ev.t <= tMs).length;
       if (passed > ghostEventsSeen) ghostBurst = 0.38;
       ghostEventsSeen = passed;
@@ -1203,6 +1205,7 @@ async function boot() {
         ? { ...lapBar, a: Math.max(0, Math.min(1, (lapBarUntil - now) / 0.5)) }
         : undefined,
       offTrack: started && trackDist > world.roadHalf + 1.2,
+      ghostPower: ghostPowerName,
       mapIndex,
       mapName: MAPS[mapIndex]?.name,
       account,

@@ -88,6 +88,9 @@ export interface UiState {
       time, pb a new personal best, delta the gap to the old best */
   lapBar?: { ms: number; pb: boolean; delta: number | null; a: number };
   offTrack?: boolean;
+  /** the ghost car is inside one of the record's power windows: the power's
+      name, shown in a chip so the burst on the ghost reads as an event */
+  ghostPower?: string;
   bestFlash?: boolean;
   account?: AccountView;
 }
@@ -403,6 +406,7 @@ export class PixelUI {
     } else if (state.notice) {
       this.drawNotice(state.notice, 78);
     }
+    if (state.ghostPower) this.drawGhostChip(time, state.ghostPower);
 
     if (time < this.bestUntil) {
       const bbw = 118, bbh = 22;
@@ -787,6 +791,23 @@ export class PixelUI {
     c.fillStyle = ACCENT;
     c.fillRect(x + 1, y + 3, 3, h - 6);
     this.text(label, x + 10, y + 4, { size: 8, weight: 700, color: on ? ACCENT : DIM });
+  }
+
+  /* GHOST POWER: the record fired its power, and the ghost rig is lit. The
+     burst on the body can be missed mid-corner, so the left column carries a
+     filled chip naming the power — red fill, pulsing cream border, same
+     station as OFF TRACK so the eye knows where to look */
+  private drawGhostChip(time: number, power: string) {
+    const c = this.ctx;
+    const label = 'GHOST · ' + power.toUpperCase();
+    const w = this.measure(label, 8, 700) + 22;
+    const x = 8, y = 104, h = 15;
+    const on = (time * 2) % 1 < 0.7;
+    pxRect(c, x, y, w, h, ACCENT);
+    pxBorder(c, x, y, w, h, on ? CREAM : 'rgba(242,238,225,0.45)');
+    c.fillStyle = CREAM;
+    c.fillRect(x + 1, y + 3, 3, h - 6);
+    this.text(label, x + 10, y + 4, { size: 8, weight: 700, color: CREAM });
   }
 
   private drawMap(car: Car, x: number, y: number, size: number) {

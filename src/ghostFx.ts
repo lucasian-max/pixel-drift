@@ -29,9 +29,22 @@ export class GhostFx {
   private boltSegs: THREE.Mesh[] = [];
   private boltTimer = 0;
   private glowOn = false;
+  /** the car hull (built before the rig, so it is parent.children[0]) —
+      powered ghosts snap into focus instead of whispering from behind glass */
+  private bodyMats: THREE.Material[] = [];
+  private bodyOn = false;
 
   constructor(parent: THREE.Group, variant: number) {
     this.p = CAR_POWERS[variant] ?? CAR_POWERS[0];
+    const hull = parent.children[0] as THREE.Group | undefined;
+    if (hull) {
+      hull.traverse((o) => {
+        const mesh = o as THREE.Mesh;
+        if (!mesh.isMesh) return;
+        const list = Array.isArray(mesh.material) ? mesh.material : [mesh.material];
+        for (const m of list) if (m) this.bodyMats.push(m);
+      });
+    }
     // the same radial ground glow the car rig paints on a 64x64 canvas
     const cv = document.createElement('canvas');
     cv.width = cv.height = 64;
@@ -108,17 +121,24 @@ export class GhostFx {
   update(dt: number, on: boolean, flash: number) {
     const t = performance.now() * 0.001;
     const f = Math.max(0, Math.min(1, flash / FLASH));
+    // the hull lifts from see-through to nearly solid while the power runs:
+    // the burst is the point, and 40% opacity lets it hide behind the world
+    const wantBody = on || f > 0;
+    if (wantBody !== this.bodyOn) {
+      this.bodyOn = wantBody;
+      for (const m of this.bodyMats) (m as THREE.MeshLambertMaterial).opacity = wantBody ? 0.8 : 0.4;
+    }
     this.light.color.setHex(this.p.color);
-    this.light.intensity = (on ? 3.0 + Math.sin(t * 34) * 1.3 : 0) + 5.0 * f;
+    this.light.intensity = (on ? 4.6 + Math.sin(t * 34) * 1.9 : 0) + 5.0 * f;
     // a blink wears straw tones, same as the player's arrival burst
     if (this.p.blink) {
       this.ringMat.color.setHex(DUST.hot);
       this.arrivalMat.color.setHex(DUST.hot);
       this.light.color.setHex(DUST.amber);
     }
-    const pulse = on ? 0.34 + Math.sin(t * 16) * 0.10 : 0;
+    const pulse = on ? 0.52 + Math.sin(t * 16) * 0.16 : 0;
     this.ringMat.opacity = f > 0 ? Math.max(pulse, 0.95 * f) : pulse;
-    this.ring.scale.setScalar(f > 0 ? 0.5 + (1 - f) * 1.5 : on ? 1 + Math.sin(t * 9) * 0.10 : 1);
+    this.ring.scale.setScalar(f > 0 ? 0.5 + (1 - f) * 1.5 : on ? 1.3 + Math.sin(t * 9) * 0.14 : 1);
     const burst = this.p.blink && f > 0 ? f : 0;
     this.arrival.visible = burst > 0;
     if (burst > 0) {
