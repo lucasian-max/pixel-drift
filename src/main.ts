@@ -517,6 +517,8 @@ async function boot() {
 
   ui.onAction = (a) => {
     if (a === 'solo') { begin(); fullBoardOpen = false; }
+    // the title's corner menu is the UI's own state: nothing here to switch
+    else if (a === 'menu') ui.toggleMenu();
     else if (a.startsWith('pick-map-')) {
       const i = Math.min(MAPS.length - 1, Math.max(0, Number(a.slice(9)) || 0));
       if (i !== mapIndex) gotoMapAbs(i);
