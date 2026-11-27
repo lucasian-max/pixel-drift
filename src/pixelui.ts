@@ -1812,10 +1812,9 @@ export class PixelUI {
     const c = this.ctx;
     c.fillStyle = CREAM;
     for (let i = 0; i < 4; i++) {
-      const hgt = 3 + i * 2;
+      const hgt = dir < 0 ? 3 + i * 2 : 9 - i * 2;
       const yy = Math.round(y + (9 - hgt) / 2);
-      const xx = Math.round(dir < 0 ? x + 6 - i * 2 : x + i * 2);
-      c.fillRect(xx, yy, 2, hgt);
+      c.fillRect(x + i * 2, yy, 2, hgt);
     }
   }
 
