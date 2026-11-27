@@ -1,5 +1,6 @@
 import type { Car } from './car';
 import type { TimeEntry, User } from './account';
+import { CAR_POWERS, powerColour } from './powers';
 /* the map cards draw every circuit's shape, not just the one you are on: the
    control polygons are the only thing this needs, and they are already loaded */
 import { MAPS } from './world';
@@ -759,19 +760,25 @@ export class PixelUI {
     const names = state.carNames ?? ['CAR'];
     const ci = ((state.car.variant % names.length) + names.length) % names.length;
     const nm = (names[ci] ?? 'CAR').toUpperCase();
+    const pw = CAR_POWERS[ci] ?? CAR_POWERS[0];
+    const accent = powerColour(ci);
+    const cls = state.carClass ?? '';
 
-    /* two tiers — the name with its arrows, then POWER · CLASS — with the corner
-       buttons in the bottom tier. The old single band put
-       the POWER line at by+27, straight through the 24px arrow boxes, so the tag
-       was painted over and the class name was cut in half. Ratings shrink, then
-       the name drops a size, before either is dropped, so 4:3 keeps every axis,
-       and the POWER line is measured at the spacing it is drawn with — unspaced
-       widths left it off-centre. */
-    const by = this.h - 70;
-    pxRect(c, 8, by, w - 16, 62, SLAB);
-    pxBorder(c, 8, by, w - 16, 62, LINE);
+    /* The band is a spec sheet now, in three cells that each own their space:
+       the ratings column on the left, the car's name over its arrows across the
+       top, and the power plate — name in display type, the effect in a driver's
+       words, a live demo of it running — on the right, under the rule.
 
+       POWER INFO and BACK left the band completely. They were the two chips
+       sitting in its corner, and at narrow widths the POWER INFO lettering ran
+       under BACK's box; they are the screen's own header now — BACK top-left,
+       POWER INFO top-right — corners the car never reaches at any aspect. */
     const compact = w < 600;
+    const bandH = compact ? 104 : 100;
+    const by = this.h - 8 - bandH;
+    pxRect(c, 8, by, w - 16, bandH, SLAB);
+    pxBorder(c, 8, by, w - 16, bandH, LINE);
+
     const rLabelX = compact ? 14 : 18;
     const rBarX = compact ? 66 : 78;
     const rSegW = compact ? 4 : 6;
@@ -790,7 +797,7 @@ export class PixelUI {
     });
 
     /* the arrows sit outside the measured name, like the title chooser: a fixed
-       offset put them on top of longer names (DUNE RUNNER is 155px at 16px) */
+       offset put them on top of longer names (DUNE RUNNER is 151px at 16px) */
     this.bCarPrev.x = Math.max(12, Math.round(cx - nmW / 2 - 34));
     this.bCarPrev.y = by + 4;
     this.bCarNext.x = Math.min(w - 36, Math.round(cx + nmW / 2 + 10));
@@ -802,36 +809,53 @@ export class PixelUI {
       this.buttons.push(b);
     }
 
-    const pwName = state.power?.name ?? '';
-    const cls = state.carClass ?? '';
-    const tag = cls ? ` · ${cls}` : '';
-    const pwW = this.measure(pwName, 8, 400, 1);
-    const tagW = tag ? this.measure(tag, 8, 400, 1) : 0;
-    const showTag = tagW > 0 && pwW + tagW <= w - 32;
-    const lineW = showTag ? pwW + tagW : pwW;
-    const leftEdge = ratings ? rEdge + 6 : 16;
+    // the rule that hands the lower tier to the power plate
+    c.fillStyle = LINE;
+    c.fillRect(12, by + 32, w - 24, 1);
 
-    const lineX = Math.max(leftEdge, Math.round(cx - lineW / 2));
-    this.text(pwName, lineX, by + 34, { size: 8, color: ACCENT, spacing: 1 });
-    if (showTag) this.text(tag, lineX + pwW, by + 34, { size: 8, color: DIM, spacing: 1 });
+    /* ---- the plate: what the power is called, and what it does ----------- */
+    const tx = ratings ? rEdge + 12 : 16;
+    const dw = Math.max(96, Math.min(compact ? 148 : 210, w - tx - 118));
+    const dx = w - 14 - dw;
+    const dh = 54;
+    const dy = by + 36;
+    const colW = Math.max(70, dx - 12 - tx);
+    /* the plate tier's top. Every tagline is written to land in two lines at
+       the narrower column, so the block never grows a stray third line */
+    const py = by + 38;
 
-    this.bInfo.label = 'POWER INFO';
-    this.bInfo.x = w - 156;
-    this.bInfo.y = by + 46;
-    this.bGarageBack.x = w - 64;
-    this.bGarageBack.y = by + 46;
-    for (const b of [this.bInfo, this.bGarageBack]) {
-      pxRect(c, b.x, b.y, b.w, b.h, SLAB);
-      pxBorder(c, b.x, b.y, b.w, b.h, 'rgba(242,238,225,0.55)');
-      this.text(b.label, b.x + b.w / 2, b.y + 3, { size: 8, color: CREAM, align: 'center' });
-      this.buttons.push(b);
+    // a signature bar in the power's own colour, down the plate's edge
+    c.fillStyle = accent;
+    c.fillRect(tx - 6, py, 2, 48);
+
+    /* the header names the block and the car's identity in one phrase: two
+       labels at opposite ends of the row read as two unrelated things */
+    let head = cls ? `CAR POWER · ${cls.toUpperCase()}` : 'CAR POWER';
+    while (head.length > 6 && this.measure(head, 8, 400, 1) > colW) head = head.slice(0, -1);
+    this.text(head, tx, py, { size: 8, color: DIM, spacing: 1 });
+
+    let pwSize = compact ? 16 : 20;
+    let pwW = this.measure(pw.name, pwSize, 700);
+    while (pwSize > 12 && pwW > colW) {
+      pwSize -= 4;
+      pwW = this.measure(pw.name, pwSize, 700);
     }
+    this.text(pw.name, tx, py + 12, { size: pwSize, weight: 700, color: accent });
 
-    // ratings, left of the name: ten hard segments per axis so 6 and 7 read apart
+    /* the effect in a driver's words, never the multipliers — those stay on the
+       POWER INFO card for anyone who wants them */
+    const lines = this.wrap(pw.tagline ?? '', colW, 8, 400).slice(0, 3);
+    lines.forEach((l, i) => {
+      this.text(l, tx, py + 30 + i * 10, { size: 8, color: CREAM });
+    });
+
+    this.drawPowerDemo(ci, dx, dy, dw, dh, accent);
+
+    // ratings under the rule: ten hard segments per axis so 6 and 7 read apart
     if (ratings) {
       for (let i = 0; i < rows.length; i++) {
         const row = rows[i];
-        const ry = by + 3 + i * 10;
+        const ry = py + i * 10;
         this.text(row.label, rLabelX, ry, { size: 8, color: row.best ? ACCENT : DIM });
         const segs = 10, gap = 1;
         for (let s = 0; s < segs; s++) {
@@ -844,7 +868,206 @@ export class PixelUI {
       }
     }
 
+    /* ---- the header's two chips ----------------------------------------- */
+    const hot = this.hoverId;
+    const chip = (b: Button, label: string, x: number, paint: (on: boolean) => void) => {
+      const press = this.press(b.id);
+      b.label = label;
+      b.x = x;
+      b.y = 10 + press.dy;
+      b.h = 16 + press.dh;
+      const on = hot === b.id;
+      pxRect(c, b.x, b.y, b.w, b.h, SLAB);
+      pxBorder(c, b.x, b.y, b.w, b.h, on ? CREAM : 'rgba(242,238,225,0.55)');
+      paint(on);
+      this.buttons.push({ ...b });
+    };
+    this.bGarageBack.w = 60;
+    chip(this.bGarageBack, 'BACK', 10, () => {
+      this.pixelArrow(this.bGarageBack.x + 6, this.bGarageBack.y + 4, -1);
+      this.text('BACK', this.bGarageBack.x + 18, this.bGarageBack.y + 4,
+        { size: 8, color: CREAM });
+    });
+    this.bInfo.w = 70;
+    chip(this.bInfo, 'POWER INFO', w - 10 - this.bInfo.w, (on) => {
+      this.text('POWER INFO', this.bInfo.x + this.bInfo.w / 2, this.bInfo.y + 4,
+        { size: 8, color: CREAM, align: 'center', weight: on ? 700 : 400 });
+    });
     if (state.powerInfo) this.drawPowerInfo(state);
+    this.hoverId = this.hitIdAt(this.hx, this.hy);
+  }
+
+  /** greedy wrap against a pixel width, measured at the spacing it draws with */
+  private wrap(s: string, maxW: number, size: number, weight: number, spacing = 0): string[] {
+    const c = this.ctx;
+    this.font(size, weight);
+    c.letterSpacing = `${spacing}px`;
+    const out: string[] = [];
+    let line = '';
+    for (const word of s.split(' ')) {
+      const test = line ? `${line} ${word}` : word;
+      if (line && c.measureText(test).width > maxW) { out.push(line); line = word; }
+      else line = test;
+    }
+    if (line) out.push(line);
+    c.letterSpacing = '0px';
+    return out;
+  }
+
+  /** The plate's live demo: a strip of road, the car, and the power doing what
+      the plate says it does. Stepped at ten cells a second off the draw clock,
+      every position a whole pixel — animation cells, never an alpha fade. The
+      window is a mid grey on purpose: the car's glass and tyres are near-black
+      and its body is cream, so both read only against something between them. */
+  private drawPowerDemo(ci: number, x: number, y: number, w: number, h: number, accent: string) {
+    const c = this.ctx;
+    pxRect(c, x, y, w, h, '#363943');
+    pxBorder(c, x, y, w, h, accent + '66');
+
+    /* the window is a window: the launch's speed lines start behind the car and
+       would otherwise print straight onto the plate at the start of its run */
+    c.save();
+    c.beginPath();
+    c.rect(x + 1, y + 1, w - 2, h - 2);
+    c.clip();
+
+    /* each power gets the loop its action needs, so no demo ever parks at the
+       end of its own film: ten cells a second, always a whole count of them */
+    const loop = [2.4, 2.4, 2.0][ci] ?? 2.4;
+    const cells = Math.round(loop * 10);
+    const f = Math.floor(((this.now % loop) / loop) * cells);
+    const ground = y + h - 12;
+    const gx = x + 6;
+    const gw = w - 12;
+
+    // the road: one hard edge, then a run of kerb cells
+    c.fillStyle = 'rgba(20,22,26,0.55)';
+    c.fillRect(gx, ground, gw, 9);
+    c.fillStyle = 'rgba(242,238,225,0.55)';
+    c.fillRect(gx, ground, gw, 1);
+    c.fillStyle = 'rgba(242,238,225,0.10)';
+    for (let i = 0; i < gw; i += 8) c.fillRect(gx + i, ground + 4, 4, 1);
+
+    const drawCar = (at: number, gy: number, o: { slant?: number; keep?: (i: number) => boolean } = {}) => {
+      const slant = o.slant ?? 0;
+      // the demo car wears the car on the turntable's own paint
+      const body = ['#f1e4bc', '#e8b02c', '#ead5a6'][ci] ?? '#f1e4bc';
+      const stripe = ci === 0 ? accent : '#f2eee1';
+      const put = (rx: number, ry: number, rw: number, rh: number, col: string) => {
+        c.fillStyle = col;
+        if (!o.keep) { c.fillRect(rx, ry, rw, rh); return; }
+        for (let i = 0; i < rw; i++) if (o.keep(rx + i)) c.fillRect(rx + i, ry, 1, rh);
+      };
+      // wheels first, so the body covers the top of them: rounded, so they read
+      // as wheels and not as squares at this size
+      const wheel = (wx: number) => {
+        put(wx + 1, gy - 13, 9, 13, '#0e1013');
+        put(wx, gy - 12, 11, 11, '#0e1013');
+        put(wx + 3, gy - 9, 5, 5, '#c49a2c');
+      };
+      wheel(at + 5);
+      wheel(at + 41);
+      put(at, gy - 18, 58, 10, body);
+      put(at + 2, gy - 20, 54, 2, body);
+      put(at + 14 + slant, gy - 26, 24, 8, '#12141a');
+      put(at + 15 + slant, gy - 26, 22, 1, body);
+      put(at + 1, gy - 14, 56, 1, stripe);
+      put(at + 54, gy - 19, 4, 4, '#f7f2d8');
+      put(at, gy - 16, 2, 4, '#d02a2a');
+    };
+
+    const span = gw - 72;                      // 58px of car, plus air at the kerb
+    const at = (p: number) => gx + 2 + Math.round(p * span);
+
+    if (ci === 0) {
+      /* the slide, then the pay-out: the car leans in and lays two skid marks,
+         and at the exit those marks flash in the power's colour as it steps on */
+      const lean = f >= 3 && f < 16;
+      const p = f < 3 ? 0
+        : f < 15 ? ((f - 3) / 12) * 0.42
+        : f < 17 ? 0.42 + (f - 15) * 0.27
+        : 0.96;
+      const flash = f >= 15 && f < 21;
+      for (let i = 3; i <= Math.min(f, 15); i++) {
+        const q = ((i - 3) / 12) * 0.42;
+        c.fillStyle = flash ? accent : 'rgba(242,238,225,0.50)';
+        c.fillRect(at(q) + 10, ground + 1, 7, 2);
+        c.fillRect(at(q) + 43, ground + 1, 7, 2);
+      }
+      // dust off the locked rear wheel while it slides
+      if (lean && f % 2 === 0) {
+        c.fillStyle = 'rgba(242,238,225,0.45)';
+        c.fillRect(at(p) - 2, ground - 3, 2, 2);
+        c.fillRect(at(p) - 5, ground - 1, 2, 2);
+      }
+      if (f >= 16 && f < 22) {
+        c.fillStyle = accent;
+        c.fillRect(at(p) - 14, ground - 22, 9, 1);
+        c.fillRect(at(p) - 11, ground - 17, 6, 1);
+      }
+      drawCar(at(p), ground - (f >= 15 && f < 21 ? 1 : 0), { slant: lean ? 4 : 0 });
+    } else if (ci === 1) {
+      /* the shove: it sits and spits, then it is gone — three speed lines and a
+         bolt over the roof while the launch lasts */
+      const p = f < 6 ? 0 : Math.min(1, (f - 6) / 14);
+      const firing = f >= 6 && f < 21;
+      if (f < 6 && f % 2 === 0) {
+        c.fillStyle = accent;
+        c.fillRect(at(0) - 5, ground - 13, 3, 3);
+        c.fillRect(at(0) - 10, ground - 9, 3, 2);
+      }
+      if (firing) {
+        const len = Math.max(3, 20 - (f - 6));
+        for (let k = 0; k < 3; k++) {
+          c.fillStyle = k === 0 ? accent : 'rgba(242,238,225,0.55)';
+          c.fillRect(at(p) - 10 - k * 6 - len, ground - 9 - k * 5, len, 1);
+        }
+      }
+      drawCar(at(p), ground - (firing ? 1 : 0));
+      if (firing && f % 2 === 0) {
+        c.fillStyle = accent;
+        const bx = at(p) + 6, bt = ground - 34;
+        for (let i = 0; i < 6; i++) c.fillRect(bx + i * 3, bt + (i % 2 === 0 ? 0 : 3), 3, 2);
+      }
+    } else {
+      /* the blink: a post opens where the car will land, the car comes apart
+         into pixels, and the arrival ring flares — two hard radii, no fade */
+      const mx = at(1);
+      const armed = f >= 3 && f < 11;
+      c.fillStyle = armed ? accent : accent + '77';
+      for (let i = 0; i < 4; i++) c.fillRect(mx + 24, ground - 2 - i * 4, 2, 2);
+      this.text('22 M', mx + 56, ground - 32, { size: 8, color: accent, align: 'right' });
+      if (f < 5 || f >= 11) {
+        drawCar(f < 5 ? at(0) : mx, ground);
+      } else if (f < 9) {
+        const keep = f < 7
+          ? (i: number) => (i + f * 3) % 3 !== 0
+          : (i: number) => i % 3 !== 1;
+        drawCar(at(0), ground, { keep });
+        for (let i = 0; i < 6; i++) {
+          c.fillStyle = accent;
+          c.fillRect(at(0) + 2 + ((i * 9 + f * 5) % 50), ground - 8 - ((i * 5 + f * 3) % 20), 2, 1);
+        }
+      }
+      if (f >= 11 && f < 18) {
+        /* the arrival lands on the road, not around the roof: two sparks walk
+           out from under the wheels, and the dust it kicked up rises */
+        const r = f < 13 ? 12 : f < 15 ? 20 : 28;
+        c.fillStyle = f < 13 ? CREAM : accent;
+        c.fillRect(mx + 29 - r, ground, 4, 2);
+        c.fillRect(mx + 29 + r, ground, 4, 2);
+        for (let i = 0; i < 3; i++) {
+          c.fillRect(mx + 10 + i * 18, ground - 4 - (f - 11) * 2, 2, 2);
+        }
+      }
+    }
+
+    // a blinking cell so the window reads as running, not as a picture
+    if (f % 5 < 3) {
+      c.fillStyle = accent;
+      c.fillRect(x + w - 9, y + 5, 3, 3);
+    }
+    c.restore();
   }
 
   private drawNotice(text: string, y: number) {
@@ -1808,6 +2031,8 @@ export class PixelUI {
   }
 
   // Font glyphs read thin at this size, so arrows are drawn by hand.
+  /** a stepped triangle. dir < 0 points left (short bar on the left, tall on
+      the right), dir > 0 points right — the two callers pass prev as -1 */
   private pixelArrow(x: number, y: number, dir: number) {
     const c = this.ctx;
     c.fillStyle = CREAM;
