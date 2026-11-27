@@ -1066,7 +1066,10 @@ async function boot() {
       }
       const trace = lapTrace.slice();
       const info = lapInfo();
-      void account.submitLap(ms, trace, mapId, { car: info.carName, variant: info.variant }).then((r) => {
+      // the lap's input activity rides along for the server's bot gate: a lap
+      // driven with no steering at all is not a human lap
+      const proof = recorder.lapProof();
+      void account.submitLap(ms, trace, mapId, { car: info.carName, variant: info.variant, proof }).then((r) => {
         if (!account.user) warn('SIGN IN TO SAVE LAPS', 2.2);
         else if (!r.ok) warn(r.error ?? 'LAP NOT SAVED');
         else if (r.rank) note(`LAP SAVED · RANK ${r.rank}`);

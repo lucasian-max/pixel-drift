@@ -3,6 +3,8 @@
    network/server failures surface as `offline` (refresh) or an `error`
    message (login/signup/logout). */
 
+import type { LapProof } from './recorder';
+
 export interface User { id: string; username: string; role?: 'admin' | 'player' }
 export interface TimeEntry { rank: number; username: string; ms: number; at: string }
 export interface LapTracePoint {
@@ -44,6 +46,8 @@ interface PendingLap {
   map: string;
   car?: string;
   variant?: number;
+  /** input activity of the lap; absent on tabs that predate the bot gate */
+  proof?: LapProof;
 }
 
 const PENDING_KEY = 'pixel-drift:pending-laps';
@@ -214,12 +218,14 @@ export const account = {
 
   /** Post a lap time with its replay trace for one map. Silent no-op when
       signed out or out of range; the board (`times`) refreshes from the
-      POST response. `meta` tags the car for the data desk. */
+      POST response. `meta` tags the car for the data desk and carries the
+      lap's input proof for the server's bot gate (absent when the recorder
+      was off, which the server reads as unknown and lets through). */
   async submitLap(
     ms: number,
     trace: LapTracePoint[],
     map?: string,
-    meta?: { car: string; variant: number },
+    meta?: { car: string; variant: number; proof?: LapProof | null },
   ): Promise<SubmitResult> {
     if (!this.user) return { ok: false, error: 'sign in to save times' };
     if (!Number.isInteger(ms) || ms < MS_MIN || ms > MS_MAX) {
@@ -228,15 +234,16 @@ export const account = {
     const lapMap = map ?? this.map;
     const name = this.user.username;
     const previousBest = this.times.find((t) => t.username === name)?.ms;
+    const proof = meta?.proof ?? undefined;
     const r = await request<{ times?: TimeEntry[]; error?: string; reason?: string; bests?: Record<string, number> }>(
-      '/api/times', 'POST', { ms, trace, map: lapMap, car: meta?.car, variant: meta?.variant },
+      '/api/times', 'POST', { ms, trace, map: lapMap, car: meta?.car, variant: meta?.variant, proof },
     );
     if (!r.ok) {
       if (r.status === 401) this.user = null;   // session expired mid-race
       // no answer at all (offline, redeploy) or signed out mid-lap: the lap is
       // still a lap, so keep it and send it again rather than dropping it
       if (r.status === 0 || r.status === 401 || r.status >= 500) {
-        writePending([...readPending(), { ms, trace, map: lapMap, car: meta?.car, variant: meta?.variant }]);
+        writePending([...readPending(), { ms, trace, map: lapMap, car: meta?.car, variant: meta?.variant, proof }]);
         return { ok: false, error: 'LAP NOT SAVED · WILL RETRY' };
       }
       const reason = typeof r.body?.reason === 'string' ? r.body.reason : 'lap not saved';

@@ -70,6 +70,18 @@ export interface EpisodeEvent {
   z?: number;
 }
 
+/** Per-lap input activity, sent with the lap to /api/times. A few counters,
+ *  no arrays: the server's bot gate reads them (server/botguard.mjs), and a
+ *  lap driven with no steering at all cannot be a human lap. */
+export interface LapProof {
+  /** samples recorded on this lap */
+  samples: number;
+  /** samples whose steer was not exactly 0 */
+  steer: number;
+  /** samples whose throttle was above 0 */
+  throttle: number;
+}
+
 interface EpisodeStats {
   offTrackSeconds: number;
   powerUses: number;
@@ -200,6 +212,10 @@ export class Recorder {
   private savedTracks = new Set<string>();
   private sessionLaps = 0;
   private sessionSamples = 0;
+  /** input activity of the open lap, for LapProof */
+  private lapSamples = 0;
+  private lapSteer = 0;
+  private lapThrottle = 0;
 
   constructor(map: RunMap, opts: { fps?: number } = {}) {
     this.map = map;
@@ -279,6 +295,9 @@ export class Recorder {
       obs: [],
       act: [],
     };
+    this.lapSamples = 0;
+    this.lapSteer = 0;
+    this.lapThrottle = 0;
   }
 
   /** Record an impact, power use, reset or other event at the current sample. */
@@ -287,6 +306,14 @@ export class Recorder {
     if (!ep) return;
     const step = Math.floor(ep.obs.length / OBS_FIELDS.length);
     ep.events.push({ step, t: +(step / this.fps).toFixed(3), kind, ...data });
+  }
+
+  /** The open lap's input activity for the server's bot gate, or null when no
+   *  lap is open (recorder off, menu, or between laps). Read it before
+   *  endLap(), which closes the lap. */
+  lapProof(): LapProof | null {
+    if (!this.current) return null;
+    return { samples: this.lapSamples, steer: this.lapSteer, throttle: this.lapThrottle };
   }
 
   /** Close the open episode. Non-improvements (resets, stops) set complete=false. */
@@ -309,6 +336,9 @@ export class Recorder {
       resets: ep.events.filter((e) => e.kind === 'reset').length,
     };
     this.current = null;
+    this.lapSamples = 0;
+    this.lapSteer = 0;
+    this.lapThrottle = 0;
     if (samples < MIN_SAMPLES) return;
     this.completed.push(ep);
     this.sessionSamples += samples;
@@ -341,6 +371,12 @@ export class Recorder {
       q2(controls.throttle), q2(controls.steer),
       controls.handbrake ? 1 : 0, this.powerPulse ? 1 : 0,
     );
+    // the lap's input activity, counted on the values that were recorded so the
+    // proof describes the episode the server can audit, not a second reading
+    const throttle = q2(controls.throttle), steer = q2(controls.steer);
+    this.lapSamples++;
+    if (steer !== 0) this.lapSteer++;
+    if (throttle > 0) this.lapThrottle++;
     this.powerPulse = false;
 
     if (o.length / OBS_FIELDS.length >= this.maxSamples) this.endLap(null, false);
