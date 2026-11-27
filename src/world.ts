@@ -256,10 +256,10 @@ export const MAPS: MapDef[] = [
     ],
     trees: 'palm', density: 1.05, tint: '#fff3d8',
     props: { trees: 900, rocks: 300, buildings: 8, lampStride: 20, rockScale: 1.2 },
-    // the pit block and race-day buildings along the outside of the main straight
+    // the pit block on the inside of the main straight, facing the stands
     town: [
-      [112.6, -68.4], [104.5, -55], [106.3, -35.7], [110, -22],
-      [114, -8.3], [118, 6], [121, 19], [128.7, 46.2],
+      [84.5, -26.2], [88.1, -12.5], [91.8, 1.3], [95.6, 14.9],
+      [99.3, 28.7], [103.2, 42.4], [107.1, 56.2], [110.1, 66.3],
     ],
     sky: '#eeb27f',
     grandstands: true,
@@ -982,10 +982,24 @@ export async function buildWorld(scene: THREE.Scene, mapId?: string): Promise<Wo
     for (const p of track) { ccx += p.x; ccz += p.z; }
     ccx /= track.length; ccz /= track.length;
     const standStart = straightestIndex(track);
-    const offsets = [46, 300, 610];
     const seatColours = [0xe0513f, 0xf2eee1, 0x2b6d7a];
-    offsets.forEach((off, k) => {
-      const i = (standStart + off) % track.length;
+    const headingAt = (i: number) => {
+      const p = track[i % track.length], q = track[(i + 1) % track.length];
+      return Math.atan2(q.z - p.z, q.x - p.x);
+    };
+    // How far the start/finish straight runs before it bends, so the stands
+    // line that straight however long the lap is instead of landing wherever a
+    // fixed index offset happens to fall.
+    const h0 = headingAt(standStart);
+    let run = 0;
+    while (run < 400) {
+      let d = Math.abs(headingAt(standStart + run) - h0) % (Math.PI * 2);
+      if (d > Math.PI) d = Math.PI * 2 - d;
+      if (d > 0.16) break;
+      run++;
+    }
+    const stand = (i: number, k: number) => {
+      i %= track.length;
       const p = track[i], q = track[(i + 6) % track.length];
       const dx = q.x - p.x, dz = q.z - p.z;
       const len = Math.hypot(dx, dz) || 1;
@@ -1008,7 +1022,12 @@ export async function buildWorld(scene: THREE.Scene, mapId?: string): Promise<Wo
       addBox(g, 0.10, 0.18, 13.4, 0xf2eee1, side * 3.0, 1.40, 0);
       group.add(g);
       colliders.push({ x, z, r: 7.0 });
-    });
+    };
+    const blocks = Math.max(3, Math.min(7, Math.round(run / 16)));
+    const spread = run >= 24 ? run : track.length;
+    for (let k = 0; k < blocks; k++) {
+      stand(standStart + Math.round(spread * (0.06 + (0.88 * k) / (blocks - 1))), k);
+    }
   }
 
   if (map.armco) {
