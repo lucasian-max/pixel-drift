@@ -582,7 +582,7 @@ export class Car {
     };
     if (!ghost) for (const c of world.colliders) hit(c);
     if (!ghost && this.groundY > 0.8) for (const c of world.bridgeColliders ?? []) hit(c);
-    const edge = 82;
+    const edge = world.half - 4;
     if (Math.abs(this.x) > edge) { this.x = Math.sign(this.x) * edge; this.vx *= -0.3; }
     if (Math.abs(this.z) > edge) { this.z = Math.sign(this.z) * edge; this.vz *= -0.3; }
   }

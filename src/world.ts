@@ -1,16 +1,19 @@
 import * as THREE from 'three';
 import { instancedStack, loadSheet, shadowPatch, type Placement, type StackDef } from './stack';
 
-export const WORLD = 172;
-// Set from the active map in buildWorld; the world is WORLD × WORLD units.
+/* All five are set from the active map in buildWorld. A map may widen its
+   playfield (the Interlagos lap is 1.6 km and needs 400 units across); maps
+   that declare nothing keep the 172 x 172 world, the 180 unit painted ground
+   and the 2048 px texture they always had. */
+export let WORLD = 172;
 let ROAD_HALF = 4.4;
-const PX = 2048;
+let PX = 2048;
 // The painted ground is wider than the playable area, so props and the camera
 // never see the texture edge.
-const GX = 180;
-const HALF_G = GX / 2;
-const PPU = PX / GX;
-const HALF = WORLD / 2;
+let GX = 180;
+let HALF_G = GX / 2;
+let PPU = PX / GX;
+let HALF = WORLD / 2;
 
 export interface Collider { x: number; z: number; r: number }
 
@@ -18,6 +21,8 @@ export interface World {
   group: THREE.Group;
   sky: string;
   roadHalf: number;
+  /** half the playfield side: the car is kept inside it */
+  half: number;
   update(): void;
   colliders: Collider[];
   roadAt(x: number, z: number): boolean;
@@ -47,6 +52,10 @@ export interface MapDef {
     line: string; kerbA: string; kerbB: string;
   };
   lake?: { x: number; z: number; rx: number; rz: number };
+  /** more water than the one lake above: each is painted as its own shore */
+  lakes?: { x: number; z: number; rx: number; rz: number }[];
+  /** playfield side in units; the ground texture grows to match. Default 172 */
+  world?: number;
   tint?: string;
   trees?: 'pine' | 'palm' | 'mixed' | 'sakura';
   town?: [number, number][];
@@ -195,6 +204,66 @@ export const MAPS: MapDef[] = [
     props: { trees: 170, rocks: 76, buildings: 0, lampStride: 52, rockScale: 1.4 },
     town: [],
     sky: '#e8c49a',
+  },
+  {
+    id: 'interlagos', name: 'Interlagos', roadHalf: 3.4, smooth: true,
+    // The real Autódromo José Carlos Pace, from OpenStreetMap ways: 4.29 km of
+    // survey centreline assembled, smoothed and fitted to 160 control points
+    // (0.97 units of reproduction error), scaled to a 1.59 km lap and turned
+    // into its own 400-unit playfield so the genuine shape survives at the
+    // game's road width. Every non-adjacent stretch stays 18.97 m clear,
+    // including the Ferradura and Pinheirinho folds, which is why the four
+    // tightest ones were opened by 4-5 units as the survey points came in.
+    // The circuit sits between two lakes: a long one inside the loop and a
+    // small one beside the Descida do Lago, with the palms and the stands of
+    // a São Paulo park circuit around it.
+    world: 400,
+    ctrl: [
+      [-118.34, 69.83], [-119.11, 59.96], [-120.72, 50.12], [-121.73, 40.20], [-121.75, 30.24], [-120.50, 20.35], [-118.79, 10.53],
+      [-116.71, 0.77], [-114.44, -8.93], [-114.21, -18.88], [-113.78, -28.81], [-110.93, -38.36], [-108.06, -47.91], [-105.30, -57.49],
+      [-102.64, -67.10], [-100.08, -76.74], [-97.54, -86.38], [-95.00, -96.03], [-92.47, -105.67], [-89.93, -115.31], [-87.39, -124.96],
+      [-84.85, -134.60], [-82.31, -144.25], [-79.77, -153.89], [-77.23, -163.53], [-74.69, -173.18], [-71.97, -182.77], [-64.77, -188.99],
+      [-55.61, -185.43], [-47.11, -180.25], [-40.05, -173.25], [-32.72, -166.52], [-23.20, -165.56], [-14.57, -170.54], [-6.10, -175.80],
+      [2.81, -180.20], [12.51, -182.35], [22.46, -182.14], [32.08, -179.61], [40.77, -174.79], [48.02, -167.98], [53.50, -159.69],
+      [59.72, -152.21], [68.16, -147.13], [72.35, -138.92], [75.78, -129.66], [80.94, -121.13], [86.11, -112.60], [91.29, -104.08],
+      [95.56, -95.22], [97.20, -85.38], [98.84, -75.54], [92.30, -68.07], [88.04, -59.91], [89.96, -50.13], [92.55, -40.49],
+      [95.13, -30.86], [97.71, -21.23], [100.29, -11.60], [102.88, -1.97], [105.51, 7.65], [108.13, 17.27], [110.75, 26.90],
+      [113.46, 36.49], [116.18, 46.09], [118.90, 55.68], [121.48, 65.31], [121.02, 75.16], [115.36, 83.09], [106.10, 86.55],
+      [96.31, 88.42], [86.48, 90.13], [76.63, 91.65], [66.69, 91.92], [56.94, 89.95], [47.91, 85.78], [40.00, 79.74],
+      [33.27, 72.39], [27.15, 64.52], [21.23, 56.50], [15.36, 48.43], [9.52, 40.36], [3.67, 32.28], [-2.16, 24.18],
+      [-8.03, 16.12], [-13.96, 8.11], [-19.85, 0.06], [-25.74, -7.98], [-31.64, -16.03], [-37.01, -24.42], [-42.06, -33.02],
+      [-50.55, -37.84], [-59.68, -41.60], [-69.07, -38.24], [-77.67, -33.68], [-84.00, -25.98], [-89.22, -17.60], [-92.94, -8.35],
+      [-97.11, 0.65], [-98.62, 10.51], [-100.47, 20.31], [-101.90, 30.17], [-100.38, 39.79], [-91.75, 43.85], [-82.82, 39.71],
+      [-74.78, 33.85], [-65.15, 31.91], [-56.20, 35.95], [-51.07, 44.34], [-51.80, 54.13], [-57.87, 61.96], [-64.98, 68.95],
+      [-71.95, 76.09], [-78.43, 83.66], [-83.20, 92.38], [-85.60, 102.06], [-87.56, 111.83], [-88.07, 121.71], [-81.36, 128.52],
+      [-72.48, 125.54], [-65.70, 118.23], [-59.19, 110.68], [-52.52, 103.26], [-45.09, 96.67], [-36.21, 92.19], [-26.45, 90.33],
+      [-16.51, 90.65], [-7.04, 93.70], [1.22, 99.22], [7.73, 106.73], [13.22, 115.05], [18.56, 123.47], [23.87, 131.91],
+      [29.15, 140.37], [34.43, 148.83], [39.53, 157.40], [42.60, 166.64], [37.13, 174.50], [28.11, 178.72], [18.79, 182.25],
+      [9.40, 185.63], [-0.08, 188.70], [-9.99, 188.38], [-19.84, 186.80], [-29.65, 184.99], [-39.33, 182.68], [-48.66, 179.15],
+      [-57.75, 175.05], [-66.77, 170.80], [-75.59, 166.16], [-83.82, 160.53], [-91.37, 154.04], [-97.76, 146.42], [-102.69, 137.77],
+      [-105.94, 128.35], [-108.35, 118.68], [-110.43, 108.92], [-112.24, 99.12], [-114.10, 89.32], [-116.13, 79.56],
+    ],
+    palette: {
+      grass: '#4f7a3e', tones: ['#5b8947', '#42693a', '#6e9a53', '#375a30', '#82ad61'],
+      bladeA: '#9ec46a', bladeB: '#33542c',
+      sand: '#d9c9a2', water: '#2d7f92', waterLt: 'rgba(126,209,214,0.55)',
+      shoulder: '#7d6b52', asphalt: '#45464e', grainA: '#6d6e78', grainB: '#2c2d34',
+      line: 'rgba(240,236,220,0.86)', kerbA: '#f2eee4', kerbB: '#c8463c',
+    },
+    lakes: [
+      { x: 2, z: -94, rx: 58, rz: 40 },
+      { x: 100, z: 120, rx: 24, rz: 19 },
+    ],
+    trees: 'palm', density: 1.05, tint: '#fff3d8',
+    props: { trees: 900, rocks: 300, buildings: 8, lampStride: 20, rockScale: 1.2 },
+    // the pit block and race-day buildings along the outside of the main straight
+    town: [
+      [112.6, -68.4], [104.5, -55], [106.3, -35.7], [110, -22],
+      [114, -8.3], [118, 6], [121, 19], [128.7, 46.2],
+    ],
+    sky: '#eeb27f',
+    grandstands: true,
+    armco: true,
   },
 ];
 
@@ -368,24 +437,25 @@ function paintGround(track: P2[], map: MapDef): HTMLCanvasElement {
   }
   g.globalAlpha = 1;
 
-  if (map.lake) {
-    const lx = (map.lake.x + HALF_G) * PPU, ly = (map.lake.z + HALF_G) * PPU;
+  for (const lake of [map.lake, ...(map.lakes ?? [])]) {
+    if (!lake) continue;
+    const lx = (lake.x + HALF_G) * PPU, ly = (lake.z + HALF_G) * PPU;
     g.fillStyle = map.palette.sand;
     g.beginPath();
-    g.ellipse(lx, ly, map.lake.rx * PPU, map.lake.rz * PPU, 0.35, 0, Math.PI * 2);
+    g.ellipse(lx, ly, lake.rx * PPU, lake.rz * PPU, 0.35, 0, Math.PI * 2);
     g.fill();
     g.fillStyle = map.palette.water;
     g.beginPath();
-    g.ellipse(lx, ly, (map.lake.rx - 2) * PPU, (map.lake.rz - 1.8) * PPU, 0.35, 0, Math.PI * 2);
+    g.ellipse(lx, ly, (lake.rx - 2) * PPU, (lake.rz - 1.8) * PPU, 0.35, 0, Math.PI * 2);
     g.fill();
     g.fillStyle = map.palette.waterLt;
     g.beginPath();
-    g.ellipse(lx - 2 * PPU, ly - 1.5 * PPU, map.lake.rx * 0.55 * PPU, map.lake.rz * 0.42 * PPU, 0.35, 0, Math.PI * 2);
+    g.ellipse(lx - 2 * PPU, ly - 1.5 * PPU, lake.rx * 0.55 * PPU, lake.rz * 0.42 * PPU, 0.35, 0, Math.PI * 2);
     g.fill();
     for (let i = 0; i < 40; i++) {
       const a = rnd() * Math.PI * 2, r = rnd();
       g.fillStyle = 'rgba(220,245,250,0.45)';
-      g.fillRect(lx + Math.cos(a) * map.lake.rx * 0.8 * PPU * r, ly + Math.sin(a) * map.lake.rz * 0.7 * PPU * r, 6, 2);
+      g.fillRect(lx + Math.cos(a) * lake.rx * 0.8 * PPU * r, ly + Math.sin(a) * lake.rz * 0.7 * PPU * r, 6, 2);
     }
   }
 
@@ -573,6 +643,13 @@ function arrowTexture(dir: number): THREE.Texture {
 export async function buildWorld(scene: THREE.Scene, mapId?: string): Promise<World> {
   const map = MAPS.find((m) => m.id === mapId) ?? MAPS[0];
   ROAD_HALF = map.roadHalf ?? 4.4;
+  WORLD = map.world ?? 172;
+  GX = WORLD + 8;
+  // a wide playfield needs more pixels per unit or the ground goes soft
+  PX = WORLD > 300 ? 3072 : 2048;
+  HALF_G = GX / 2;
+  PPU = PX / GX;
+  HALF = WORLD / 2;
   const group = new THREE.Group();
   scene.add(group);
 
@@ -750,10 +827,13 @@ export async function buildWorld(scene: THREE.Scene, mapId?: string): Promise<Wo
   const taken: { x: number; z: number; r: number }[] = [];
 
   const inLake = (x: number, z: number, pad = 1) => {
-    if (!map.lake) return false;
-    const dx = (x - map.lake.x) / (map.lake.rx + pad);
-    const dz = (z - map.lake.z) / (map.lake.rz + pad);
-    return dx * dx + dz * dz < 1;
+    for (const lake of [map.lake, ...(map.lakes ?? [])]) {
+      if (!lake) continue;
+      const dx = (x - lake.x) / (lake.rx + pad);
+      const dz = (z - lake.z) / (lake.rz + pad);
+      if (dx * dx + dz * dz < 1) return true;
+    }
+    return false;
   };
   const free = (x: number, z: number, r: number, pad = 2.4) => {
     if (Math.abs(x) > HALF - 2 || Math.abs(z) > HALF - 2) return false;
@@ -933,8 +1013,17 @@ export async function buildWorld(scene: THREE.Scene, mapId?: string): Promise<Wo
 
   if (map.armco) {
     const pieces: { x: number; z: number; rot: number }[] = [];
-    for (let i = 0; i < track.length; i += 5) {
-      const p = track[i], q = track[(i + 5) % track.length];
+    // a rail every ~2 units of centreline however long the lap is: the 4.65
+    // long rail then overlaps itself even on the outside of a hairpin, so a
+    // 1.6 km circuit gets a continuous barrier instead of a dashed fence
+    let lapLen = 0;
+    for (let i = 0; i < track.length; i++) {
+      const a = track[i], b = track[(i + 1) % track.length];
+      lapLen += Math.hypot(b.x - a.x, b.z - a.z);
+    }
+    const stride = Math.max(1, Math.round((2 * (track.length - 1)) / (lapLen || 1)));
+    for (let i = 0; i < track.length; i += stride) {
+      const p = track[i], q = track[(i + stride) % track.length];
       const dx = q.x - p.x, dz = q.z - p.z;
       const len = Math.hypot(dx, dz) || 1;
       const nx = dz / len, nz = -dx / len;
@@ -1477,6 +1566,7 @@ export async function buildWorld(scene: THREE.Scene, mapId?: string): Promise<Wo
   return {
     group, colliders, roadAt, kerbAt, start, addSkid, clearSkid,
     roadHalf: ROAD_HALF,
+    half: HALF,
     sky: map.sky ?? '#4e7a45',
     minimapPath: track.filter((_, i) => i % 2 === 0),
     track,
