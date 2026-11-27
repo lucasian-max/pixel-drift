@@ -195,6 +195,11 @@ export class PixelUI {
   /** each circuit's outline, normalised, built once for the map cards */
   private outlines = new Map<string, { pts: Float32Array; ext: number; dot: boolean }>();
 
+  /** the garage's power-demo window, in canvas pixels, or null when no demo is
+      on screen. src/main.ts parks the power clip over exactly this rect, so the
+      film and the animation it falls back to cover the same ground. */
+  demoWindow: { x: number; y: number; w: number; h: number } | null = null;
+
   onAction?: (a: HitId) => void;
 
   constructor(private canvas: HTMLCanvasElement, track: { x: number; z: number }[], start?: { x: number; z: number }) {
@@ -304,6 +309,7 @@ export class PixelUI {
   draw(state: UiState, time: number) {
     const c = this.ctx;
     this.now = time;
+    this.demoWindow = null;
     c.clearRect(0, 0, this.w, this.h);
     c.imageSmoothingEnabled = false;
 
@@ -330,6 +336,8 @@ export class PixelUI {
       if (state.garage) this.drawGarage(state);
       else this.drawTitle(time, state);
       this.drawWipe(time);
+      /* a clip over the demo window would sit on top of the wipe's chequers */
+      if (this.wipeAt >= 0) this.demoWindow = null;
       return;
     }
     this.buttons.length = 0;
@@ -894,6 +902,9 @@ export class PixelUI {
         { size: 8, color: CREAM, align: 'center', weight: on ? 700 : 400 });
     });
     if (state.powerInfo) this.drawPowerInfo(state);
+    /* POWER INFO dims the screen and drops a card across the band, so the clip
+       steps aside for as long as it is up */
+    this.demoWindow = state.powerInfo ? null : { x: dx + 1, y: dy + 1, w: dw - 2, h: dh - 2 };
     this.hoverId = this.hitIdAt(this.hx, this.hy);
   }
 

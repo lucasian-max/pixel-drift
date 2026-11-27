@@ -214,6 +214,81 @@ const loginForm = (() => {
   return { open, isOpen: () => overlay.classList.contains('open') };
 })();
 
+/* ---- garage power clips (DOM <video> over the garage's demo window) ------
+   Real in-game footage of each car's power, trimmed to a loop, parked over the
+   window the garage's demo animation draws into. The animation keeps drawing
+   underneath it: a clip that is missing, will not load, or will not autoplay
+   never appears, and the pixel demo is what the band shows. Outside the garage
+   the element is display:none and paused, so nothing decodes while you drive. */
+
+const garageClip = (() => {
+  /* one clip per car, in CAR_POWERS order */
+  const SRC = ['/clips/pearl-drift.webm', '/clips/thunderclap.webm', '/clips/tunnel.webm'];
+
+  const style = document.createElement('style');
+  style.textContent = `
+#garage-clip { position: fixed; z-index: 4; display: none; object-fit: cover;
+  object-position: 50% 80%; image-rendering: pixelated; pointer-events: none; }`;
+  document.head.appendChild(style);
+
+  const el = document.createElement('video');
+  el.id = 'garage-clip';
+  el.muted = true;
+  el.loop = true;
+  el.playsInline = true;
+  el.autoplay = true;
+  el.preload = 'auto';
+  el.setAttribute('aria-hidden', 'true');
+  document.body.appendChild(el);
+
+  let want = -1;      // the clip the garage is asking for
+  let loaded = -1;    // the clip the element holds a decoded frame of
+  let dead = false;   // this clip will not load or play: show the demo instead
+  let shown = false;
+  const box = { x: -1, y: -1, w: -1, h: -1 };
+
+  const hide = () => {
+    if (!shown) return;
+    shown = false;
+    el.style.display = 'none';
+    el.pause();
+  };
+
+  el.addEventListener('canplay', () => { loaded = want; });
+  el.addEventListener('error', () => { dead = true; hide(); });
+
+  return {
+    /** rect: the demo window in canvas pixels, or null when there is none */
+    place(rect: { x: number; y: number; w: number; h: number } | null, car: number) {
+      if (!rect) { hide(); return; }
+      const v = ((car % SRC.length) + SRC.length) % SRC.length;
+      if (v !== want) {
+        want = v;
+        loaded = -1;
+        dead = false;
+        el.src = SRC[v];       // a different car is a different film
+      }
+      /* no decoded frame yet, or a clip this browser refused: the demo is the
+         picture, and it is already drawn under here */
+      if (dead || loaded !== v) { hide(); return; }
+
+      const sx = innerWidth / uiCanvas.width;
+      const sy = innerHeight / uiCanvas.height;
+      const x = rect.x * sx, y = rect.y * sy, w = rect.w * sx, h = rect.h * sy;
+      if (Math.abs(x - box.x) > 0.4 || Math.abs(y - box.y) > 0.4
+        || Math.abs(w - box.w) > 0.4 || Math.abs(h - box.h) > 0.4) {
+        box.x = x; box.y = y; box.w = w; box.h = h;
+        el.style.left = `${x}px`;
+        el.style.top = `${y}px`;
+        el.style.width = `${w}px`;
+        el.style.height = `${h}px`;
+      }
+      if (!shown) { shown = true; el.style.display = 'block'; }
+      if (el.paused) void el.play().catch(() => { dead = true; hide(); });
+    },
+  };
+})();
+
 async function boot() {
   const params = new URLSearchParams(location.search);
   /* gated features: public on the server, or always on for an admin session */
@@ -1336,6 +1411,9 @@ async function boot() {
       powerDuration: car.power.duration,
       powerCooldown: car.power.cooldown,
     }, now);
+    /* the ui just told us where the garage's demo window landed; the clip goes
+       exactly there, and steps aside the moment there is no window */
+    garageClip.place(ui.demoWindow, car.variant);
     sound.update(car, controls.throttle, input.paused);
   };
   frame();
