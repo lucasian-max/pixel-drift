@@ -1,5 +1,8 @@
 import type { Car } from './car';
 import type { TimeEntry, User } from './account';
+/* the map cards draw every circuit's shape, not just the one you are on: the
+   control polygons are the only thing this needs, and they are already loaded */
+import { MAPS } from './world';
 
 const CREAM = '#f2eee1';
 const INK = '#14161a';
@@ -171,6 +174,26 @@ export class PixelUI {
   private lastBest = -1;
   private bestUntil = -1;
 
+  /** when the title's entrance timeline started, and the last clock seen */
+  private titleAt = -1;
+  private now = 0;
+  /** pressed chip and the frame it went down: three frames down, one past */
+  private pressId: string | null = null;
+  private pressAt = -1;
+  /** pointer in client space, resolved to a hit id at the end of each draw */
+  private hx = -1;
+  private hy = -1;
+  private hoverId: string | null = null;
+  /** the corner menu (account, admin, settings, power) is the UI's own state */
+  private menuOpen = false;
+  private menuAt = -1;
+  private wasStarted = false;
+  private wasGarage = false;
+  /** the checker wipe between the title and the race */
+  private wipeAt = -1;
+  /** each circuit's outline, normalised, built once for the map cards */
+  private outlines = new Map<string, { pts: Float32Array; ext: number; dot: boolean }>();
+
   onAction?: (a: HitId) => void;
 
   constructor(private canvas: HTMLCanvasElement, track: { x: number; z: number }[], start?: { x: number; z: number }) {
@@ -205,6 +228,26 @@ export class PixelUI {
     this.tickNX = -dz; this.tickNZ = dx;
 
     this.resize();
+
+    /* hover and press are the UI's own business: #ui is pointer-events:none, so
+       the probes ride the window, and they only ever read this.buttons — the
+       same rects the frame was drawn with, never a second guess at them */
+    addEventListener('pointermove', (e) => { this.hx = e.clientX; this.hy = e.clientY; });
+    addEventListener('pointerdown', (e) => {
+      this.hx = e.clientX; this.hy = e.clientY;
+      const id = this.hitIdAt(e.clientX, e.clientY);
+      if (!id) { this.menuOpen = false; return; }
+      this.pressId = id;
+      this.pressAt = -1;
+      if (id !== 'menu') this.menuOpen = false;
+    }, true);
+  }
+
+  /** the corner menu is drawn and hit-tested here: main.ts only forwards the
+      press, so nothing about it can touch the race */
+  toggleMenu() {
+    this.menuOpen = !this.menuOpen;
+    this.menuAt = this.now;
   }
 
   resize() {
@@ -241,7 +284,8 @@ export class PixelUI {
     c.letterSpacing = '0px';
   }
 
-  hit(clientX: number, clientY: number): HitId | null {
+  /** the id under a client-space point, against the rects the last frame drew */
+  private hitIdAt(clientX: number, clientY: number): HitId | null {
     const r = this.canvas.getBoundingClientRect();
     if (!r.width || !r.height) return null;
     const x = ((clientX - r.left) / r.width) * this.w;
@@ -252,19 +296,39 @@ export class PixelUI {
     return null;
   }
 
+  hit(clientX: number, clientY: number): HitId | null {
+    return this.hitIdAt(clientX, clientY);
+  }
+
   draw(state: UiState, time: number) {
     const c = this.ctx;
+    this.now = time;
     c.clearRect(0, 0, this.w, this.h);
     c.imageSmoothingEnabled = false;
 
+    /* crossing between the title and the race is a change of screen, not a
+       fade: the checker wipe runs out and the entrance replays behind it */
+    if (state.started !== this.wasStarted) {
+      this.wipeAt = time;
+      this.menuOpen = false;
+      this.titleAt = -1;
+      this.wasStarted = state.started;
+    }
+    if (!!state.garage !== this.wasGarage) {
+      this.titleAt = -1;
+      this.wasGarage = !!state.garage;
+    }
+
     if (state.adminPanel) {
       this.drawAdminPanel(state);
+      this.drawWipe(time);
       return;
     }
 
     if (!state.started) {
       if (state.garage) this.drawGarage(state);
       else this.drawTitle(time, state);
+      this.drawWipe(time);
       return;
     }
     this.buttons.length = 0;
@@ -516,6 +580,33 @@ export class PixelUI {
       }
       this.text('PAUSED', this.w / 2, this.h / 2 - 12, { size: 24, weight: 700, align: 'center' });
       this.text('ESC OR P TO RESUME', this.w / 2, this.h / 2 + 18, { size: 8, color: DIM, align: 'center' });
+    }
+
+    this.drawWipe(time);
+  }
+
+  /** the checker wipe: a field of 8px cells that closes in from the left and
+      opens out again, on the same beat as the edges. Seven steps each way, so
+      it reads as a curtain of chequers rather than a dissolve. */
+  private drawWipe(time: number) {
+    if (this.wipeAt < 0) return;
+    const u = (time - this.wipeAt) / 0.46;
+    if (u < 0 || u >= 1) { this.wipeAt = -1; return; }
+    const c = this.ctx;
+    const cell = 8;
+    const cols = Math.ceil(this.w / cell), rows = Math.ceil(this.h / cell);
+    const quant = (p: number) => Math.round(Math.min(1, Math.max(0, p)) * 7) / 7;
+    const out = u < 0.62 ? quant(u / 0.62) : 1 - quant((u - 0.62) / 0.38);
+    const edge = Math.round(cols * out);
+    for (let i = 0; i < edge; i++) {
+      for (let j = 0; j < rows; j++) {
+        c.fillStyle = (i + j) % 2 === 0 ? CREAM : ASPHALT;
+        c.fillRect(i * cell, j * cell, cell, cell);
+      }
+    }
+    if (edge > 0 && edge < cols) {
+      c.fillStyle = ACCENT;
+      c.fillRect(edge * cell - cell, 0, cell, this.h);
     }
   }
 
@@ -872,265 +963,639 @@ export class PixelUI {
     c.stroke();
   }
 
+  /* ======================================================================
+     TITLE
+     ----------------------------------------------------------------------
+     LOGO → TRACK → CAR → PLAY in one centre column, nothing else in it:
+
+       ┌ MENU ┐                              ┌ LEADERBOARD ┐
+       │           P I X E L   D R I F T     │  rows       │
+       │  TRACK          SALTMARSH COAST     │             │
+       │  [▣][▣][▣]    one card per map,     └─────────────┘
+       │  [▣][▣]       its own outline       [ ALL MAPS · L ]
+       │  CAR            02/05
+       │  < DUNE RUNNER >
+       │      view car
+       │    [  P L A Y  ]
+       │      or press space
+       └ WASD DRIVE   SPACE DRIFT   F POWER   Q E LOOK   R RESET   N MUTE ┘
+
+     The old title stacked nine things in that column and ran out of width at
+     five maps: the tab row measured ~430px and broke at eight. The grid is
+     the only element that grows with the map list, the account/admin/settings
+     cluster lives behind one corner button, and the column itself is laid out
+     from block heights so extra rows push the gaps down, not the design off
+     the canvas.
+     ====================================================================== */
+
+  /** stepped progress: 0 before `at`, 1 after at+dur, quantised so motion lands
+      on whole pixels instead of sliding there (the BTD6 snap, no fades) */
+  private stage(t: number, at: number, dur = 0.12, steps = 4) {
+    const p = (t - at) / dur;
+    if (p <= 0) return 0;
+    if (p >= 1) return 1;
+    return Math.round(p * steps) / steps;
+  }
+
+  /** the squash and spring of a pressed chip: three frames down, then one past */
+  private press(id: string): { dy: number; dh: number } {
+    if (this.pressId !== id || this.pressAt < 0) return { dy: 0, dh: 0 };
+    const p = this.now - this.pressAt;
+    if (p < 0.07) return { dy: 2, dh: -3 };
+    if (p < 0.16) return { dy: 0, dh: 2 };
+    this.pressId = null;
+    this.pressAt = -1;
+    return { dy: 0, dh: 0 };
+  }
+
+  /** the map cards' outlines: the shape at 20px, from each circuit's own
+      control polygon. Built once per map, so a new circuit is a new tile. */
+  private outline(id: string) {
+    const had = this.outlines.get(id);
+    if (had) return had;
+    const def = MAPS.find((m) => m.id === id);
+    if (!def) return null;
+    const ctrl = def.ctrl;
+    const raw: [number, number][] = [];
+    if (def.smooth === false) {
+      for (const [x, z] of ctrl) raw.push([x, z]);
+    } else {
+      const n = ctrl.length;
+      for (let i = 0; i < n; i++) {
+        const a = ctrl[(i - 1 + n) % n], b = ctrl[i];
+        const d = ctrl[(i + 1) % n], e = ctrl[(i + 2) % n];
+        for (let k = 0; k < 5; k++) {
+          const s = k / 5, s2 = s * s, s3 = s2 * s;
+          const f = (p0: number, p1: number, p2: number, p3: number) => 0.5 * (
+            2 * p1 + (-p0 + p2) * s + (2 * p0 - 5 * p1 + 4 * p2 - p3) * s2
+            + (-p0 + 3 * p1 - 3 * p2 + p3) * s3);
+          raw.push([f(a[0], b[0], d[0], e[0]), f(a[1], b[1], d[1], e[1])]);
+        }
+      }
+    }
+    let minX = Infinity, maxX = -Infinity, minZ = Infinity, maxZ = -Infinity;
+    for (const [x, z] of raw) {
+      if (x < minX) minX = x; if (x > maxX) maxX = x;
+      if (z < minZ) minZ = z; if (z > maxZ) maxZ = z;
+    }
+    const mx = (minX + maxX) / 2, mz = (minZ + maxZ) / 2;
+    const ext = Math.max(maxX - minX, maxZ - minZ, 1);
+    const pts = new Float32Array(raw.length * 2);
+    for (let i = 0; i < raw.length; i++) {
+      pts[i * 2] = raw[i][0] - mx;
+      pts[i * 2 + 1] = raw[i][1] - mz;
+    }
+    const art = { pts, ext, dot: raw.length < 3 };
+    this.outlines.set(id, art);
+    return art;
+  }
+
+  /** one circuit, stroked inside a box: the minimap's own outline, at tile size */
+  private miniOutline(id: string, x: number, y: number, w: number, h: number,
+    color: string, lw: number) {
+    const o = this.outline(id);
+    if (!o || o.dot) return false;
+    const c = this.ctx;
+    const sc = (Math.min(w, h) * 0.94) / o.ext;
+    const mx = x + w / 2, my = y + h / 2;
+    c.beginPath();
+    for (let i = 0; i < o.pts.length; i += 2) {
+      if (i === 0) c.moveTo(mx + o.pts[i] * sc, my + o.pts[i + 1] * sc);
+      else c.lineTo(mx + o.pts[i] * sc, my + o.pts[i + 1] * sc);
+    }
+    c.closePath();
+    c.lineJoin = 'round';
+    c.lineCap = 'round';
+    c.strokeStyle = color;
+    c.lineWidth = lw;
+    c.stroke();
+    return true;
+  }
+
+  /**
+   * A map tile: the circuit's outline over its short name, accent-painted when
+   * it is the map you are on. `hot` is the hover state (lifted one pixel and a
+   * brighter border), `inset` is the entrance/press squash.
+   */
+  private drawMapCard(x: number, y: number, cw: number, ch: number, o: {
+    id: string; label: string; digit: string; on: boolean; hot: boolean;
+  }) {
+    const c = this.ctx;
+    pxRect(c, x, y, cw, ch, o.on ? ACCENT : SLAB);
+    pxBorder(c, x, y, cw, ch, o.on ? CREAM : o.hot ? 'rgba(242,238,225,0.85)' : LINE);
+    const boxY = y + 3;
+    const boxH = ch - 14;
+    const ink = o.on ? INK : o.hot ? CREAM : 'rgba(242,238,225,0.92)';
+    if (!this.miniOutline(o.id, x + 3, boxY, cw - 6, boxH, ink, o.on ? 2 : 1)) {
+      // a map with no polygon yet: a centred dot, so the tile still reads
+      c.fillStyle = ink;
+      c.fillRect(x + cw / 2 - 1, boxY + boxH / 2 - 1, 2, 2);
+    }
+    this.text(o.digit, x + 4, y + 2, {
+      size: 8, color: o.on ? 'rgba(20,22,26,0.55)' : 'rgba(242,238,225,0.35)',
+    });
+    let label = o.label;
+    this.font(8, 700);
+    while (label.length > 1 && c.measureText(label).width > cw - 8) label = label.slice(0, -1);
+    this.text(label, x + cw / 2, y + ch - 11, {
+      size: 8, weight: 700, color: o.on ? CREAM : o.hot ? CREAM : DIM, align: 'center',
+    });
+  }
+
   private drawTitle(time: number, state: UiState) {
     const c = this.ctx;
     const { w, h } = this;
     this.buttons.length = 0;
-    c.fillStyle = 'rgba(12,14,18,0.72)';
-    c.fillRect(0, 0, w, h);
+    if (this.titleAt < 0) this.titleAt = time;
+    const t = time - this.titleAt;
+    if (this.pressId && this.pressAt < 0) this.pressAt = time;
+    const hot = this.hoverId;
+    if (state.garage || state.powerInfo || state.settings || state.fullBoard) this.menuOpen = false;
 
+    c.fillStyle = 'rgba(12,14,18,0.74)';
+    c.fillRect(0, 0, w, h);
     this.checkerEdge(0, time, -1);
     this.checkerEdge(h - 16, time, 1);
 
-    const cx = Math.round(w / 2);
-
-    this.text('PIXEL', cx + 3, 41, { size: 48, weight: 700, color: SHADOW, align: 'center' });
-    this.text('PIXEL', cx, 38, { size: 48, weight: 700, color: CREAM, align: 'center' });
-    this.text('DRIFT', cx + 3, 93, { size: 48, weight: 700, color: SHADOW, align: 'center' });
-    this.text('DRIFT', cx, 90, { size: 48, weight: 700, color: ACCENT, align: 'center' });
-
-    const carNames = state.carNames ?? ['CAR'];
-    const ci = ((state.car.variant % carNames.length) + carNames.length) % carNames.length;
-    const carName = (carNames[ci] ?? 'CAR').toUpperCase();
-    this.text('CAR', cx + 1, 211, { size: 8, color: SHADOW, align: 'center', spacing: 3 });
-    this.text('CAR', cx, 210, { size: 8, color: 'rgba(242,238,225,0.85)', align: 'center', spacing: 3 });
-    this.font(16, 700);
-    const carW = Math.ceil(c.measureText(carName).width);
-    this.text(carName, cx + 2, 224, { size: 16, weight: 700, color: SHADOW, align: 'center' });
-    this.text(carName, cx, 222, { size: 16, weight: 700, color: CREAM, align: 'center' });
-    const arrowButton = (b: Button, dir: number) => {
-      pxRect(c, b.x, b.y, b.w, b.h, SLAB);
-      pxBorder(c, b.x, b.y, b.w, b.h, 'rgba(242,238,225,0.55)');
-      this.pixelArrow(b.x + 6, b.y + 7, dir);
-      this.buttons.push(b);
-    };
-    this.bCarPrev.x = Math.round(cx - carW / 2 - 34);
-    this.bCarPrev.y = 216;
-    this.bCarNext.x = Math.round(cx + carW / 2 + 10);
-    this.bCarNext.y = 216;
-    arrowButton(this.bCarPrev, -1);
-    arrowButton(this.bCarNext, 1);
-
-    const maps = state.maps ?? [{ id: 'x', name: state.mapName ?? 'Pixel Drift' }];
+    const maps = state.maps && state.maps.length
+      ? state.maps
+      : [{ id: '', name: state.mapName ?? 'Pixel Drift' }];
     const mi = Math.max(0, Math.min(maps.length - 1, state.mapIndex ?? 0));
-    this.text('TRACK', cx + 1, 155, { size: 8, color: SHADOW, align: 'center', spacing: 3 });
-    this.text('TRACK', cx, 154, { size: 8, color: 'rgba(242,238,225,0.85)', align: 'center', spacing: 3 });
-    /* the picker lays every circuit on the table at once: the arrows cycled
-       blind, one reload at a time. Each map is a tab, the current one painted,
-       and one click lands there. Short labels are the ids (what SETTINGS
-       calls them); the full name rides under the row as a dim subtitle. */
-    this.font(8, 700);
-    const tabs = maps.map((m) => {
-      const label = (m.id || m.name).toUpperCase();
-      return { label, w: Math.ceil(c.measureText(label).width) + 16 };
-    });
-    const gap = 10;
-    const rowW = tabs.reduce((a, t) => a + t.w, 0) + gap * Math.max(0, tabs.length - 1);
-    let tabX = Math.round(cx - rowW / 2);
-    const tabY = 172, tabH = 14;
-    for (let i = 0; i < tabs.length; i++) {
-      const on = i === mi;
-      pxRect(c, tabX, tabY, tabs[i].w, tabH, on ? ACCENT : SLAB);
-      pxBorder(c, tabX, tabY, tabs[i].w, tabH, on ? CREAM : 'rgba(242,238,225,0.4)');
-      this.text(tabs[i].label, tabX + tabs[i].w / 2, tabY + 3, {
-        size: 8, weight: 700, color: on ? CREAM : DIM, align: 'center',
+    const names = state.carNames ?? ['CAR'];
+    const ci = ((state.car.variant % names.length) + names.length) % names.length;
+    const carName = (names[ci] ?? 'CAR').toUpperCase();
+
+    /* ---- geometry -------------------------------------------------------
+       One grid, wrapping: 3 - 6 maps sit 3 across, 7+ go 4 across, and every
+       extra four is a new row. The column is laid out from the block heights
+       and the slack is shared between the four groups, so the breathing room
+       is a consequence of the layout, not a hand-tuned y. */
+    const cols = maps.length <= 3 ? Math.max(1, maps.length) : maps.length <= 6 ? 3 : 4;
+    const rows = Math.ceil(maps.length / cols);
+    const colW = Math.min(248, w - 56);
+    const ggap = 8;
+    const cardW = Math.floor((colW - ggap * (cols - 1)) / cols);
+    // a fourth row of tiles costs its height, so the tile shrinks with the list
+    const cardH = rows >= 4 ? 26 : rows === 3 ? 30 : 36;
+    const gridH = rows * cardH + (rows - 1) * ggap;
+    const compact = rows > 2;
+    const logoSize = rows >= 4 ? 30 : compact ? 36 : 48;
+    const logoH = logoSize * 2 + 2;
+    const carRowH = 24;
+    const linkH = 11;
+    const playH = 28;
+    const hintH = 9;
+
+    /* the slack is not shared evenly: a group is a caption and its content, so
+       the gaps inside a group stay tight and the gaps between groups take the
+       space — that is what makes it read as four things instead of eight */
+    const blocks = [logoH, 10, gridH, 10, carRowH, linkH, playH, hintH];
+    const weights = [2.2, 0.4, 1.8, 0.35, 0.6, 1.9, 0.7];
+    const top = 22, bottom = h - 32;
+    const sum = blocks.reduce((a, b) => a + b, 0);
+    const slack = Math.max(0, (bottom - top) - sum);
+    const unit = slack / weights.reduce((a, b) => a + b, 0);
+    const gaps = weights.map((g) => Math.max(2, Math.min(18, Math.round(unit * g))));
+    const lead = Math.max(0, Math.floor((slack - gaps.reduce((a, b) => a + b, 0)) / 2));
+    const y: number[] = [];
+    for (let i = 0, cy = top + lead; i < blocks.length; i++) {
+      y.push(cy);
+      cy += blocks[i] + (gaps[i] ?? 2);
+    }
+    const cx = Math.round(w / 2);
+    const gx = Math.round((w - colW) / 2);
+    const gridRight = gx + colW;
+
+    /* ---- LOGO: two lines drop in, one after the other -------------------- */
+    const l1 = this.stage(t, 0.02, 0.10, 3);
+    const l2 = this.stage(t, 0.10, 0.10, 3);
+    if (l1 > 0) {
+      const dy = Math.round((1 - l1) * 12);
+      this.text('PIXEL', cx + 3, y[0] + 3 + dy, { size: logoSize, weight: 700, color: SHADOW, align: 'center' });
+      this.text('PIXEL', cx, y[0] + dy, { size: logoSize, weight: 700, color: CREAM, align: 'center' });
+    }
+    if (l2 > 0) {
+      const dy = Math.round((1 - l2) * 12);
+      this.text('DRIFT', cx + 3, y[0] + logoSize + 5 + dy, { size: logoSize, weight: 700, color: SHADOW, align: 'center' });
+      this.text('DRIFT', cx, y[0] + logoSize + 2 + dy, { size: logoSize, weight: 700, color: ACCENT, align: 'center' });
+    }
+
+    /* ---- TRACK: caption row + the tile grid ------------------------------ */
+    const capA = this.stage(t, 0.20, 0.12, 5);
+    if (capA > 0) {
+      c.save();
+      c.beginPath();
+      c.rect(gx - 2, y[1] - 1, Math.round((colW + 4) * capA), 13);
+      c.clip();
+      this.text('TRACK', gx, y[1] + 1, { size: 8, color: HINT, spacing: 2 });
+      const full = (maps[mi]?.name ?? 'Pixel Drift').toUpperCase();
+      let label = full;
+      this.font(8, 700);
+      while (label.length > 1 && c.measureText(label).width > colW * 0.62) label = label.slice(0, -1);
+      this.text(label, gridRight, y[1] + 1, {
+        size: 8, weight: 700, color: ACCENT, align: 'right', spacing: 1,
       });
-      this.buttons.push({ id: `pick-map-${i}` as HitId, x: tabX, y: tabY, w: tabs[i].w, h: tabH, label: tabs[i].label });
-      tabX += tabs[i].w + gap;
+      c.restore();
     }
-    this.text((maps[mi]?.name ?? 'Pixel Drift').toUpperCase(), cx, tabY + tabH + 4, {
-      size: 8, color: DIM, align: 'center', spacing: 1,
-    });
 
-    this.bInfo.label = 'POWER INFO';
-    this.bInfo.x = Math.round(cx - 74);
-    this.bInfo.y = 246;
-    this.bGarage.x = Math.round(cx + 4);
-    this.bGarage.y = 246;
-    for (const b of [this.bInfo, this.bGarage]) {
-      pxRect(c, b.x, b.y, b.w, b.h, SLAB);
-      pxBorder(c, b.x, b.y, b.w, b.h, 'rgba(242,238,225,0.45)');
-      this.text(b.label, b.x + b.w / 2, b.y + 2, { size: 8, color: CREAM, align: 'center' });
-      this.buttons.push(b);
+    for (let i = 0; i < maps.length; i++) {
+      const a = this.stage(t, 0.24 + i * 0.045, 0.09, 3);
+      if (a <= 0) continue;
+      const r = Math.floor(i / cols), col = i % cols;
+      // a short last row sits centred under the full rows above it
+      const inRow = Math.min(cols, maps.length - r * cols);
+      const rowShift = Math.round(((cols - inRow) * (cardW + ggap)) / 2);
+      const inset = Math.round((1 - a) * 2);
+      const on = i === mi;
+      // the selected tile settles one pixel low, then snaps level: two steps
+      const settle = on ? Math.round((1 - a) * 1) : 0;
+      const lift = hot === `pick-map-${i}` && !on ? -1 : 0;
+      const press = on ? { dy: 0, dh: 0 } : this.press(`pick-map-${i}`);
+      const bx = gx + rowShift + col * (cardW + ggap) + inset;
+      const by = y[2] + r * (cardH + ggap) + inset + settle + lift + press.dy;
+      const bw = cardW - inset * 2;
+      const bh = cardH - inset * 2 + press.dh;
+      this.drawMapCard(bx, by, bw, bh, {
+        id: maps[i].id,
+        label: (maps[i].id || maps[i].name).toUpperCase(),
+        digit: i < 9 ? String(i + 1) : '',
+        on,
+        hot: hot === `pick-map-${i}`,
+      });
+      this.buttons.push({
+        id: `pick-map-${i}` as HitId, x: Math.round(bx), y: Math.round(by),
+        w: bw, h: bh, label: maps[i].id,
+      });
     }
-    // the player's own switches own this corner: mute lives in SETTINGS and N
-    this.bSettings.label = 'SETTINGS';
-    this.bSettings.w = 66;
-    this.bSettings.x = this.w - 8 - this.bSettings.w;
-    this.bSettings.y = this.h - 44;
-    pxRect(c, this.bSettings.x, this.bSettings.y, this.bSettings.w, this.bSettings.h, SLAB);
-    pxBorder(c, this.bSettings.x, this.bSettings.y, this.bSettings.w, this.bSettings.h, 'rgba(242,238,225,0.55)');
-    this.text(this.bSettings.label, this.bSettings.x + this.bSettings.w / 2, this.bSettings.y + 3, {
-      size: 8, color: CREAM, align: 'center',
-    });
-    this.buttons.push(this.bSettings);
 
-    this.bSolo.label = 'PLAY';
-    this.bSolo.w = 104;
-    this.bSolo.x = Math.round(cx - 52);
-    this.bSolo.y = 266;
-    const key = (b: Button, fill: string) => {
-      pxRect(c, b.x + 2, b.y + 2, b.w, b.h, SHADOW);
-      pxRect(c, b.x, b.y, b.w, b.h, fill);
+    /* ---- CAR: caption row, arrows, big name, the garage link ------------- */
+    const carCapA = this.stage(t, 0.34, 0.10, 4);
+    if (carCapA > 0) {
+      this.text('CAR', gx, y[3] + 1, { size: 8, color: HINT, spacing: 2 });
+      const idx = `${String(ci + 1).padStart(2, '0')}/${String(names.length).padStart(2, '0')}`;
+      this.text(idx, gridRight, y[3] + 1, {
+        size: 8, weight: 700, color: names.length > 1 ? CREAM : DIM, align: 'right', spacing: 1,
+      });
+    }
+
+    const carA = this.stage(t, 0.40, 0.10, 4);
+    if (carA > 0) {
+      const slide = Math.round((1 - carA) * -6);
+      /* the name has to hold up as cars arrive: 16px while it fits the band
+         between the arrows, then 12, then 8, then it clips — the arrows never
+         move past the column edge, so a fifth long name cannot push them out */
+      const band = colW - 64;
+      let size = compact ? 12 : 16;
+      let nmW = this.measure(carName, size, 700);
+      while (size > 8 && nmW > band) {
+        size -= 4;
+        nmW = this.measure(carName, size, 700);
+      }
+      let shown = carName;
+      this.font(size, 700);
+      while (shown.length > 1 && c.measureText(shown).width > band) shown = shown.slice(0, -1);
+      this.font(size, 700);
+      nmW = Math.ceil(c.measureText(shown).width);
+      const ny = y[4] + 1;
+      this.text(shown, cx + 2 + slide, ny + 3, { size, weight: 700, color: SHADOW, align: 'center' });
+      this.text(shown, cx + slide, ny, { size, weight: 700, color: CREAM, align: 'center' });
+      for (const [b, dir] of [[this.bCarPrev, -1], [this.bCarNext, 1]] as [Button, number][]) {
+        const press = this.press(b.id);
+        b.x = dir < 0
+          ? Math.max(gx, Math.round(cx + slide - nmW / 2 - 30))
+          : Math.min(gridRight - 24, Math.round(cx + slide + nmW / 2 + 6));
+        b.y = ny + press.dy;
+        b.w = 24;
+        b.h = 22 + press.dh;
+        const hovered = hot === b.id;
+        pxRect(c, b.x, b.y, b.w, b.h, hovered ? 'rgba(242,238,225,0.18)' : SLAB);
+        pxBorder(c, b.x, b.y, b.w, b.h, hovered ? CREAM : 'rgba(242,238,225,0.55)');
+        this.pixelArrow(b.x + 6, b.y + 7, dir);
+        this.buttons.push({ ...b });
+      }
+    }
+
+    const linkA = this.stage(t, 0.50, 0.10, 3);
+    if (linkA > 0) {
+      const press = this.press(this.bGarage.id);
+      const label = 'VIEW CAR';
+      const lw = this.measure(label, 8, 700) + 12;
+      this.bGarage.x = Math.round(cx - lw / 2);
+      this.bGarage.y = y[5] + press.dy;
+      this.bGarage.w = lw;
+      this.bGarage.h = linkH + press.dh;
+      const hovered = hot === this.bGarage.id;
+      this.text(label, cx, this.bGarage.y + 1, {
+        size: 8, weight: hovered ? 700 : 400, color: hovered ? CREAM : HINT, align: 'center',
+      });
+      c.fillStyle = hovered ? CREAM : 'rgba(242,238,225,0.32)';
+      c.fillRect(this.bGarage.x + 3, this.bGarage.y + 9, lw - 6, 1);
+      this.buttons.push({ ...this.bGarage });
+    }
+
+    /* ---- PLAY: a key, not a chip. It idles with a one-pixel breath ------ */
+    const playA = this.stage(t, 0.56, 0.12, 3);
+    if (playA > 0) {
+      const press = this.press(this.bSolo.id);
+      const settle = Math.round((1 - playA) * 8);
+      const breath = (time * 1.8) % 2 < 1 ? 0 : 1;
+      const hovered = hot === this.bSolo.id;
+      this.bSolo.label = 'PLAY';
+      this.bSolo.w = 128;
+      this.bSolo.h = playH + press.dh;
+      this.bSolo.x = Math.round(cx - this.bSolo.w / 2);
+      this.bSolo.y = y[6] + settle + press.dy - breath;
+      const b = this.bSolo;
+      const shadow = hovered ? 4 : 2 + breath;
+      pxRect(c, b.x + shadow, b.y + shadow, b.w, b.h, SHADOW);
+      pxRect(c, b.x, b.y, b.w, b.h, hovered ? '#e6604e' : ACCENT);
       c.fillStyle = CREAM;
       c.fillRect(b.x, b.y, b.w, 1);
       c.fillRect(b.x, b.y + b.h - 1, b.w, 1);
       c.fillRect(b.x, b.y + 1, 1, b.h - 2);
       c.fillRect(b.x + b.w - 1, b.y + 1, 1, b.h - 2);
-      this.text(b.label, b.x + b.w / 2, b.y + 6, {
+      this.text(b.label, b.x + b.w / 2, b.y + 7, {
         size: 16, weight: 700, color: CREAM, align: 'center',
       });
-      this.buttons.push(b);
-    };
-    key(this.bSolo, ACCENT);
+      this.buttons.push({ ...b });
+    }
 
+    const hintA = this.stage(t, 0.70, 0.1, 2);
+    if (hintA > 0) {
+      const on = (time % 1.2) < 0.85;
+      this.text('OR PRESS SPACE', cx, y[7], {
+        size: 8, color: on ? CREAM : 'rgba(242,238,225,0.15)', align: 'center', spacing: 1,
+      });
+    }
+
+    /* ---- the leaderboard keeps the top-right corner ---------------------- */
     const acct = state.account;
-    let blinkY = 304;
-    if (acct) {
-      if (acct.user) {
-        const admin = acct.user.role === 'admin';
-        this.text((admin ? 'ADMIN · ' : '') + 'SIGNED IN AS ' + acct.user.username.toUpperCase(), cx, 298, {
-          size: 8, color: admin ? ACCENT : 'rgba(242,238,225,0.8)', align: 'center', spacing: 1,
-        });
-        if (admin) {
-          this.bAdmin.x = Math.round(cx - 71);
-          this.bAdmin.y = 310;
-          pxRect(c, this.bAdmin.x, this.bAdmin.y, this.bAdmin.w, this.bAdmin.h, ACCENT);
-          pxBorder(c, this.bAdmin.x, this.bAdmin.y, this.bAdmin.w, this.bAdmin.h, CREAM);
-          this.text(this.bAdmin.label, this.bAdmin.x + this.bAdmin.w / 2, this.bAdmin.y + 3,
-            { size: 8, weight: 700, color: CREAM, align: 'center' });
-          this.buttons.push(this.bAdmin);
-          this.bLogout.x = Math.round(cx - 1);
-        } else {
-          this.bLogout.x = Math.round(cx - this.bLogout.w / 2);
-        }
-        this.bLogout.label = acct.busy ? '...' : 'SIGN OUT';
-        this.bLogout.y = 310;
-        pxRect(c, this.bLogout.x, this.bLogout.y, this.bLogout.w, this.bLogout.h, SLAB);
-        pxBorder(c, this.bLogout.x, this.bLogout.y, this.bLogout.w, this.bLogout.h, 'rgba(242,238,225,0.55)');
-        this.text(this.bLogout.label, this.bLogout.x + this.bLogout.w / 2, this.bLogout.y + 3,
-          { size: 8, color: CREAM, align: 'center' });
-        this.buttons.push(this.bLogout);
-        blinkY = 328;
-      } else {
-        this.bLogin.label = acct.busy ? '...' : 'SIGN IN';
-        this.bLogin.x = Math.round(cx - this.bLogin.w / 2);
-        this.bLogin.y = 300;
-        pxRect(c, this.bLogin.x, this.bLogin.y, this.bLogin.w, this.bLogin.h, SLAB);
-        pxBorder(c, this.bLogin.x, this.bLogin.y, this.bLogin.w, this.bLogin.h, 'rgba(242,238,225,0.55)');
-        this.text(this.bLogin.label, cx, this.bLogin.y + 3, { size: 8, color: CREAM, align: 'center' });
-        this.buttons.push(this.bLogin);
-        blinkY = 320;
-      }
-    }
-
-    /* the board hugs the corner but never over the track selector: its right
-       arrow reaches as deep as the longest map name is wide, so the panel's
-       left edge starts past it (and the board hides if there is no room) */
-    const boardLx = Math.max(w - 188, Math.round(cx + rowW / 2) + 8);
+    const boardW = 188;
+    const boardLx = Math.max(w - boardW, gridRight + 10);
+    let chipY = 20;
     if (acct && w >= 560 && state.board !== false && w - 8 - boardLx >= 116) {
-      /* the board hangs off the top-right corner: an ink header naming the panel
-         over the track it belongs to, then a real little table — rank gutter,
-         player, time — under dim column labels and a hairline. The winner is
-         painted in accent so the top of the board reads before the numbers do;
-         your own row gets a cream tick and a lifted fill. Ranks sit in a fixed
-         gutter and the time column is measured before the name is cut, so a
-         14-character name truncates instead of running into it. */
-      const lx = boardLx, pw = w - 8 - boardLx, py = 34;
-      const pad = 9;
-      const right = lx + pw - pad;
-      const hh = 26;                          // ink header: panel name over track
-      const rh = 14;                          // row height
-      const n = acct.offline ? 0 : Math.min(10, acct.times.length);
-      const labelH = n === 0 ? 0 : 13;        // column labels only label rows
-      const bh = n === 0 ? hh + 32 : hh + labelH + n * rh + 5;
-      pxRect(c, lx, py, pw, bh, SLAB);
-      pxRect(c, lx, py, pw, hh, INK);
-      pxBorder(c, lx, py, pw, bh, 'rgba(242,238,225,0.45)');
-      c.fillStyle = ACCENT;
-      c.fillRect(lx + 5, py + 4, 2, 15);
-      let track = (state.mapName ?? '').toUpperCase();
-      this.font(8, 700);
-      while (track.length > 1 && c.measureText(track).width > right - lx - 14) track = track.slice(0, -1);
-      this.text('LEADERBOARD', lx + 12, py + 4, { size: 8, weight: 700, color: CREAM, spacing: 2 });
-      this.text(track, lx + 12, py + 14, { size: 8, weight: 700, color: ACCENT, spacing: 1 });
-
-      const nameX = lx + 30;
-      const rankX = nameX - 8;
-      this.font(8, 700);
-      const timeW = Math.ceil(c.measureText('00:00.00').width);
-      const nameMax = right - timeW - 8 - nameX;
-
-      if (n === 0) {
-        // nothing ranked: the state at full weight, then what it means for you
-        this.text(acct.offline ? 'OFFLINE' : 'NO TIMES YET', lx + pw / 2, py + hh + 11, {
-          size: 8, weight: 700, color: acct.offline ? ACCENT : CREAM,
-          align: 'center', spacing: 2,
-        });
-        this.text(acct.offline ? 'BOARD UNREACHABLE' : 'BE THE FIRST', lx + pw / 2, py + hh + 22,
-          { size: 8, color: DIM, align: 'center' });
-      } else {
-        /* without the labels the rank gutter and the time column read as loose
-           numbers; one dim line and a hairline turn them into a table */
-        this.text('RK', rankX, py + hh + 2, { size: 8, color: DIM, align: 'right' });
-        this.text('PLAYER', nameX, py + hh + 2, { size: 8, color: DIM });
-        this.text('TIME', right, py + hh + 2, { size: 8, color: DIM, align: 'right' });
-        c.fillStyle = LINE;
-        c.fillRect(lx + 6, py + hh + 11, pw - 12, 1);
-
-        const me = (acct.user?.username ?? '').toUpperCase();
-        for (let i = 0; i < n; i++) {
-          const t = acct.times[i];
-          const ry = py + hh + labelH + i * rh;
-          const lead = t.rank === 1;
-          const mine = me !== '' && t.username.toUpperCase() === me;
-          if (lead) {
-            // the leader is painted, not tinted: the board's answer at a glance
-            pxRect(c, lx + 3, ry, pw - 6, rh, ACCENT);
-          } else if (mine) {
-            c.fillStyle = 'rgba(242,238,225,0.1)';
-            c.fillRect(lx + 3, ry, pw - 6, rh);
-          } else if (i % 2 === 1) {
-            c.fillStyle = 'rgba(242,238,225,0.045)';
-            c.fillRect(lx + 3, ry, pw - 6, rh);
-          }
-          if (mine) {
-            // your line, wherever it sits: tick in the rank gutter
-            c.fillStyle = 'rgba(242,238,225,0.75)';
-            c.fillRect(lx + 3, ry + 2, 2, rh - 4);
-          }
-          const y = ry + 4;
-          this.text(String(t.rank).padStart(2, '0'), rankX, y, {
-            size: 8, weight: lead ? 700 : 400, color: lead ? CREAM : DIM, align: 'right',
-          });
-          let name = t.username.toUpperCase();
-          const weight = lead || mine ? 700 : 400;
-          this.font(8, weight);
-          while (name.length > 1 && c.measureText(name).width > nameMax) name = name.slice(0, -1);
-          this.text(name, nameX, y, { size: 8, weight, color: CREAM });
-          this.text(fmtMs(t.ms), right, y, { size: 8, weight: 700, color: CREAM, align: 'right' });
-        }
-      }
-      // every map, every player: the full board hangs one press under the panel,
-      // tucked right so it lines up with the panel's own edge
-      const ay = py + bh + 6;
-      const aw = 78;
-      const ax = lx + pw - aw;
-      pxRect(c, ax, ay, aw, 13, SLAB);
-      pxBorder(c, ax, ay, aw, 13, 'rgba(242,238,225,0.55)');
-      this.text('ALL MAPS · L', ax + aw / 2, ay + 2.5, { size: 8, color: CREAM, align: 'center' });
-      this.buttons.push({ id: 'board-all', x: ax, y: ay, w: aw, h: 13, label: 'ALL MAPS' });
+      const bh = this.drawBoardPanel(state, boardLx, 20, w - 8 - boardLx);
+      chipY = 20 + bh + 6;
+    }
+    {
+      const label = 'ALL MAPS · L';
+      const aw = this.measure(label, 8, 700) + 18;
+      const ax = w - aw - 8;
+      pxRect(c, ax, chipY, aw, 13, hot === 'board-all' ? 'rgba(242,238,225,0.18)' : SLAB);
+      pxBorder(c, ax, chipY, aw, 13, hot === 'board-all' ? CREAM : 'rgba(242,238,225,0.55)');
+      this.text(label, ax + aw / 2, chipY + 2.5, { size: 8, weight: 700, color: CREAM, align: 'center' });
+      this.buttons.push({ id: 'board-all', x: ax, y: chipY, w: aw, h: 13, label: 'ALL MAPS' });
     }
 
-    const on = (time % 1.2) < 0.85;
-    this.text('OR PRESS SPACE', cx, blinkY, { size: 8, color: on ? CREAM : 'rgba(242,238,225,0.15)', align: 'center', spacing: 1 });
+    /* ---- ONE corner button for account, admin, settings and the power ---- */
+    this.drawMenuButton(state, time, hot);
+    if (this.menuOpen) this.drawMenuPanel(state, time, hot);
 
     this.text('WASD DRIVE   SPACE DRIFT   F POWER   Q E LOOK   R RESET   N MUTE', cx, h - 26, {
       size: 8, color: HINT, align: 'center',
     });
+
     if (state.powerInfo) this.drawPowerInfo(state);
     if (state.settings) this.drawSettings(state);
     if (state.fullBoard) this.drawFullBoard(state);
+
+    this.hoverId = this.hitIdAt(this.hx, this.hy);
+  }
+
+  /** the leaderboard panel: an ink header naming the panel over the circuit it
+      belongs to, then a real little table. Returns the height it took. */
+  private drawBoardPanel(state: UiState, lx: number, py: number, pw: number) {
+    const c = this.ctx;
+    const acct = state.account!;
+    const pad = 9;
+    const right = lx + pw - pad;
+    const hh = 26;
+    const rh = 14;
+    const n = acct.offline ? 0 : Math.min(10, acct.times.length);
+    const labelH = n === 0 ? 0 : 13;
+    const bh = n === 0 ? hh + 32 : hh + labelH + n * rh + 5;
+    pxRect(c, lx, py, pw, bh, SLAB);
+    pxRect(c, lx, py, pw, hh, INK);
+    pxBorder(c, lx, py, pw, bh, 'rgba(242,238,225,0.45)');
+    c.fillStyle = ACCENT;
+    c.fillRect(lx + 5, py + 4, 2, 15);
+    let track = (state.mapName ?? '').toUpperCase();
+    this.font(8, 700);
+    while (track.length > 1 && c.measureText(track).width > right - lx - 14) track = track.slice(0, -1);
+    this.text('LEADERBOARD', lx + 12, py + 4, { size: 8, weight: 700, color: CREAM, spacing: 2 });
+    this.text(track, lx + 12, py + 14, { size: 8, weight: 700, color: ACCENT, spacing: 1 });
+
+    const nameX = lx + 30;
+    const rankX = nameX - 8;
+    this.font(8, 700);
+    const timeW = Math.ceil(c.measureText('00:00.00').width);
+    const nameMax = right - timeW - 8 - nameX;
+
+    if (n === 0) {
+      this.text(acct.offline ? 'OFFLINE' : 'NO TIMES YET', lx + pw / 2, py + hh + 11, {
+        size: 8, weight: 700, color: acct.offline ? ACCENT : CREAM,
+        align: 'center', spacing: 2,
+      });
+      this.text(acct.offline ? 'BOARD UNREACHABLE' : 'BE THE FIRST', lx + pw / 2, py + hh + 22,
+        { size: 8, color: DIM, align: 'center' });
+    } else {
+      this.text('RK', rankX, py + hh + 2, { size: 8, color: DIM, align: 'right' });
+      this.text('PLAYER', nameX, py + hh + 2, { size: 8, color: DIM });
+      this.text('TIME', right, py + hh + 2, { size: 8, color: DIM, align: 'right' });
+      c.fillStyle = LINE;
+      c.fillRect(lx + 6, py + hh + 11, pw - 12, 1);
+
+      const me = (acct.user?.username ?? '').toUpperCase();
+      for (let i = 0; i < n; i++) {
+        const row = acct.times[i];
+        const ry = py + hh + labelH + i * rh;
+        const lead = row.rank === 1;
+        const mine = me !== '' && row.username.toUpperCase() === me;
+        if (lead) {
+          pxRect(c, lx + 3, ry, pw - 6, rh, ACCENT);
+        } else if (mine) {
+          c.fillStyle = 'rgba(242,238,225,0.1)';
+          c.fillRect(lx + 3, ry, pw - 6, rh);
+        } else if (i % 2 === 1) {
+          c.fillStyle = 'rgba(242,238,225,0.045)';
+          c.fillRect(lx + 3, ry, pw - 6, rh);
+        }
+        if (mine) {
+          c.fillStyle = 'rgba(242,238,225,0.75)';
+          c.fillRect(lx + 3, ry + 2, 2, rh - 4);
+        }
+        const ty = ry + 4;
+        this.text(String(row.rank).padStart(2, '0'), rankX, ty, {
+          size: 8, weight: lead ? 700 : 400, color: lead ? CREAM : DIM, align: 'right',
+        });
+        let name = row.username.toUpperCase();
+        const weight = lead || mine ? 700 : 400;
+        this.font(8, weight);
+        while (name.length > 1 && c.measureText(name).width > nameMax) name = name.slice(0, -1);
+        this.text(name, nameX, ty, { size: 8, weight, color: CREAM });
+        this.text(fmtMs(row.ms), right, ty, { size: 8, weight: 700, color: CREAM, align: 'right' });
+      }
+    }
+    return bh;
+  }
+
+  /** MENU: the account tag rides the button, so who you are is still one
+      glance away — and the nine things that used to sit in the centre column
+      are one click away instead of nine lines of chrome. */
+  private drawMenuButton(state: UiState, time: number, hot: string | null) {
+    const c = this.ctx;
+    const acct = state.account;
+    const admin = acct?.user?.role === 'admin';
+    const tag = acct?.user ? acct.user.username.toUpperCase() : 'GUEST';
+    const labelW = this.measure('MENU', 8, 700, 1);
+    let tagText = tag;
+    let tagW = this.measure(tagText, 8, 400);
+    while (tagText.length > 1 && tagW > 84) {
+      tagText = tagText.slice(0, -1);
+      tagW = this.measure(tagText, 8, 400);
+    }
+    const bob = this.menuOpen ? 1 : 0;
+    const b = this.bMenu;
+    b.x = 8;
+    b.y = 20 + bob;
+    b.w = 7 + 6 + 5 + labelW + 7 + tagW + 8;
+    b.h = 17;
+    const press = this.press('menu');
+    b.y += press.dy;
+    b.h += press.dh;
+    const lit = hot === 'menu' || this.menuOpen;
+    pxRect(c, b.x + 2, b.y + 2, b.w, b.h, SHADOW);
+    pxRect(c, b.x, b.y, b.w, b.h, lit ? 'rgba(242,238,225,0.16)' : SLAB);
+    pxBorder(c, b.x, b.y, b.w, b.h, lit ? CREAM : 'rgba(242,238,225,0.55)');
+    // three bars: the menu mark, drawn by hand like the arrows
+    c.fillStyle = CREAM;
+    for (let i = 0; i < 3; i++) c.fillRect(b.x + 7, b.y + 5 + i * 3, 6, 1);
+    this.text('MENU', b.x + 18, b.y + 5, { size: 8, weight: 700, color: CREAM, spacing: 1 });
+    this.text(tagText, b.x + b.w - 8, b.y + 5, {
+      size: 8, color: admin ? ACCENT : HINT, align: 'right',
+    });
+    this.buttons.push({ ...b });
+  }
+
+  /** the corner panel: who you are, ADMIN, SIGN OUT / SIGN IN, SETTINGS, and
+      the power's blurb. Drawn over the column, its buttons first in the hit
+      list so they always win the tap. */
+  private drawMenuPanel(state: UiState, time: number, hot: string | null) {
+    const c = this.ctx;
+    const acct = state.account;
+    const admin = acct?.user?.role === "admin";
+    const px = 8;
+    const pw = Math.min(184, this.w - 16);
+    const py = 40;
+    /* sized by its content, so a one-line name and a long one take the same
+       box and nothing is left empty at the bottom */
+    const acctH = acct?.user ? 48 : 33;
+    const full = 22 + acctH + 40 + 9;
+    const ph = Math.round(full * this.stage(time - this.menuAt, 0.01, 0.09, 3));
+    pxRect(c, px + 2, py + 2, pw, ph, SHADOW);
+    pxRect(c, px, py, pw, ph, SLAB);
+    pxBorder(c, px, py, pw, ph, CREAM);
+    c.save();
+    c.beginPath();
+    c.rect(px, py, pw, ph);
+    c.clip();
+    pxRect(c, px, py, pw, 14, INK);
+    c.fillStyle = ACCENT;
+    c.fillRect(px + 5, py + 4, 2, 8);
+    this.text("MENU", px + 12, py + 3, { size: 8, weight: 700, color: CREAM, spacing: 2 });
+
+    const items: Button[] = [];
+    const rowW = pw - 20;
+    let y = py + 22;
+    if (acct?.user) {
+      this.text("SIGNED IN", px + 10, y, { size: 8, color: DIM, spacing: 2 });
+      y += 10;
+      let nm = acct.user.username.toUpperCase();
+      this.font(8, 700);
+      while (nm.length > 1 && c.measureText(nm).width > rowW) nm = nm.slice(0, -1);
+      this.text(nm, px + 10, y, { size: 8, weight: 700, color: admin ? ACCENT : CREAM });
+      y += 16;
+      if (admin) {
+        this.bAdmin.label = "ADMIN";
+        this.bAdmin.w = 64;
+        this.bAdmin.h = 14;
+        this.bAdmin.x = px + 10;
+        this.bAdmin.y = y;
+        pxRect(c, this.bAdmin.x, this.bAdmin.y, this.bAdmin.w, this.bAdmin.h, ACCENT);
+        pxBorder(c, this.bAdmin.x, this.bAdmin.y, this.bAdmin.w, this.bAdmin.h, CREAM);
+        this.text("ADMIN", this.bAdmin.x + this.bAdmin.w / 2, this.bAdmin.y + 3,
+          { size: 8, weight: 700, color: CREAM, align: "center" });
+        items.push({ ...this.bAdmin });
+        this.bLogout.label = acct.busy ? "..." : "SIGN OUT";
+        this.bLogout.w = 72;
+        this.bLogout.h = 14;
+        this.bLogout.x = px + pw - this.bLogout.w - 10;
+        this.bLogout.y = y;
+        pxRect(c, this.bLogout.x, this.bLogout.y, this.bLogout.w, this.bLogout.h, SLAB);
+        pxBorder(c, this.bLogout.x, this.bLogout.y, this.bLogout.w, this.bLogout.h,
+          "rgba(242,238,225,0.55)");
+        this.text(this.bLogout.label, this.bLogout.x + this.bLogout.w / 2, this.bLogout.y + 3,
+          { size: 8, color: CREAM, align: "center" });
+        items.push({ ...this.bLogout });
+      } else {
+        this.bLogout.label = acct.busy ? "..." : "SIGN OUT";
+        this.bLogout.w = rowW;
+        this.bLogout.h = 14;
+        this.bLogout.x = px + 10;
+        this.bLogout.y = y;
+        pxRect(c, this.bLogout.x, this.bLogout.y, this.bLogout.w, this.bLogout.h, SLAB);
+        pxBorder(c, this.bLogout.x, this.bLogout.y, this.bLogout.w, this.bLogout.h,
+          "rgba(242,238,225,0.55)");
+        this.text(this.bLogout.label, this.bLogout.x + this.bLogout.w / 2, this.bLogout.y + 3,
+          { size: 8, color: CREAM, align: "center" });
+        items.push({ ...this.bLogout });
+      }
+      y += 22;
+    } else {
+      this.text("NOT SIGNED IN", px + 10, y, { size: 8, color: DIM, spacing: 2 });
+      y += 11;
+      this.bLogin.label = acct?.busy ? "..." : "SIGN IN";
+      this.bLogin.w = rowW;
+      this.bLogin.h = 14;
+      this.bLogin.x = px + 10;
+      this.bLogin.y = y;
+      pxRect(c, this.bLogin.x, this.bLogin.y, this.bLogin.w, this.bLogin.h, ACCENT);
+      pxBorder(c, this.bLogin.x, this.bLogin.y, this.bLogin.w, this.bLogin.h, CREAM);
+      this.text(this.bLogin.label, this.bLogin.x + this.bLogin.w / 2, this.bLogin.y + 3,
+        { size: 8, weight: 700, color: CREAM, align: "center" });
+      items.push({ ...this.bLogin });
+      y += 22;
+    }
+
+    for (const spec of [
+      { b: this.bSettings, label: "SETTINGS" },
+      { b: this.bInfo, label: "POWER INFO" },
+    ]) {
+      const b = spec.b;
+      b.label = spec.label;
+      b.w = rowW;
+      b.h = 14;
+      b.x = px + 10;
+      b.y = y;
+      const hovered = hot === b.id;
+      pxRect(c, b.x, b.y, b.w, b.h, hovered ? "rgba(242,238,225,0.16)" : SLAB);
+      pxBorder(c, b.x, b.y, b.w, b.h, hovered ? CREAM : "rgba(242,238,225,0.55)");
+      this.text(b.label, b.x + 6, b.y + 3, { size: 8, color: CREAM });
+      if (b.id === "power-info") {
+        let nm = (state.power?.name ?? "").toUpperCase();
+        this.font(8, 400);
+        while (nm.length > 1 && c.measureText(nm).width > rowW - 96) nm = nm.slice(0, -1);
+        this.text(nm, b.x + b.w - 6, b.y + 3, { size: 8, color: ACCENT, align: "right" });
+      }
+      items.push({ ...b });
+      y += 20;
+    }
+    c.restore();
+
+    // the panel sits over the column, so its chips go first in the hit list
+    this.buttons.unshift(...items.map((b) => ({
+      id: b.id, x: Math.round(b.x), y: Math.round(b.y), w: b.w, h: b.h, label: b.label,
+    })));
   }
 
   /** The player's own switches and their record: toggles up top, per-map bests
