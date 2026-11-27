@@ -68,6 +68,17 @@ export interface MapDef {
   snowGear?: boolean;
   grandstands?: boolean;
   armco?: boolean;
+  /** white and red kerbs give way to flag green and yellow through the
+   *  corners, and the tight ones get a painted gravel apron behind them */
+  flagKerbs?: boolean;
+  /** a line of tyres along each lakeshore the circuit runs close to */
+  shoreBarriers?: boolean;
+  /** the tree scatter gathers into groves instead of even noise */
+  groves?: boolean;
+  /** mown grass in broad diagonal bands, under the lake and road paint */
+  mown?: boolean;
+  /** rust-red laterite blotches through the infield grass */
+  redEarth?: boolean;
   yachts?: { x: number; z: number; rot: number; scale: number }[];
   ferris?: { x: number; z: number; rot: number; scale: number };
   torii?: { x: number; z: number; rot: number; scale: number };
@@ -244,26 +255,38 @@ export const MAPS: MapDef[] = [
       [-105.94, 128.35], [-108.35, 118.68], [-110.43, 108.92], [-112.24, 99.12], [-114.10, 89.32], [-116.13, 79.56],
     ],
     palette: {
-      grass: '#4f7a3e', tones: ['#5b8947', '#42693a', '#6e9a53', '#375a30', '#82ad61'],
-      bladeA: '#9ec46a', bladeB: '#33542c',
-      sand: '#d9c9a2', water: '#2d7f92', waterLt: 'rgba(126,209,214,0.55)',
-      shoulder: '#7d6b52', asphalt: '#45464e', grainA: '#6d6e78', grainB: '#2c2d34',
-      line: 'rgba(240,236,220,0.86)', kerbA: '#f2eee4', kerbB: '#c8463c',
+      grass: '#557a3a', tones: ['#608549', '#476b35', '#759a53', '#3a5b2c', '#8aad60'],
+      bladeA: '#a9c76b', bladeB: '#36542c',
+      sand: '#e0cb9a', water: '#1f6d84', waterLt: 'rgba(138,214,220,0.52)',
+      shoulder: '#7c6a4e', asphalt: '#43444c', grainA: '#6c6d77', grainB: '#2c2d34',
+      line: 'rgba(240,236,216,0.86)', kerbA: '#f2eee4', kerbB: '#c8463c',
     },
+    // Three lakes, all of them close enough to the road to be seen from a
+    // corner: the big one inside the loop, one on the inside of the last two
+    // corners and one on the outside of the Senna S run out. Interlagos means
+    // "between the lakes" and the ground should say so.
     lakes: [
-      { x: 2, z: -94, rx: 58, rz: 40 },
-      { x: 100, z: 120, rx: 24, rz: 19 },
+      { x: -26, z: -106, rx: 48, rz: 32 },
+      { x: 62, z: -88, rx: 26, rz: 17 },
+      { x: 104, z: 118, rx: 28, rz: 21 },
     ],
-    trees: 'palm', density: 1.05, tint: '#fff3d8',
-    props: { trees: 900, rocks: 300, buildings: 8, lampStride: 20, rockScale: 1.2 },
+    trees: 'palm', density: 1.05, tint: '#ffeccb',
+    props: { trees: 1120, rocks: 300, buildings: 8, lampStride: 20, rockScale: 1.2 },
     // the pit block on the inside of the main straight, facing the stands
     town: [
       [84.5, -26.2], [88.1, -12.5], [91.8, 1.3], [95.6, 14.9],
       [99.3, 28.7], [103.2, 42.4], [107.1, 56.2], [110.1, 66.3],
     ],
-    sky: '#eeb27f',
+    // late afternoon in São Paulo: the sun is low and warm and the haze takes
+    // the edge off the green
+    sky: '#e9a173',
     grandstands: true,
     armco: true,
+    flagKerbs: true,
+    shoreBarriers: true,
+    groves: true,
+    mown: true,
+    redEarth: true,
   },
 ];
 
@@ -354,7 +377,27 @@ function offsetPath(pts: P2[], dist: number): P2[] {
   });
 }
 
-function strokePath(ctx: CanvasRenderingContext2D, pts: P2[], color: string, width: number) {
+/** Signed turn at a centreline point: positive turns one way, negative the
+ *  other, and the sign is what picks the outside of a corner. */
+function curvature(track: P2[], i: number): number {
+  const n = track.length;
+  const a = track[(i - 8 + n) % n], b = track[i], c = track[(i + 8) % n];
+  const v1x = b.x - a.x, v1z = b.z - a.z, v2x = c.x - b.x, v2z = c.z - b.z;
+  const l1 = Math.hypot(v1x, v1z) || 1, l2 = Math.hypot(v2x, v2z) || 1;
+  return (v1x * v2z - v1z * v2x) / (l1 * l2);
+}
+
+/** A point `dist` metres off the centreline at `i`, positive to the left. */
+function edgeAt(track: P2[], i: number, dist: number): P2 {
+  const n = track.length;
+  const a = track[(i - 3 + n) % n], b = track[(i + 3) % n];
+  const dx = b.x - a.x, dz = b.z - a.z;
+  const len = Math.hypot(dx, dz) || 1;
+  return { x: track[i].x + (dz / len) * dist, z: track[i].z - (dx / len) * dist };
+}
+
+function strokePath(ctx: CanvasRenderingContext2D, pts: P2[], color: string, width: number,
+  close = true) {
   ctx.strokeStyle = color;
   ctx.lineWidth = width;
   ctx.lineJoin = 'round';
@@ -364,11 +407,12 @@ function strokePath(ctx: CanvasRenderingContext2D, pts: P2[], color: string, wid
     const x = (p.x + HALF_G) * PPU, y = (p.z + HALF_G) * PPU;
     i ? ctx.lineTo(x, y) : ctx.moveTo(x, y);
   });
-  ctx.closePath();
+  if (close) ctx.closePath();
   ctx.stroke();
 }
 
-function dotted(ctx: CanvasRenderingContext2D, pts: P2[], color: string, width: number, on: number, off: number) {
+function dotted(ctx: CanvasRenderingContext2D, pts: P2[], color: string, width: number, on: number, off: number,
+  close = true) {
   ctx.save();
   ctx.strokeStyle = color;
   ctx.lineWidth = width;
@@ -379,7 +423,7 @@ function dotted(ctx: CanvasRenderingContext2D, pts: P2[], color: string, width: 
     const x = (p.x + HALF_G) * PPU, y = (p.z + HALF_G) * PPU;
     i ? ctx.lineTo(x, y) : ctx.moveTo(x, y);
   });
-  ctx.closePath();
+  if (close) ctx.closePath();
   ctx.stroke();
   ctx.restore();
 }
@@ -390,6 +434,9 @@ function paintGround(track: P2[], map: MapDef): HTMLCanvasElement {
   const g = cv.getContext('2d')!;
 
   const rnd = mulberry(1337);
+  // only a map that owns several water bodies gets the shoreline pass; every
+  // map with a single lake keeps the flat disc it has always had
+  const shoreDetail = (map.lakes?.length ?? 0) > 0;
 
   g.fillStyle = map.palette.grass;
   g.fillRect(0, 0, PX, PX);
@@ -410,6 +457,49 @@ function paintGround(track: P2[], map: MapDef): HTMLCanvasElement {
     g.fillRect(x, y, 1, 2);
   }
   g.globalAlpha = 1;
+
+  /* Mown grass: a park circuit is a kept lawn, and a kept lawn is striped. Two
+     tones of broad diagonal band under everything else, which gives a field of
+     this size some structure from above. */
+  if (map.mown) {
+    g.save();
+    g.translate(PX / 2, PX / 2);
+    g.rotate(0.62);
+    const band = 13 * PPU;
+    g.fillStyle = 'rgba(28,52,16,0.075)';
+    for (let x = -PX; x < PX; x += band * 2) g.fillRect(x, -PX, band, PX * 2);
+    g.fillStyle = 'rgba(255,240,190,0.045)';
+    for (let x = -PX + band; x < PX; x += band * 2) g.fillRect(x, -PX, band, PX * 2);
+    g.restore();
+  }
+
+  /* Red earth: the park at Interlagos weeds through to the laterite under it,
+     so the infield is green and rust, not green. Broad blotches of iron-red
+     clay, kept off the tarmac and out of the lakes. */
+  if (map.redEarth) {
+    const water = [map.lake, ...(map.lakes ?? [])].filter((l) => !!l);
+    const laid: { x: number; z: number }[] = [];
+    for (let i = 0; i < 900 && laid.length < 150; i++) {
+      const wx = -HALF_G + rnd() * 2 * HALF_G;
+      const wz = -HALF_G + rnd() * 2 * HALF_G;
+      const rx = (9 + rnd() * 20) * PPU, rz = (6 + rnd() * 12) * PPU;
+      // even cover, no clumps: one blotch per neighbourhood, or the near field
+      // of the start straight ends up entirely rust
+      if (laid.some((p) => Math.hypot(wx - p.x, wz - p.z) < 24)) continue;
+      if (water.some((l) => Math.hypot(wx - l!.x, wz - l!.z) < Math.max(l!.rx, l!.rz) + 5)) continue;
+      if (track.some((p) => Math.hypot(wx - p.x, wz - p.z) < ROAD_HALF + 5)) continue;
+      laid.push({ x: wx, z: wz });
+      const cx = (wx + HALF_G) * PPU, cy = (wz + HALF_G) * PPU;
+      g.fillStyle = rnd() > 0.5 ? 'rgba(146,64,36,0.15)' : 'rgba(174,88,46,0.12)';
+      g.beginPath();
+      g.ellipse(cx, cy, rx, rz, rnd() * Math.PI, 0, Math.PI * 2);
+      g.fill();
+      g.fillStyle = 'rgba(206,134,84,0.09)';
+      g.beginPath();
+      g.ellipse(cx + rx * 0.2, cy - rz * 0.25, rx * 0.55, rz * 0.5, rnd() * Math.PI, 0, Math.PI * 2);
+      g.fill();
+    }
+  }
 
   // Cherry petals: a soft pink scatter under the blossom trees.
   if (map.petals) {
@@ -457,6 +547,45 @@ function paintGround(track: P2[], map: MapDef): HTMLCanvasElement {
       g.fillStyle = 'rgba(220,245,250,0.45)';
       g.fillRect(lx + Math.cos(a) * lake.rx * 0.8 * PPU * r, ly + Math.sin(a) * lake.rz * 0.7 * PPU * r, 6, 2);
     }
+
+    /* A map with several lakes is read from above and from the bank, so its
+       water gets the cues that make it water: a deeper middle, a foam line at
+       the waterline, reeds in the shallows and dry sand up the beach. */
+    if (shoreDetail) {
+      const ca = Math.cos(0.35), sa = Math.sin(0.35);
+      const at = (u: number, v: number) => ({
+        x: lx + (u * ca - v * sa) * PPU,
+        y: ly + (u * sa + v * ca) * PPU,
+      });
+      g.save();
+      g.beginPath();
+      g.ellipse(lx, ly, (lake.rx - 2) * PPU, (lake.rz - 1.8) * PPU, 0.35, 0, Math.PI * 2);
+      g.clip();
+      g.fillStyle = 'rgba(12,44,62,0.26)';
+      g.beginPath();
+      g.ellipse(lx, ly, (lake.rx - 2) * 0.58 * PPU, (lake.rz - 1.8) * 0.58 * PPU, 0.35, 0, Math.PI * 2);
+      g.fill();
+      g.restore();
+      g.strokeStyle = 'rgba(226,246,244,0.42)';
+      g.lineWidth = 1.6;
+      g.beginPath();
+      g.ellipse(lx, ly, (lake.rx - 2) * PPU, (lake.rz - 1.8) * PPU, 0.35, 0, Math.PI * 2);
+      g.stroke();
+      for (let i = 0; i < 170; i++) {
+        const t = rnd() * Math.PI * 2;
+        const p = at(Math.cos(t) * (lake.rx - 2) * (0.94 + rnd() * 0.05),
+          Math.sin(t) * (lake.rz - 1.8) * (0.94 + rnd() * 0.05));
+        g.fillStyle = rnd() > 0.45 ? 'rgba(62,110,60,0.75)' : 'rgba(96,146,78,0.7)';
+        g.fillRect(p.x | 0, p.y | 0, 1, rnd() > 0.6 ? 3 : 2);
+      }
+      for (let i = 0; i < 220; i++) {
+        const t = rnd() * Math.PI * 2;
+        const p = at(Math.cos(t) * lake.rx * (1 + rnd() * 0.05),
+          Math.sin(t) * lake.rz * (1 + rnd() * 0.05));
+        g.fillStyle = rnd() > 0.5 ? 'rgba(246,234,200,0.5)' : 'rgba(150,128,92,0.4)';
+        g.fillRect(p.x | 0, p.y | 0, 1, 1);
+      }
+    }
   }
 
   if (map.snow && map.lake) {
@@ -498,6 +627,64 @@ function paintGround(track: P2[], map: MapDef): HTMLCanvasElement {
 
   g.globalAlpha = 1;
 
+  /* Gravel: every corner that actually asks something of the car gets a
+     painted run-off apron behind it, with the red and white band along its far
+     edge. The flag kerb pair for the same corners is painted after the plain
+     kerb, further down. */
+  if (map.flagKerbs) {
+    const n = track.length;
+
+    let lastTrap = -999;
+    for (let k = 0; k < n; k++) {
+      const c = Math.abs(curvature(track, k));
+      if (c < 0.5) continue;
+      if (c < Math.abs(curvature(track, (k - 1 + n) % n)) || c < Math.abs(curvature(track, (k + 1) % n))) continue;
+      if (k - lastTrap < 40) continue;
+      lastTrap = k;
+      // outside of the corner: the sign of the turn picks which side that is
+      const side = curvature(track, k) > 0 ? 1 : -1;
+      const span = 13;
+      const inner: P2[] = [], outer: P2[] = [];
+      for (let s = -span; s <= span; s++) {
+        const t = Math.abs(s) / span;
+        const depth = 5.2 * (1 - t * t * t);
+        const at = (k + s + n) % n;
+        inner.push(edgeAt(track, at, side * (ROAD_HALF + 0.3)));
+        outer.push(edgeAt(track, at, side * (ROAD_HALF + 0.3 + depth)));
+      }
+      // a run-off that would run into a lake just muddles the shore: skip it
+      if (outer.some((p) => [map.lake, ...(map.lakes ?? [])].some((l) => l
+        && ((p.x - l.x) / (l.rx + 1.6)) ** 2 + ((p.z - l.z) / (l.rz + 1.6)) ** 2 < 1))) continue;
+      g.beginPath();
+      inner.forEach((p, idx) => {
+        const x = (p.x + HALF_G) * PPU, y = (p.z + HALF_G) * PPU;
+        idx ? g.lineTo(x, y) : g.moveTo(x, y);
+      });
+      for (let idx = outer.length - 1; idx >= 0; idx--) {
+        const p = outer[idx];
+        g.lineTo((p.x + HALF_G) * PPU, (p.z + HALF_G) * PPU);
+      }
+      g.closePath();
+      g.fillStyle = '#b9ae8e';
+      g.fill();
+      g.save();
+      g.clip();
+      for (let d = 0; d < 900; d++) {
+        const p = outer[(rnd() * outer.length) | 0];
+        const q = inner[(rnd() * inner.length) | 0];
+        const m = rnd();
+        const x = (q.x + (p.x - q.x) * m + HALF_G) * PPU;
+        const y = (q.z + (p.z - q.z) * m + HALF_G) * PPU;
+        g.fillStyle = rnd() > 0.5 ? '#cbc2a4' : '#9c9274';
+        g.fillRect(x | 0, y | 0, 1, 1);
+      }
+      g.restore();
+      // the red and white band on the far edge of the run-off
+      strokePath(g, outer, '#efe9d8', 0.8 * PPU, false);
+      dotted(g, outer, '#c8463c', 0.8 * PPU, 1.1 * PPU, 1.1 * PPU, false);
+    }
+  }
+
   strokePath(g, offsetPath(track, ROAD_HALF - 0.45), map.palette.line, 0.34 * PPU);
   strokePath(g, offsetPath(track, -(ROAD_HALF - 0.45)), map.palette.line, 0.34 * PPU);
 
@@ -506,6 +693,27 @@ function paintGround(track: P2[], map: MapDef): HTMLCanvasElement {
     strokePath(g, edge, map.palette.kerbA, 0.7 * PPU);
     dotted(g, edge, map.palette.kerbB, 0.7 * PPU, 1.5 * PPU, 1.5 * PPU);
 
+  }
+
+  /* Flag kerbs: the corners the gravel belongs to also swap the plain white
+     and red pair for the flag's green and yellow, so the kerb itself tells you
+     where the work is. */
+  if (map.flagKerbs) {
+    const n = track.length;
+    const flagY = '#f4c518', flagG = '#0e7f3c';
+    let i = 0;
+    while (i < n) {
+      if (Math.abs(curvature(track, i)) < 0.18) { i++; continue; }
+      const from = i;
+      while (i < n && Math.abs(curvature(track, i)) >= 0.18) i++;
+      if (i - from < 10) continue;
+      for (const side of [1, -1]) {
+        const edge: P2[] = [];
+        for (let k = from; k <= i; k++) edge.push(edgeAt(track, k % n, side * (ROAD_HALF + 0.15)));
+        strokePath(g, edge, flagY, 0.7 * PPU, false);
+        dotted(g, edge, flagG, 0.7 * PPU, 1.5 * PPU, 1.5 * PPU, false);
+      }
+    }
   }
 
   dotted(g, track, 'rgba(246,246,240,0.62)', 0.16 * PPU, 1.9 * PPU, 2.4 * PPU);
@@ -603,6 +811,62 @@ function jpBannerTexture(label: string, accent: string): THREE.Texture {
   g.fillStyle = '#1b1d22';
   const chars = [...label];
   chars.forEach((ch, i) => g.fillText(ch, 32, 40 + i * 54));
+  const tex = new THREE.CanvasTexture(cv);
+  tex.magFilter = THREE.NearestFilter;
+  tex.minFilter = THREE.NearestFilter;
+  tex.colorSpace = THREE.SRGBColorSpace;
+  return tex;
+}
+
+/** Brazilian flag board: a yellow field with green rules or the reverse, with
+ *  blue corner ticks. Sizeable mono type, so it still reads when it is only a
+ *  few dozen pixels tall in the chase view. */
+function brBoardTexture(label: string, yellow: boolean): THREE.Texture {
+  const cv = document.createElement('canvas');
+  cv.width = 192; cv.height = 64;
+  const g = cv.getContext('2d')!;
+  g.fillStyle = yellow ? '#ffce00' : '#0b8043';
+  g.fillRect(0, 0, 192, 64);
+  g.fillStyle = yellow ? '#0b8043' : '#ffce00';
+  g.fillRect(0, 0, 192, 7);
+  g.fillRect(0, 57, 192, 7);
+  g.fillStyle = '#1d3f94';
+  g.fillRect(5, 11, 16, 4);
+  g.fillRect(171, 49, 16, 4);
+  g.fillStyle = yellow ? '#0b3a20' : '#ffe97a';
+  g.textAlign = 'center';
+  g.textBaseline = 'middle';
+  let size = 30;
+  g.font = `bold ${size}px monospace`;
+  while (g.measureText(label).width > 176 && size > 11) {
+    size--;
+    g.font = `bold ${size}px monospace`;
+  }
+  g.fillText(label, 96, 34);
+  const tex = new THREE.CanvasTexture(cv);
+  tex.magFilter = THREE.NearestFilter;
+  tex.minFilter = THREE.NearestFilter;
+  tex.colorSpace = THREE.SRGBColorSpace;
+  return tex;
+}
+
+/** The same flag colours standing up: one letter per band, roadside banner. */
+function brBannerTexture(label: string, yellow: boolean): THREE.Texture {
+  const cv = document.createElement('canvas');
+  cv.width = 64; cv.height = 192;
+  const g = cv.getContext('2d')!;
+  g.fillStyle = yellow ? '#ffce00' : '#0b8043';
+  g.fillRect(0, 0, 64, 192);
+  g.fillStyle = yellow ? '#0b8043' : '#ffce00';
+  g.fillRect(0, 0, 64, 9);
+  g.fillRect(0, 183, 64, 9);
+  const chars = [...label];
+  const step = Math.min(46, (192 - 22) / Math.max(1, chars.length));
+  g.font = `bold ${Math.min(34, Math.round(step * 0.95))}px monospace`;
+  g.textAlign = 'center';
+  g.textBaseline = 'middle';
+  g.fillStyle = yellow ? '#0b3a20' : '#ffe97a';
+  chars.forEach((ch, i) => g.fillText(ch, 32, 11 + step * 0.5 + i * step));
   const tex = new THREE.CanvasTexture(cv);
   tex.magFilter = THREE.NearestFilter;
   tex.minFilter = THREE.NearestFilter;
@@ -890,9 +1154,29 @@ export async function buildWorld(scene: THREE.Scene, mapId?: string): Promise<Wo
 
   let guard = 0;
   const treeTarget = map.props?.trees ?? Math.round(190 * (map.density ?? 1));
+  /* Groves: an even scatter over a big field reads as noise from above. A map
+     that asks for groves grows most of its trees in a handful of stands of
+     palms and keeps the rest of the ground open lawn. */
+  const groveCentres: P2[] = [];
+  if (map.groves) {
+    for (let a = 0; a < 400 && groveCentres.length < 8; a++) {
+      const x = (rnd() - 0.5) * (WORLD - 40);
+      const z = (rnd() - 0.5) * (WORLD - 40);
+      if (nearbyRoad(x, z, ROAD_HALF + 16)) continue;
+      if (inLake(x, z, 8)) continue;
+      if (groveCentres.some((c) => Math.hypot(c.x - x, c.z - z) < 56)) continue;
+      groveCentres.push({ x, z });
+    }
+  }
   while (pines.length + palms.length + sakuras.length < treeTarget && guard++ < 3000) {
-    const x = (rnd() - 0.5) * (WORLD - 8);
-    const z = (rnd() - 0.5) * (WORLD - 8);
+    let x = (rnd() - 0.5) * (WORLD - 8);
+    let z = (rnd() - 0.5) * (WORLD - 8);
+    if (groveCentres.length && rnd() < 0.78) {
+      const c = groveCentres[(rnd() * groveCentres.length) | 0];
+      const a = rnd() * Math.PI * 2, r = Math.sqrt(rnd()) * 30;
+      x = c.x + Math.cos(a) * r;
+      z = c.z + Math.sin(a) * r;
+    }
     const palmChance = map.snow ? 0 : map.trees === 'palm' ? 0.9 : map.trees === 'mixed' ? 0.45 : 0.08;
     const nearLake = map.lake ? Math.hypot(x - map.lake.x, z - map.lake.z) < map.lake.rx + 3 : false;
     addTree(x, z, !map.snow && nearLake ? rnd() > 0.35 : rnd() < palmChance);
@@ -968,6 +1252,29 @@ export async function buildWorld(scene: THREE.Scene, mapId?: string): Promise<Wo
     }
   }
 
+  /* A tyre barrier along every lakeshore the circuit runs beside. The lakes
+     are what this map is named for, so the water gets an edge you can read at
+     speed instead of a painted smudge behind the grass. */
+  if (map.shoreBarriers) {
+    for (const lake of map.lakes ?? []) {
+      const ca = Math.cos(0.35), sa = Math.sin(0.35);
+      const steps = Math.max(24, Math.round((lake.rx + lake.rz) * 1.6));
+      for (let s = 0; s < steps; s++) {
+        const t = (s / steps) * Math.PI * 2;
+        const u = Math.cos(t) * lake.rx, v = Math.sin(t) * lake.rz;
+        const x = lake.x + u * ca - v * sa;
+        const z = lake.z + u * sa + v * ca;
+        // only where the racing line can see the water, and never on tarmac
+        if (!nearbyRoad(x, z, ROAD_HALF + 11)) continue;
+        if (nearbyRoad(x, z, ROAD_HALF + 1.2)) continue;
+        if (tyres.some((o) => (o.x - x) ** 2 + (o.z - z) ** 2 < 1.7 * 1.7)) continue;
+        tyres.push({ x, z, rot: rnd() * 6.28, scale: 0.95 + rnd() * 0.15 });
+        colliders.push({ x, z, r: 0.62 });
+        shadows.push({ x, z, rot: 0, scale: 0.9 });
+      }
+    }
+  }
+
   const basic = (color: number) => new THREE.MeshBasicMaterial({ color, toneMapped: false });
   const addBox = (g: THREE.Group, w: number, h: number, d: number, color: number,
     x: number, y: number, z: number) => {
@@ -1031,10 +1338,12 @@ export async function buildWorld(scene: THREE.Scene, mapId?: string): Promise<Wo
   }
 
   if (map.armco) {
-    const pieces: { x: number; z: number; rot: number }[] = [];
-    // a rail every ~2 units of centreline however long the lap is: the 4.65
-    // long rail then overlaps itself even on the outside of a hairpin, so a
-    // 1.6 km circuit gets a continuous barrier instead of a dashed fence
+    const pieces: { x: number; z: number; rot: number; len: number }[] = [];
+    /* A rail every ~2 units of centreline however long the lap is. Each piece
+       runs between two offset points rather than sitting on one point at a
+       fixed length: on the inside of a hairpin a straight 4.65 rail aimed
+       along the tangent swings across the tarmac, and this circuit is 1.59 km
+       of one tight corner after another. */
     let lapLen = 0;
     for (let i = 0; i < track.length; i++) {
       const a = track[i], b = track[(i + 1) % track.length];
@@ -1042,27 +1351,32 @@ export async function buildWorld(scene: THREE.Scene, mapId?: string): Promise<Wo
     }
     const stride = Math.max(1, Math.round((2 * (track.length - 1)) / (lapLen || 1)));
     for (let i = 0; i < track.length; i += stride) {
-      const p = track[i], q = track[(i + stride) % track.length];
-      const dx = q.x - p.x, dz = q.z - p.z;
-      const len = Math.hypot(dx, dz) || 1;
-      const nx = dz / len, nz = -dx / len;
+      const i2 = (i + stride) % track.length;
       for (const side of [-1, 1]) {
+        const a = edgeAt(track, i, side * (ROAD_HALF + 1.15));
+        const b = edgeAt(track, i2, side * (ROAD_HALF + 1.15));
+        // where the offset path folds over itself the rail would stand on the
+        // tarmac: drop those pieces and leave the corner to the tyres
+        if (nearbyRoad(a.x, a.z, ROAD_HALF + 0.6)) continue;
+        if (nearbyRoad(b.x, b.z, ROAD_HALF + 0.6)) continue;
+        const dx = b.x - a.x, dz = b.z - a.z;
+        const len = Math.hypot(dx, dz);
+        if (len < 0.3) continue;
         pieces.push({
-          x: p.x + nx * side * (ROAD_HALF + 1.15),
-          z: p.z + nz * side * (ROAD_HALF + 1.15),
-          rot: Math.atan2(dx, dz),
+          x: (a.x + b.x) / 2, z: (a.z + b.z) / 2,
+          rot: Math.atan2(dx, dz), len: len * 1.12,
         });
       }
     }
-    const railGeo = new THREE.BoxGeometry(0.12, 0.46, 4.65);
-    const capGeo = new THREE.BoxGeometry(0.18, 0.08, 4.65);
+    const railGeo = new THREE.BoxGeometry(0.12, 0.46, 1);
+    const capGeo = new THREE.BoxGeometry(0.18, 0.08, 1);
     const rails = new THREE.InstancedMesh(railGeo, basic(0xb9bec4), pieces.length);
     const caps = new THREE.InstancedMesh(capGeo, basic(0xeef0ec), pieces.length);
     const dummy = new THREE.Object3D();
     pieces.forEach((p, i) => {
       dummy.position.set(p.x, 0.40, p.z);
       dummy.rotation.set(0, p.rot, 0);
-      dummy.scale.set(1, 1, 1);
+      dummy.scale.set(1, 1, p.len);
       dummy.updateMatrix();
       rails.setMatrixAt(i, dummy.matrix);
       dummy.position.y = 0.66;
@@ -1453,6 +1767,12 @@ export async function buildWorld(scene: THREE.Scene, mapId?: string): Promise<Wo
     if (map.id === 'sakura') {
       c2.font = 'bold 19px "Noto Sans CJK JP", "Noto Sans JP", sans-serif';
       c2.fillText('桜サーキット', 128, 34);
+    } else if (map.id === 'interlagos') {
+      c2.fillStyle = '#0b8043'; c2.fillRect(0, 10, 256, 38);
+      c2.fillStyle = '#ffce00'; c2.fillRect(0, 10, 256, 3); c2.fillRect(0, 45, 256, 3);
+      c2.fillStyle = '#ffce00';
+      c2.font = 'bold 21px monospace';
+      c2.fillText('INTERLAGOS', 128, 35);
     } else {
       c2.font = 'bold 16px monospace';
       c2.fillText('PIXEL DRIFT', 128, 34);
@@ -1515,14 +1835,21 @@ export async function buildWorld(scene: THREE.Scene, mapId?: string): Promise<Wo
       return a > b ? 1 : -1;
     };
 
+    const brMap = map.id === 'interlagos';
     const straightLabels = map.id === 'sakura'
       ? ['桜', '鈴鹿', '日本', '富士', '速度', '東京']
-      : ['PIXEL', 'TURBO', 'DRIFT', '8-BIT', 'NITRO', 'OIL'];
+      : brMap
+        ? ['INTERLAGOS', 'SENNA', 'BRASIL', 'SÃO PAULO', 'OLEO', 'PIXEL']
+        : ['PIXEL', 'TURBO', 'DRIFT', '8-BIT', 'NITRO', 'OIL'];
     const accents = ['#e0513f', '#2b6d7a', '#b5432f'];
 
     let bi = 0;
+    const brSpots: number[] = [];
     for (let k = -140; k <= 140; k += 34) {
       if (Math.abs(k) < 22) continue;
+      // on the Brazilian map the run out of the line is the Senna S, and that
+      // stretch gets its own boards below
+      if (brMap && k > 22) continue;
       const i = (((si + k) % n) + n) % n;
       const p = track[i], q = track[(i + 4) % n];
       const dx = q.x - p.x, dz = q.z - p.z;
@@ -1535,7 +1862,9 @@ export async function buildWorld(scene: THREE.Scene, mapId?: string): Promise<Wo
       const rot = Math.atan2(-dx, -dz) - side * 0.55;
       const tex = map.id === 'sakura'
         ? jpBoardTexture(straightLabels[bi % straightLabels.length], accents[bi % accents.length])
-        : boardTexture(straightLabels[bi % straightLabels.length], accents[bi % accents.length]);
+        : brMap
+          ? brBoardTexture(straightLabels[bi % straightLabels.length], bi % 2 === 0)
+          : boardTexture(straightLabels[bi % straightLabels.length], accents[bi % accents.length]);
       placeBoard(x, z, rot, tex, 3.9, 1.18, 1.05);
       bi++;
     }
@@ -1556,6 +1885,48 @@ export async function buildWorld(scene: THREE.Scene, mapId?: string): Promise<Wo
       });
     }
 
+    /* Senna S. This is the corner the circuit is known by, so it gets the
+       furniture: yellow and green boards down the outside of the first two
+       turns and a standing banner on the inside apex, where the chase camera
+       looks straight through the corner. Key corners round the rest of the lap
+       take the same colours at a smaller size. */
+    if (brMap) {
+      const spot = (k: number, outward: boolean, label: string, yellow: boolean,
+        w: number, h: number, banner = false) => {
+        const i = (((si + k) % n) + n) % n;
+        const p = track[i], q = track[(i + 4) % n];
+        const dx = q.x - p.x, dz = q.z - p.z;
+        const len = Math.hypot(dx, dz) || 1;
+        const nx = dz / len, nz = -dx / len;
+        // the side a board belongs on is the side of the corner it points at,
+        // which on a run-up is the curvature a dozen samples further on
+        const turn = curvature(track, (i + 12) % n) || curvature(track, i);
+        const side = (turn > 0 ? 1 : -1) * (outward ? 1 : -1);
+        const off = ROAD_HALF + 2.7;
+        const x = p.x + nx * side * off;
+        const z = p.z + nz * side * off;
+        // nothing in the way: not tarmac, not water
+        if (nearbyRoad(x, z, ROAD_HALF + 1.0)) return;
+        if (inLake(x, z, 0.5)) return;
+        const rot = Math.atan2(-dx, -dz) - side * 0.5;
+        const tex = banner ? brBannerTexture(label, yellow) : brBoardTexture(label, yellow);
+        placeBoard(x, z, rot, tex, w, h, banner ? 1.15 : 1.2);
+        brSpots.push(i);
+      };
+      spot(50, true, 'SENNA', true, 5.4, 1.7);          // run-up to turn 1
+      spot(56, true, 'AYRTON', false, 4.2, 1.35);
+      spot(64, false, 'SENNA', true, 1.6, 3.6, true);   // inside of turn 1
+      spot(72, true, 'S DO SENNA', true, 4.6, 1.45);    // outside of turn 2
+      spot(80, true, 'BRASIL', false, 4.2, 1.35);
+      spot(90, true, 'PIXEL', true, 3.9, 1.18);
+      spot(96, false, 'BRASIL', true, 1.6, 3.6, true);  // inside of turn 3
+      spot(112, true, 'INTERLAGOS', false, 4.6, 1.45);  // out onto the back straight
+      spot(258, true, 'SENNA', true, 4.4, 1.4);
+      spot(348, true, 'SÃO PAULO', false, 4.4, 1.4);
+      spot(398, true, 'OLEO', true, 3.9, 1.18);
+      spot(-26, true, 'INTERLAGOS', true, 4.4, 1.4);    // the last corner
+    }
+
     const curvAt = (i: number) => {
       const a = track[(i - 8 + n) % n], b = track[i], c = track[(i + 8) % n];
       const v1x = b.x - a.x, v1z = b.z - a.z, v2x = c.x - b.x, v2z = c.z - b.z;
@@ -1567,6 +1938,8 @@ export async function buildWorld(scene: THREE.Scene, mapId?: string): Promise<Wo
       const c = Math.abs(curvAt(i));
       if (c < 0.14 || c < Math.abs(curvAt((i - 1 + n) % n)) || c < Math.abs(curvAt((i + 1) % n))) continue;
       if (i - lastBoard < 80) continue;
+      // do not stack a chevron on top of a board that is already there
+      if (brSpots.some((s) => Math.min(Math.abs(s - i), n - Math.abs(s - i)) < 22)) continue;
       const p = track[i], q = track[(i + 4) % n], r = track[(i - 4 + n) % n];
       const tx = q.x - r.x, tz = q.z - r.z;
       const len = Math.hypot(tx, tz) || 1;
