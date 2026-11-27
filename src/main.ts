@@ -335,18 +335,20 @@ async function boot() {
   let garage = false;
   let powerInfo = false;
   let settings = false;
-  /* the full-board modal: every map's complete ranking in one view. The data
-     is fetched fresh on open (a stale copy is fine to show until it lands);
-     scroll is in rows, clamped against the longest column. */
+  /* the full-board modal: one circuit per page so names never truncate, with
+     tabs (or A/D) flipping pages and the wheel scrolling the page's rows.
+     Data is fetched fresh on open; a stale copy is fine until it lands. */
   let fullBoardOpen = false;
   let fullBoardData: Record<string, { rank: number; username: string; ms: number }[]> | null = null;
   let fullScroll = 0;
+  let fullPage = 0;
   const openFullBoard = () => {
     if (fullBoardOpen) { fullBoardOpen = false; return; }
     if (settings) settings = false;
     if (powerInfo) powerInfo = false;
     fullBoardOpen = true;
     fullScroll = 0;
+    fullPage = 0;
     void account.fetchAllBoards().then((b) => { if (b && fullBoardOpen) fullBoardData = b; });
   };
   /* the player's ghost preference: on until they switch it off in SETTINGS,
@@ -519,6 +521,10 @@ async function boot() {
     else if (a === 'power-info') { powerInfo = !powerInfo; if (powerInfo) fullBoardOpen = false; }
     else if (a === 'board-all') openFullBoard();
     else if (a === 'fullboard-close') fullBoardOpen = false;
+    else if (a.startsWith('fb-map-')) {
+      fullPage = Math.min(MAPS.length - 1, Math.max(0, Number(a.slice(7)) || 0));
+      fullScroll = 0;
+    }
     else if (a === 'settings') {
       settings = !settings;
       if (settings) { powerInfo = false; fullBoardOpen = false; }
@@ -913,11 +919,9 @@ async function boot() {
     camYaw += input.look * dt * 1.8;
     if (input.zoom !== 0) {
       if (fullBoardOpen) {
-        // the wheel belongs to the full board: scroll rows, not the camera
-        const longest = fullBoardData
-          ? Math.max(...MAPS.map((m) => fullBoardData?.[m.id]?.length ?? 0), 0)
-          : 0;
-        fullScroll = Math.max(0, Math.min(fullScroll + Math.round(input.zoom / 0.0015) * 2, Math.max(0, longest - 22)));
+        // the wheel belongs to the full board: scroll the page's rows only
+        const rows = fullBoardData?.[MAPS[fullPage]?.id]?.length ?? 0;
+        fullScroll = Math.max(0, Math.min(fullScroll + Math.round(input.zoom / 0.0015) * 2, Math.max(0, rows - 22)));
       } else {
         viewTween = null;   // the wheel wins over the garage transition
         viewHeight = THREE.MathUtils.clamp(viewHeight * (1 + input.zoom), 13, 40);
@@ -976,6 +980,11 @@ async function boot() {
           recorder.setEnabled(!recorder.on);
         }
         if (input.consumeKey('KeyL') && !running && !garage) openFullBoard();
+        if (fullBoardOpen && !running) {
+          // A/D flip the full board's pages while it's up on the title screen
+          if (input.consumeKey('KeyA')) { fullPage = (fullPage - 1 + MAPS.length) % MAPS.length; fullScroll = 0; }
+          if (input.consumeKey('KeyD')) { fullPage = (fullPage + 1) % MAPS.length; fullScroll = 0; }
+        }
         if (input.consumeKey('KeyX')) {
           void recorder.download()
             .then((n) => console.log(`runs exported: ${n} laps`))
@@ -1228,6 +1237,7 @@ async function boot() {
           rows: fullBoardData?.[m.id] ?? [],
         })),
         scroll: fullScroll,
+        page: fullPage,
         offline: account.offline,
         me: (account.user?.username ?? '').toUpperCase(),
       } : undefined,
