@@ -162,6 +162,14 @@ export const account = {
     this.busy = false;
   },
 
+  /** The full hierarchy: every map's complete board, every ranked player.
+      Null when unreachable — the caller shows offline like the panel does. */
+  async fetchAllBoards(): Promise<Record<string, TimeEntry[]> | null> {
+    const r = await request<{ all?: Record<string, TimeEntry[]> }>('/api/times?map=all', 'GET');
+    if (r.status === 0 || r.status >= 500 || !r.ok) return null;
+    return r.body?.all ?? null;
+  },
+
   async login(username: string, password: string): Promise<AccountResult> {
     return authPost('/api/login', username, password);
   },

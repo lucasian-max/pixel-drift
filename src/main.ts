@@ -335,6 +335,20 @@ async function boot() {
   let garage = false;
   let powerInfo = false;
   let settings = false;
+  /* the full-board modal: every map's complete ranking in one view. The data
+     is fetched fresh on open (a stale copy is fine to show until it lands);
+     scroll is in rows, clamped against the longest column. */
+  let fullBoardOpen = false;
+  let fullBoardData: Record<string, { rank: number; username: string; ms: number }[]> | null = null;
+  let fullScroll = 0;
+  const openFullBoard = () => {
+    if (fullBoardOpen) { fullBoardOpen = false; return; }
+    if (settings) settings = false;
+    if (powerInfo) powerInfo = false;
+    fullBoardOpen = true;
+    fullScroll = 0;
+    void account.fetchAllBoards().then((b) => { if (b && fullBoardOpen) fullBoardData = b; });
+  };
   /* the player's ghost preference: on until they switch it off in SETTINGS,
      remembered for the next visit. The ?ghost URL param outranks it. */
   const GHOST_KEY = 'sprite-drift:ghost';
@@ -497,15 +511,17 @@ async function boot() {
   };
 
   ui.onAction = (a) => {
-    if (a === 'solo') begin();
+    if (a === 'solo') { begin(); fullBoardOpen = false; }
     else if (a === 'prev-map') gotoMap(-1);
     else if (a === 'next-map') gotoMap(1);
     else if (a === 'prev-car') cycleCar(-1);
     else if (a === 'next-car') cycleCar(1);
-    else if (a === 'power-info') powerInfo = !powerInfo;
+    else if (a === 'power-info') { powerInfo = !powerInfo; if (powerInfo) fullBoardOpen = false; }
+    else if (a === 'board-all') openFullBoard();
+    else if (a === 'fullboard-close') fullBoardOpen = false;
     else if (a === 'settings') {
       settings = !settings;
-      if (settings) powerInfo = false;
+      if (settings) { powerInfo = false; fullBoardOpen = false; }
     }
     else if (a === 'setting-sound') sound.toggleMute();
     else if (a === 'setting-ghost') {
@@ -896,10 +912,18 @@ async function boot() {
     }
     camYaw += input.look * dt * 1.8;
     if (input.zoom !== 0) {
-      viewTween = null;   // the wheel wins over the garage transition
-      viewHeight = THREE.MathUtils.clamp(viewHeight * (1 + input.zoom), 13, 40);
+      if (fullBoardOpen) {
+        // the wheel belongs to the full board: scroll rows, not the camera
+        const longest = fullBoardData
+          ? Math.max(...MAPS.map((m) => fullBoardData?.[m.id]?.length ?? 0), 0)
+          : 0;
+        fullScroll = Math.max(0, Math.min(fullScroll + Math.round(input.zoom / 0.0015) * 2, Math.max(0, longest - 22)));
+      } else {
+        viewTween = null;   // the wheel wins over the garage transition
+        viewHeight = THREE.MathUtils.clamp(viewHeight * (1 + input.zoom), 13, 40);
+        layout();
+      }
       input.zoom = 0;
-      layout();
     }
     if (viewTween) {
       viewTween.t = Math.min(1, viewTween.t + dt / 0.45);
@@ -951,6 +975,7 @@ async function boot() {
           // silent by design: nothing on screen mentions the recorder
           recorder.setEnabled(!recorder.on);
         }
+        if (input.consumeKey('KeyL') && !running && !garage) openFullBoard();
         if (input.consumeKey('KeyX')) {
           void recorder.download()
             .then((n) => console.log(`runs exported: ${n} laps`))
@@ -1197,6 +1222,15 @@ async function boot() {
         };
       })(),
       board: boardOn,
+      fullBoard: fullBoardOpen ? {
+        maps: MAPS.map((m) => ({
+          name: m.name,
+          rows: fullBoardData?.[m.id] ?? [],
+        })),
+        scroll: fullScroll,
+        offline: account.offline,
+        me: (account.user?.username ?? '').toUpperCase(),
+      } : undefined,
       powerInfo,
       powerBlurb: car.power.blurb,
       powerEffect: car.power.effect,

@@ -64,6 +64,14 @@ export interface UiState {
     driveMs: number;        // summed lap clocks, lifetime
     favCar: string;         // the car with the most laps, '—' before any
   };
+  /** the full-board modal: every map's complete ranking, wheel-scrolled.
+      Empty rows mean that map has no times yet (or the fetch failed). */
+  fullBoard?: {
+    maps: { name: string; rows: { rank: number; username: string; ms: number }[] }[];
+    scroll: number;         // rows scrolled past, clamped by the caller
+    offline: boolean;
+    me: string;             // uppercase own username, '' when signed out
+  };
   /** the title leaderboard panel is a choice now: false hides it */
   board?: boolean;
   powerBlurb?: string;
@@ -125,7 +133,8 @@ function pxBorder(c: CanvasRenderingContext2D, x: number, y: number, w: number, 
 export type HitId = 'prev-map' | 'next-map' | 'prev-car' | 'next-car' | 'solo' | 'login' | 'logout'
   | 'power-info' | 'garage' | 'garage-back' | 'menu'
   | 'admin' | 'admin-close' | 'admin-clear' | 'admin-dashboard' | 'admin-upload' | `admin-del-${number}`
-  | 'settings' | `setting-${string}`;
+  | 'settings' | `setting-${string}`
+  | 'board-all' | 'fullboard-close';
 
 interface Button { id: HitId; x: number; y: number; w: number; h: number; label: string }
 
@@ -1069,6 +1078,13 @@ export class PixelUI {
           this.text(fmtMs(t.ms), right, y, { size: 8, weight: 700, color: CREAM, align: 'right' });
         }
       }
+      // every map, every player: the full board hangs one press under the panel
+      const ay = py + bh + 6;
+      const aw = 78;
+      pxRect(c, lx, ay, aw, 13, SLAB);
+      pxBorder(c, lx, ay, aw, 13, 'rgba(242,238,225,0.55)');
+      this.text('ALL MAPS · L', lx + aw / 2, ay + 2.5, { size: 8, color: CREAM, align: 'center' });
+      this.buttons.push({ id: 'board-all', x: lx, y: ay, w: aw, h: 13, label: 'ALL MAPS' });
     }
 
     const on = (time % 1.2) < 0.85;
@@ -1079,6 +1095,7 @@ export class PixelUI {
     });
     if (state.powerInfo) this.drawPowerInfo(state);
     if (state.settings) this.drawSettings(state);
+    if (state.fullBoard) this.drawFullBoard(state);
   }
 
   /** The player's own switches and their record: toggles up top, per-map bests
@@ -1175,6 +1192,111 @@ export class PixelUI {
       size: 8, color: CREAM, align: 'center',
     });
     this.buttons.push(this.bSettings);
+  }
+
+  /** The whole hierarchy at once: one column per circuit, every ranked player
+      in each. A modal like the others — dimmed world, own CLOSE — with the
+      wheel scrolling all columns together and a scrollbar on the right. */
+  private drawFullBoard(state: UiState) {
+    const c = this.ctx;
+    const fb = state.fullBoard!;
+    this.buttons.length = 0;
+    c.fillStyle = 'rgba(10,12,16,0.62)';
+    c.fillRect(0, 0, this.w, this.h);
+    const maps = fb.maps;
+    const w = Math.min(this.w - 16, 620), h = Math.min(this.h - 16, 348);
+    const x = Math.round((this.w - w) / 2), y = Math.round((this.h - h) / 2);
+    pxRect(c, x, y, w, h, SLAB);
+    pxRect(c, x, y, w, 14, INK);
+    pxBorder(c, x, y, w, h, 'rgba(242,238,225,0.75)');
+    c.fillStyle = ACCENT;
+    c.fillRect(x + 5, y + 4, 2, 8);
+    this.text('FULL LEADERBOARD', x + 12, y + 3, { size: 8, weight: 700, color: CREAM, spacing: 2 });
+    if (fb.offline) {
+      this.text('OFFLINE · BOARD UNREACHABLE', x + w - 12, y + 3, { size: 8, color: ACCENT, align: 'right' });
+    }
+
+    const rh = 12;
+    const footerH = 22;
+    const colY = y + 30;                       // column title line
+    const listTop = y + 42;
+    const listH = h - 42 - footerH;
+    const visible = Math.floor(listH / rh);
+    const gap = 8;
+    const colW = Math.floor((w - 24 - gap * (maps.length - 1)) / maps.length);
+    let longest = 0;
+    for (const m of maps) longest = Math.max(longest, m.rows.length);
+
+    for (let i = 0; i < maps.length; i++) {
+      const m = maps[i];
+      const cx0 = x + 12 + i * (colW + gap);
+      c.fillStyle = ACCENT;
+      c.fillRect(cx0, colY - 3, 2, 9);
+      let name = m.name.toUpperCase();
+      this.font(8, 700);
+      while (name.length > 1 && c.measureText(name).width > colW - 6) name = name.slice(0, -1);
+      this.text(name, cx0 + 6, colY - 3, { size: 8, weight: 700, color: ACCENT, spacing: 1 });
+      if (m.rows.length === 0) {
+        this.text(fb.offline ? 'OFFLINE' : 'NO TIMES YET', cx0 + colW / 2, listTop + 6, {
+          size: 8, color: DIM, align: 'center',
+        });
+        continue;
+      }
+      const right = cx0 + colW - 4;
+      this.font(8, 700);
+      const timeW = Math.ceil(c.measureText('00:00.00').width);
+      for (let r = 0; r < visible; r++) {
+        const idx = r + fb.scroll;
+        if (idx >= m.rows.length) break;
+        const t = m.rows[idx];
+        const ry = listTop + r * rh;
+        const lead = t.rank === 1;
+        const mine = fb.me !== '' && t.username.toUpperCase() === fb.me;
+        if (lead) {
+          pxRect(c, cx0, ry, colW, rh, ACCENT);
+        } else if (mine) {
+          c.fillStyle = 'rgba(242,238,225,0.1)';
+          c.fillRect(cx0, ry, colW, rh);
+        } else if (idx % 2 === 1) {
+          c.fillStyle = 'rgba(242,238,225,0.045)';
+          c.fillRect(cx0, ry, colW, rh);
+        }
+        if (mine) {
+          c.fillStyle = 'rgba(242,238,225,0.75)';
+          c.fillRect(cx0, ry + 2, 2, rh - 4);
+        }
+        const ty = ry + 2;
+        this.text(String(t.rank).padStart(2, '0'), cx0 + 14, ty, {
+          size: 8, weight: lead ? 700 : 400, color: lead ? CREAM : DIM, align: 'right',
+        });
+        let nm = t.username.toUpperCase();
+        this.font(8, lead || mine ? 700 : 400);
+        while (nm.length > 1 && c.measureText(nm).width > colW - 22 - timeW - 6) nm = nm.slice(0, -1);
+        this.text(nm, cx0 + 18, ty, { size: 8, weight: lead || mine ? 700 : 400, color: CREAM });
+        this.text(fmtMs(t.ms), right, ty, { size: 8, weight: 700, color: CREAM, align: 'right' });
+      }
+    }
+
+    // the scrollbar: only when a column outlives the window
+    if (longest > visible) {
+      const trackY = listTop, trackH = visible * rh;
+      c.fillStyle = LINE;
+      c.fillRect(x + w - 7, trackY, 2, trackH);
+      const thumbH = Math.max(10, Math.round((visible / longest) * trackH));
+      const maxScroll = longest - visible;
+      const thumbY = trackY + Math.round((Math.min(fb.scroll, maxScroll) / maxScroll) * (trackH - thumbH));
+      c.fillStyle = 'rgba(242,238,225,0.7)';
+      c.fillRect(x + w - 7, thumbY, 2, thumbH);
+    }
+
+    const fy = y + h - 15;
+    this.text('WHEEL SCROLLS · L CLOSES', x + 12, fy, { size: 8, color: DIM });
+    const bw = 48;
+    const bx = Math.round(x + w / 2 - bw / 2);
+    pxRect(c, bx, fy - 4, bw, 14, SLAB);
+    pxBorder(c, bx, fy - 4, bw, 14, 'rgba(242,238,225,0.6)');
+    this.text('CLOSE', bx + bw / 2, fy, { size: 8, color: CREAM, align: 'center' });
+    this.buttons.push({ id: 'fullboard-close', x: bx, y: fy - 4, w: bw, h: 14, label: 'CLOSE' });
   }
 
   // Font glyphs read thin at this size, so arrows are drawn by hand.

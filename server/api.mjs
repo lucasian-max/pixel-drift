@@ -169,8 +169,15 @@ async function handle(req, res, pathname) {
   }
 
   if (pathname === '/api/times') {
-    if (req.method === 'GET') {
-      const asked = new URL(req.url, 'http://localhost').searchParams.get('map');
+    if (req.method !== 'GET') return send(res, 405, { error: 'method_not_allowed' });
+    const asked = new URL(req.url, 'http://localhost').searchParams.get('map');
+    // the whole-hierarchy view: every map's full board, every ranked player
+    if (asked === 'all') {
+      const boards = {};
+      for (const id of Object.keys(mapNames())) boards[id] = store.topTimes(id, Infinity);
+      return send(res, 200, { all: boards, features: store.features() });
+    }
+    {
       const map = asked && MAP_RE.test(asked) ? asked : DEFAULT_MAP;
       const board = { map, times: store.topTimes(map), features: store.features() };
       // the ghost is payload, not just a flag: only a player who may see the
@@ -181,6 +188,8 @@ async function handle(req, res, pathname) {
       }
       return send(res, 200, board);
     }
+  }
+  if (pathname === '/api/times') {
     if (req.method !== 'POST') return send(res, 405, { error: 'method_not_allowed' });
     if (!user) return send(res, 401, { error: 'unauthorized' });
     const body = await readJsonBody(req);
