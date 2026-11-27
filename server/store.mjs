@@ -18,7 +18,13 @@ export const ROLE_ADMIN = 'admin';
 export const ROLE_PLAYER = 'player';
 /** Gated features: public availability lives in db.features, one flag each.
  *  Add a name here to gate another one. */
-export const FEATURES = ['ghost', 'lapbar'];
+export const FEATURES = ['ghost', 'lapbar', 'botguard'];
+
+/** Features that ship OFF and stay OFF until an admin turns one on. A gate
+ *  that rejects laps cannot default to public like a cosmetic flag can: the
+ *  first lap it refuses is refused for good, and every client tab opened
+ *  before the gate shipped carries no proof to judge. */
+export const FEATURES_DEFAULT_OFF = ['botguard'];
 
 /** Admin names come from SPRITE_ADMINS and/or server/data/admins.json,
  *  never from the client. The data folder is gitignored. */
@@ -68,10 +74,16 @@ export function verifyPassword(password, saltHex, hashHex) {
 /** Every feature name the game knows. Features are PUBLIC by default (the
  *  owner ships straight to players); the map only exists to turn one OFF,
  *  so a value of false (or a db from before this map) still hides it only
- *  when explicitly demanded. */
+ *  when explicitly demanded. Features in FEATURES_DEFAULT_OFF are the other
+ *  way round: off until the map says true. */
 function readFeatures(raw) {
   const out = {};
-  for (const name of FEATURES) out[name] = !(raw && typeof raw === 'object' && raw[name] === false);
+  const known = raw && typeof raw === 'object' ? raw : null;
+  for (const name of FEATURES) {
+    out[name] = FEATURES_DEFAULT_OFF.includes(name)
+      ? !!(known && known[name] === true)
+      : !(known && known[name] === false);
+  }
   return out;
 }
 

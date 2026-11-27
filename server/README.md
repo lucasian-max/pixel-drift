@@ -88,6 +88,38 @@ Every accepted submission is also appended to the lap history (capped at
 5000) for the data desk. The best entry keeps a downsampled trace for future
 replays.
 
+### Input proof (`botguard`)
+
+The geometric checks read the line a lap drove, never the controller, so a
+script that follows a clean racing line with no keys pressed passes them. The
+recorder therefore sends a few counters with each lap:
+
+```json
+{ "ms": 9283, "trace": [ ... ], "proof": { "samples": 557, "steer": 0, "throttle": 0 } }
+```
+
+`server/botguard.mjs` reads them and calls a lap a bot when the proof is
+present and either it never steered on a lap longer than 4 s, or it shows no
+input at all across more than 50 samples.
+
+The `botguard` feature flag decides what happens. It is **off by default**
+(`FEATURES_DEFAULT_OFF` in `server/store.mjs`, unlike the cosmetic flags) and
+until an admin turns it on, the gate only logs:
+
+- off: a bot-like proof is accepted and logged as
+  `[botguard] would-reject <user> <map> <ms>: <reason>`;
+- on: the same proof is refused with
+  `422 {error:"suspected_bot", reason}` before it reaches the board, and a lap
+  with no proof at all is still accepted and logged as `[botguard] no-proof`
+  — a tab opened before the recorder sent proofs cannot do better, and
+  refusing it would break live players for a rule that could not be checked.
+
+`server/scripts/audit-bots.mjs` finds the same pattern in stored runs after the
+fact: `node server/scripts/audit-bots.mjs server/data/runs`, or
+`--hf --user <name>` to read the dataset once the sync has pruned local copies.
+It reports episodes that are >90% zero-input while moving, and lap times that
+repeat exactly. Exit code 1 means it found a suspect.
+
 Notes:
 
 - All `/api` responses send `Cache-Control: no-store`.

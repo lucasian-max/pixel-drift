@@ -18,6 +18,7 @@ import {
   DEFAULT_MAP,
 } from './store.mjs';
 import { validateLap, mapNames } from './anticheat.mjs';
+import { readProof, checkProof } from './botguard.mjs';
 import { saveRun, listRuns, RUN_UPLOAD_LIMIT } from './runs.mjs';
 
 const HOST = '127.0.0.1';
@@ -200,6 +201,22 @@ async function handle(req, res, pathname) {
     if (!verdict.ok) {
       console.log(`[anticheat] reject ${user.username} ${map} ${body.ms}ms: ${verdict.reason}`);
       return send(res, 422, { error: 'invalid_trace', reason: verdict.reason });
+    }
+    // Bot gate: the line was clean, but a script can drive a clean line with no
+    // hands. DORMANT unless an admin turns `botguard` on — an accepted lap can
+    // be deleted later, a rejected one is gone. A lap with no proof (any tab
+    // opened before the recorder sent one) is accepted and noted: refusing it
+    // would break every player mid-session for a rule we cannot check yet.
+    const proof = readProof(body.proof);
+    const bot = checkProof(proof, body.ms);
+    if (bot.state === 'bot') {
+      if (store.features().botguard === true) {
+        console.log(`[botguard] reject ${user.username} ${map} ${body.ms}ms: ${bot.reason}`);
+        return send(res, 422, { error: 'suspected_bot', reason: bot.reason });
+      }
+      console.log(`[botguard] would-reject ${user.username} ${map} ${body.ms}ms: ${bot.reason}`);
+    } else if (!proof && store.features().botguard === true) {
+      console.log(`[botguard] no-proof ${user.username} ${map} ${body.ms}ms`);
     }
     const car = typeof body.car === 'string' && body.car.trim()
       ? body.car.trim().slice(0, 32)
