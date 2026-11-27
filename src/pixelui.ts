@@ -67,7 +67,7 @@ export interface UiState {
   /** the full-board modal: one map per page, every ranked player, the whole
       username. Pages flip with the tabs or A/D; the wheel scrolls rows. */
   fullBoard?: {
-    maps: { name: string; rows: { rank: number; username: string; ms: number }[] }[];
+    maps: { id: string; name: string; rows: { rank: number; username: string; ms: number }[] }[];
     page: number;            // which map is on show (index into maps)
     scroll: number;          // rows scrolled past, clamped by the caller
     offline: boolean;
@@ -131,11 +131,11 @@ function pxBorder(c: CanvasRenderingContext2D, x: number, y: number, w: number, 
   c.fillRect(x + w - 1, y + 1, 1, h - 2);
 }
 
-export type HitId = 'prev-map' | 'next-map' | 'prev-car' | 'next-car' | 'solo' | 'login' | 'logout'
+export type HitId = 'prev-car' | 'next-car' | 'solo' | 'login' | 'logout'
   | 'power-info' | 'garage' | 'garage-back' | 'menu'
   | 'admin' | 'admin-close' | 'admin-clear' | 'admin-dashboard' | 'admin-upload' | `admin-del-${number}`
   | 'settings' | `setting-${string}`
-  | 'board-all' | 'fullboard-close' | `fb-map-${string}`;
+  | 'board-all' | 'fullboard-close' | `fb-map-${string}` | `pick-map-${string}`;
 
 interface Button { id: HitId; x: number; y: number; w: number; h: number; label: string }
 
@@ -148,8 +148,6 @@ export class PixelUI {
   private mapCX = 0; private mapCZ = 0; private mapExt = 1;
   private tickX = 0; private tickZ = 0; private tickNX = 0; private tickNZ = 0;
 
-  private bPrev: Button = { id: 'prev-map', x: 0, y: 0, w: 24, h: 24, label: '<' };
-  private bNext: Button = { id: 'next-map', x: 0, y: 0, w: 24, h: 24, label: '>' };
   private bCarPrev: Button = { id: 'prev-car', x: 0, y: 0, w: 24, h: 24, label: '<' };
   private bCarNext: Button = { id: 'next-car', x: 0, y: 0, w: 24, h: 24, label: '>' };
   private bInfo: Button = { id: 'power-info', x: 0, y: 0, w: 70, h: 12, label: 'POWER INFO' };
@@ -894,20 +892,34 @@ export class PixelUI {
 
     const maps = state.maps ?? [{ id: 'x', name: state.mapName ?? 'Pixel Drift' }];
     const mi = Math.max(0, Math.min(maps.length - 1, state.mapIndex ?? 0));
-    const name = (maps[mi]?.name ?? 'Pixel Drift').toUpperCase();
     this.text('TRACK', cx + 1, 167, { size: 8, color: SHADOW, align: 'center', spacing: 3 });
     this.text('TRACK', cx, 166, { size: 8, color: 'rgba(242,238,225,0.85)', align: 'center', spacing: 3 });
-    this.font(16, 700);
-    const nameW = Math.ceil(c.measureText(name).width);
-    const nameY = 178;
-    this.text(name, cx + 2, nameY + 2, { size: 16, weight: 700, color: SHADOW, align: 'center' });
-    this.text(name, cx, nameY, { size: 16, weight: 700, color: CREAM, align: 'center' });
-    this.bPrev.x = Math.round(cx - nameW / 2 - 34);
-    this.bPrev.y = 172;
-    this.bNext.x = Math.round(cx + nameW / 2 + 10);
-    this.bNext.y = 172;
-    arrowButton(this.bPrev, -1);
-    arrowButton(this.bNext, 1);
+    /* the picker lays every circuit on the table at once: the arrows cycled
+       blind, one reload at a time. Each map is a tab, the current one painted,
+       and one click lands there. Short labels are the ids (what SETTINGS
+       calls them); the full name rides under the row as a dim subtitle. */
+    this.font(8, 700);
+    const tabs = maps.map((m) => {
+      const label = (m.id || m.name).toUpperCase();
+      return { label, w: Math.ceil(c.measureText(label).width) + 16 };
+    });
+    const gap = 6;
+    const rowW = tabs.reduce((a, t) => a + t.w, 0) + gap * Math.max(0, tabs.length - 1);
+    let tabX = Math.round(cx - rowW / 2);
+    const tabY = 174, tabH = 14;
+    for (let i = 0; i < tabs.length; i++) {
+      const on = i === mi;
+      pxRect(c, tabX, tabY, tabs[i].w, tabH, on ? ACCENT : SLAB);
+      pxBorder(c, tabX, tabY, tabs[i].w, tabH, on ? CREAM : 'rgba(242,238,225,0.4)');
+      this.text(tabs[i].label, tabX + tabs[i].w / 2, tabY + 3, {
+        size: 8, weight: 700, color: on ? CREAM : DIM, align: 'center',
+      });
+      this.buttons.push({ id: `pick-map-${i}` as HitId, x: tabX, y: tabY, w: tabs[i].w, h: tabH, label: tabs[i].label });
+      tabX += tabs[i].w + gap;
+    }
+    this.text((maps[mi]?.name ?? 'Pixel Drift').toUpperCase(), cx, tabY + tabH + 4, {
+      size: 8, color: DIM, align: 'center', spacing: 1,
+    });
 
     this.bInfo.label = 'POWER INFO';
     this.bInfo.x = Math.round(cx - 74);
@@ -994,8 +1006,7 @@ export class PixelUI {
     /* the board hugs the corner but never over the track selector: its right
        arrow reaches as deep as the longest map name is wide, so the panel's
        left edge starts past it (and the board hides if there is no room) */
-    const trackArrowRight = Math.round(w / 2 + nameW / 2 + 10) + 24;
-    const boardLx = Math.max(w - 188, trackArrowRight + 6);
+    const boardLx = Math.max(w - 188, Math.round(cx + rowW / 2) + 8);
     if (acct && w >= 560 && state.board !== false && w - 8 - boardLx >= 116) {
       /* the board hangs off the top-right corner: an ink header naming the panel
          over the track it belongs to, then a real little table — rank gutter,
@@ -1226,7 +1237,8 @@ export class PixelUI {
     let tx = x + 10;
     this.font(8, 700);
     for (let i = 0; i < maps.length; i++) {
-      const label = maps[i].name.toUpperCase().replace(/^SALTMARSH\s*/, '').replace(' CIRCUIT', '').replace(' PASS', '');
+      // the same short label the title picker uses: the map's id, uppercased
+      const label = (maps[i].id || maps[i].name).toUpperCase();
       const tw = this.measure(label, 8, 700) + 14;
       const on = i === page;
       pxRect(c, tx, tabY, tw, tabH, on ? ACCENT : SLAB);

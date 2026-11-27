@@ -321,11 +321,14 @@ async function boot() {
     sound.start();
   };
 
-  const gotoMap = (delta: number) => {
-    const m = MAPS[(mapIndex + delta + MAPS.length) % MAPS.length];
+  const gotoMapAbs = (i: number) => {
+    const m = MAPS[Math.max(0, Math.min(MAPS.length - 1, i))];
     const url = new URL(location.href);
     url.searchParams.set('map', m.id);
     location.href = url.toString();
+  };
+  const gotoMap = (delta: number) => {
+    gotoMapAbs((mapIndex + delta + MAPS.length) % MAPS.length);
   };
 
   const cycleCar = (delta: number) => {
@@ -514,8 +517,10 @@ async function boot() {
 
   ui.onAction = (a) => {
     if (a === 'solo') { begin(); fullBoardOpen = false; }
-    else if (a === 'prev-map') gotoMap(-1);
-    else if (a === 'next-map') gotoMap(1);
+    else if (a.startsWith('pick-map-')) {
+      const i = Math.min(MAPS.length - 1, Math.max(0, Number(a.slice(9)) || 0));
+      if (i !== mapIndex) gotoMapAbs(i);
+    }
     else if (a === 'prev-car') cycleCar(-1);
     else if (a === 'next-car') cycleCar(1);
     else if (a === 'power-info') { powerInfo = !powerInfo; if (powerInfo) fullBoardOpen = false; }
@@ -664,6 +669,11 @@ async function boot() {
     if (!running) {
       if (e.code === 'ArrowLeft') { gotoMap(-1); return; }
       if (e.code === 'ArrowRight') { gotoMap(1); return; }
+      // number keys jump straight to a circuit, matching the on-screen tabs
+      if (e.code.startsWith('Digit')) {
+        const n = Number(e.code.slice(5));
+        if (n >= 1 && n <= MAPS.length) { gotoMapAbs(n - 1); return; }
+      }
       if (e.code === 'ArrowUp') { cycleCar(1); return; }
       if (e.code === 'ArrowDown') { cycleCar(-1); return; }
     }
@@ -1233,6 +1243,7 @@ async function boot() {
       board: boardOn,
       fullBoard: fullBoardOpen ? {
         maps: MAPS.map((m) => ({
+          id: m.id,
           name: m.name,
           rows: fullBoardData?.[m.id] ?? [],
         })),
