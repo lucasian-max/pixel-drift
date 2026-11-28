@@ -25,6 +25,23 @@ export interface AdminResult { ok: boolean; removed?: number; error?: string }
 /** Public availability of the server's gated features (true = everyone sees it). */
 export interface Features { ghost?: boolean; [name: string]: boolean | undefined }
 
+/** One row of the wishlist board, in server order (votes desc, newest first).
+    `voted` is whether *this* account already voted for it. */
+export interface WishRequest {
+  id: string;
+  username: string;
+  text: string;
+  at: string;
+  votes: number;
+  voted: boolean;
+}
+
+/** The board as the server allows it: `enabled:false` is the owner's switch
+    (temporary feature), not a failure, and it comes with no rows. */
+export interface WishBoard { enabled: boolean; requests: WishRequest[] }
+
+export interface WishResult { ok: boolean; error?: string; votes?: number; voted?: boolean }
+
 /** The rank-1 lap for one map, replayed as a ghost car. Stored traces are
     compact [x, z, t] triples; t is ms from the lap's start. */
 export interface GhostLap {
@@ -87,6 +104,19 @@ function humanError(status: number, code?: string): string {
     case 403: return code === 'human_check_failed' ? 'human check failed — try again' : 'not allowed';
     case 409: return 'that username is taken';
     case 429: return 'too many attempts, wait a minute';
+    default: return 'server error, try again';
+  }
+}
+
+/** Wishlist failures in the board's own voice (the overlay upper-cases them). */
+function wishError(status: number, code?: string): string {
+  switch (status) {
+    case 0: return 'cannot reach the server';
+    case 400: return code === 'invalid_text' ? '2 to 80 characters' : 'invalid wish';
+    case 401: return 'sign in to post';
+    case 403: return code === 'feature_disabled' ? 'the wishlist is closed' : 'not allowed';
+    case 404: return 'that wish is gone';
+    case 429: return 'five wishes an hour — try later';
     default: return 'server error, try again';
   }
 }
@@ -173,6 +203,37 @@ export const account = {
     const r = await request<{ all?: Record<string, TimeEntry[]> }>('/api/times?map=all', 'GET');
     if (r.status === 0 || r.status >= 500 || !r.ok) return null;
     return r.body?.all ?? null;
+  },
+
+  /** The wishlist board: readable signed out, and empty while the owner's
+      `requests` flag is off. Null only when the server cannot be reached. */
+  async fetchRequests(): Promise<WishBoard | null> {
+    const r = await request<{ enabled?: boolean; requests?: WishRequest[] }>('/api/requests', 'GET');
+    if (!r.ok || !r.body) return null;
+    return {
+      enabled: r.body.enabled === true,
+      requests: Array.isArray(r.body.requests) ? r.body.requests : [],
+    };
+  },
+
+  /** Write one wish. Server rules: signed in, 2-80 characters, five an hour. */
+  async postRequest(text: string): Promise<WishResult> {
+    const r = await request<{ error?: string }>('/api/requests', 'POST', { text });
+    if (r.ok) return { ok: true };
+    if (r.status === 401) this.user = null;
+    return { ok: false, error: wishError(r.status, r.body?.error) };
+  },
+
+  /** Toggle this account's vote on one wish: the same click takes it back. */
+  async voteRequest(id: string): Promise<WishResult> {
+    const r = await request<{ votes?: number; voted?: boolean; error?: string }>(
+      '/api/requests/vote', 'POST', { id },
+    );
+    if (!r.ok) {
+      if (r.status === 401) this.user = null;
+      return { ok: false, error: wishError(r.status, r.body?.error) };
+    }
+    return { ok: true, votes: r.body?.votes ?? 0, voted: r.body?.voted === true };
   },
 
   async login(username: string, password: string): Promise<AccountResult> {

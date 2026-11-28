@@ -1,5 +1,5 @@
 import type { Car } from './car';
-import type { TimeEntry, User } from './account';
+import type { Features, TimeEntry, User } from './account';
 import { CAR_POWERS, powerColour } from './powers';
 /* the map cards draw every circuit's shape, not just the one you are on: the
    control polygons are the only thing this needs, and they are already loaded */
@@ -25,6 +25,9 @@ export interface AccountView {
   times: TimeEntry[];
   offline: boolean;
   busy: boolean;
+  /** public availability of the gated features; `requests` switches the
+      temporary wishlist chip in and out of the corner menu */
+  features?: Features | null;
 }
 
 export interface UiState {
@@ -139,7 +142,7 @@ function pxBorder(c: CanvasRenderingContext2D, x: number, y: number, w: number, 
 export type HitId = 'prev-car' | 'next-car' | 'solo' | 'login' | 'logout'
   | 'power-info' | 'garage' | 'garage-back' | 'menu'
   | 'admin' | 'admin-close' | 'admin-clear' | 'admin-dashboard' | 'admin-upload' | `admin-del-${number}`
-  | 'settings' | `setting-${string}`
+  | 'settings' | `setting-${string}` | 'requests'
   | 'board-all' | 'fullboard-close' | `fb-map-${string}` | `pick-map-${string}`;
 
 interface Button { id: HitId; x: number; y: number; w: number; h: number; label: string }
@@ -159,6 +162,9 @@ export class PixelUI {
   private bGarage: Button = { id: 'garage', x: 0, y: 0, w: 64, h: 12, label: 'VIEW CAR' };
   private bGarageBack: Button = { id: 'garage-back', x: 0, y: 0, w: 48, h: 14, label: 'BACK' };
   private bSettings: Button = { id: 'settings', x: 0, y: 0, w: 66, h: 14, label: 'SETTINGS' };
+  /** the temporary wishlist chip: canvas side is only the way in — the board
+      itself is a DOM overlay in src/main.ts */
+  private bRequests: Button = { id: 'requests', x: 0, y: 0, w: 66, h: 14, label: 'REQUESTS' };
   private bSolo: Button = { id: 'solo', x: 0, y: 0, w: 148, h: 28, label: 'SOLO' };
   private bMenu: Button = { id: 'menu', x: 0, y: 0, w: 66, h: 18, label: 'M MENU' };
   private bLogin: Button = { id: 'login', x: 0, y: 0, w: 72, h: 14, label: 'SIGN IN' };
@@ -1720,7 +1726,9 @@ export class PixelUI {
     /* sized by its content, so a one-line name and a long one take the same
        box and nothing is left empty at the bottom */
     const acctH = acct?.user ? 48 : 33;
-    const full = 22 + acctH + 40 + 9;
+    /* the wishlist chip exists only while the server keeps the board public */
+    const wishChip = acct?.features?.requests === true;
+    const full = 22 + acctH + (wishChip ? 60 : 40) + 9;
     const ph = Math.round(full * this.stage(time - this.menuAt, 0.01, 0.09, 3));
     pxRect(c, px + 2, py + 2, pw, ph, SHADOW);
     pxRect(c, px, py, pw, ph, SLAB);
@@ -1797,10 +1805,12 @@ export class PixelUI {
       y += 22;
     }
 
-    for (const spec of [
+    const chips: { b: Button; label: string }[] = [
       { b: this.bSettings, label: "SETTINGS" },
       { b: this.bInfo, label: "POWER INFO" },
-    ]) {
+    ];
+    if (wishChip) chips.push({ b: this.bRequests, label: "REQUESTS" });
+    for (const spec of chips) {
       const b = spec.b;
       b.label = spec.label;
       b.w = rowW;

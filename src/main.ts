@@ -16,7 +16,7 @@ import { PixelUI } from './pixelui';
 import { loadSheet, shadowPatch } from './stack';
 import { Sound } from './sound';
 import { account } from './account';
-import type { LapTracePoint } from './account';
+import type { LapTracePoint, WishBoard, WishRequest } from './account';
 import { buildGhostModel, sampleGhost, ghostEvents } from './ghost';
 import { GhostFx } from './ghostFx';
 import { Recorder } from './recorder';
@@ -212,6 +212,238 @@ const loginForm = (() => {
   cancelBtn.addEventListener('click', close);
 
   return { open, isOpen: () => overlay.classList.contains('open') };
+})();
+
+/* ---- feature-request board (DOM over the canvas, like the sign-in form) ---
+   A temporary feature: the owner wanted a place his players can write down
+   what they want and vote on each other's asks. The board is gated by the
+   server's `requests` flag, which every open reads again, so it can be closed
+   without a redeploy. While hidden it is display:none: out of the
+   accessibility tree, holding no focus and stealing no keys. */
+
+const wishlist = (() => {
+  const style = document.createElement('style');
+  style.textContent = `
+#wish-overlay { position: fixed; inset: 0; z-index: 5; display: none;
+  place-items: center; background: rgba(12,14,18,0.55);
+  font-family: Silkscreen, ui-monospace, monospace; color: #f2eee1; }
+#wish-overlay.open { display: grid; }
+#wish-board { width: 26em; max-height: 88vh; display: flex; flex-direction: column;
+  padding: 1em; background: #14161a; border: 2px solid #f2eee1;
+  box-shadow: 4px 4px 0 rgba(8,10,12,0.8); }
+#wish-head { display: flex; align-items: center; gap: 0.5em; margin: 0 0 0.7em; }
+#wish-head::before { content: ''; width: 0.25em; height: 1em; background: #e0513f; }
+#wish-title { margin: 0; font-size: 1em; font-weight: 700; letter-spacing: 0.3em;
+  color: #f2eee1; }
+#wish-close { margin-left: auto; font: inherit; font-size: 0.75em; padding: 0.35em 0.6em;
+  cursor: pointer; color: #f2eee1; background: #1c2026;
+  border: 2px solid rgba(242,238,225,0.55); }
+#wish-close:hover, #wish-close:focus-visible { border-color: #f2eee1; }
+#wish-list { list-style: none; margin: 0; padding: 0; overflow-y: auto;
+  min-height: 4.5em; max-height: 26em; border-top: 2px solid rgba(242,238,225,0.25);
+  border-bottom: 2px solid rgba(242,238,225,0.25); }
+#wish-list:empty { display: none; }
+.wish-row { display: flex; gap: 0.6em; align-items: flex-start; padding: 0.5em 0.2em;
+  border-bottom: 1px solid rgba(242,238,225,0.12); }
+.wish-row:last-child { border-bottom: none; }
+.wish-vote { flex: 0 0 auto; display: flex; flex-direction: column; align-items: center;
+  gap: 0.1em; width: 2.7em; padding: 0.2em 0; font: inherit; font-size: 0.8em;
+  line-height: 1.1; cursor: pointer; color: rgba(242,238,225,0.55); background: #0e1013;
+  border: 2px solid rgba(242,238,225,0.35); }
+.wish-vote:hover:not(:disabled), .wish-vote:focus-visible { border-color: #f2eee1;
+  color: #f2eee1; }
+.wish-vote.on { color: #f2eee1; background: #e0513f; border-color: #f2eee1; }
+.wish-vote:disabled { cursor: default; }
+.wish-body { min-width: 0; flex: 1; }
+.wish-user { display: block; font-size: 0.72em; color: rgba(242,238,225,0.45); }
+.wish-text { display: block; font-size: 0.8em; line-height: 1.35; word-break: break-word; }
+.wish-note { margin: 0.7em 0 0; font-size: 0.75em; color: rgba(242,238,225,0.55); }
+#wish-form { display: flex; gap: 0.5em; margin-top: 0.7em; }
+#wish-input { flex: 1; min-width: 0; padding: 0.55em; font: inherit; font-size: 0.8em;
+  color: #f2eee1; background: #0e1013; border: 2px solid rgba(242,238,225,0.35);
+  caret-color: #e0513f; }
+#wish-input:focus { outline: none; border-color: #f2eee1; }
+#wish-send { flex: 0 0 auto; font: inherit; font-size: 0.8em; padding: 0.55em 0.8em;
+  cursor: pointer; color: #f2eee1; background: #e0513f; border: 2px solid #f2eee1; }
+#wish-send:disabled { background: #14161a; color: rgba(242,238,225,0.55); }
+#wish-signin { display: block; width: 100%; margin-top: 0.7em; font: inherit;
+  font-size: 0.8em; padding: 0.6em; cursor: pointer; color: #f2eee1; background: #14161a;
+  border: 2px solid rgba(242,238,225,0.55); }
+#wish-signin:hover, #wish-signin:focus-visible { border-color: #f2eee1; }
+#wish-status { min-height: 1.2em; margin: 0.6em 0 0; font-size: 0.75em; color: #e0513f; }
+/* the board's own rows carry flex/block display, so hidden has to be said
+   out loud — scoped here, never globally */
+#wish-board > [hidden] { display: none !important; }`;
+  document.head.appendChild(style);
+
+  const overlay = document.createElement('div');
+  overlay.id = 'wish-overlay';
+  overlay.setAttribute('role', 'dialog');
+  overlay.setAttribute('aria-modal', 'false');
+  overlay.setAttribute('aria-labelledby', 'wish-title');
+  overlay.innerHTML = `
+    <div id="wish-board">
+      <div id="wish-head">
+        <h2 id="wish-title">WISHLIST</h2>
+        <button type="button" id="wish-close">CLOSE</button>
+      </div>
+      <ul id="wish-list"></ul>
+      <p id="wish-empty" class="wish-note">NO WISHES YET — WRITE THE FIRST ONE</p>
+      <form id="wish-form" novalidate>
+        <input id="wish-input" maxlength="80" autocomplete="off" spellcheck="false"
+          placeholder="WHAT SHOULD WE BUILD?" aria-label="your feature request" />
+        <button type="submit" id="wish-send">SUBMIT</button>
+      </form>
+      <button type="button" id="wish-signin" hidden>SIGN IN TO POST</button>
+      <p id="wish-status" aria-live="polite"></p>
+    </div>`;
+  document.body.appendChild(overlay);
+
+  const listEl = overlay.querySelector<HTMLElement>('#wish-list')!;
+  const emptyEl = overlay.querySelector<HTMLElement>('#wish-empty')!;
+  const formEl = overlay.querySelector<HTMLFormElement>('#wish-form')!;
+  const inputEl = overlay.querySelector<HTMLInputElement>('#wish-input')!;
+  const sendEl = overlay.querySelector<HTMLButtonElement>('#wish-send')!;
+  const signinEl = overlay.querySelector<HTMLButtonElement>('#wish-signin')!;
+  const statusEl = overlay.querySelector<HTMLElement>('#wish-status')!;
+  const closeEl = overlay.querySelector<HTMLButtonElement>('#wish-close')!;
+
+  const isOpen = () => overlay.classList.contains('open');
+  const say = (text: string) => { statusEl.textContent = text.toUpperCase(); };
+  const rescale = () => {
+    overlay.style.fontSize = `${Math.max(8, (8 * innerHeight) / 360)}px`;
+  };
+  addEventListener('resize', rescale);
+
+  /** one row: the vote chip, then the ask and who wrote it. Text goes in as a
+      text node — a wish is a string a stranger typed, never markup. */
+  function row(item: WishRequest, signedIn: boolean): HTMLLIElement {
+    const li = document.createElement('li');
+    li.className = 'wish-row';
+    const vote = document.createElement('button');
+    vote.type = 'button';
+    vote.className = item.voted ? 'wish-vote on' : 'wish-vote';
+    vote.dataset.id = item.id;
+    vote.disabled = !signedIn;
+    vote.title = signedIn ? 'vote for this' : 'sign in to vote';
+    vote.setAttribute('aria-pressed', item.voted ? 'true' : 'false');
+    const caret = document.createElement('span');
+    caret.textContent = '^';
+    const count = document.createElement('span');
+    count.className = 'count';
+    count.textContent = String(item.votes);
+    vote.append(caret, count);
+    const body = document.createElement('div');
+    body.className = 'wish-body';
+    const who = document.createElement('span');
+    who.className = 'wish-user';
+    who.textContent = item.username.toUpperCase();
+    const what = document.createElement('span');
+    what.className = 'wish-text';
+    what.textContent = item.text;
+    body.append(who, what);
+    li.append(vote, body);
+    return li;
+  }
+
+  function render(board: WishBoard, signedIn: boolean) {
+    listEl.replaceChildren(...board.requests.map((r) => row(r, signedIn)));
+    const posting = signedIn && board.enabled;
+    emptyEl.hidden = board.requests.length > 0 || !board.enabled;
+    formEl.hidden = !posting;
+    signinEl.hidden = signedIn || !board.enabled;
+    if (!board.enabled) {
+      say('the wishlist is closed');
+      listEl.replaceChildren();
+      emptyEl.hidden = true;
+    }
+  }
+
+  async function load() {
+    const signedIn = !!account.user;
+    const board = await account.fetchRequests();
+    if (!isOpen()) return;                 // closed while the answer was out
+    if (!board) { say('cannot reach the server'); return; }
+    if (!statusEl.textContent || statusEl.textContent === 'CANNOT REACH THE SERVER') say('');
+    render(board, !!account.user);
+  }
+
+  async function vote(button: HTMLButtonElement) {
+    const id = button.dataset.id;
+    if (!id || button.disabled) return;
+    button.disabled = true;
+    const r = await account.voteRequest(id);
+    button.disabled = false;
+    if (!r.ok) { say(r.error ?? 'vote failed'); return; }
+    say('');
+    button.classList.toggle('on', r.voted === true);
+    button.setAttribute('aria-pressed', r.voted ? 'true' : 'false');
+    const count = button.querySelector('.count');
+    if (count) count.textContent = String(r.votes ?? 0);
+  }
+
+  async function submit() {
+    if (sendEl.disabled) return;
+    const text = inputEl.value.trim();
+    if (text.length < 2 || text.length > 80) { say('2 to 80 characters'); return; }
+    sendEl.disabled = true;
+    const r = await account.postRequest(text);
+    sendEl.disabled = false;
+    if (!r.ok) { say(r.error ?? 'not sent'); return; }
+    say('');
+    inputEl.value = '';
+    await load();                          // the board is the server's: refetch
+    if (isOpen()) inputEl.focus();
+  }
+
+  listEl.addEventListener('click', (e) => {
+    const button = (e.target as Element).closest<HTMLButtonElement>('.wish-vote');
+    if (button) void vote(button);
+  });
+  formEl.addEventListener('submit', (e) => { e.preventDefault(); void submit(); });
+  signinEl.addEventListener('click', () => { close(); loginForm.open(); });
+  closeEl.addEventListener('click', close);
+
+  /* the game listens on window — keep the board's keys and clicks to itself,
+     exactly like the sign-in form, so typing a wish never drives the car */
+  addEventListener('keydown', (e) => {
+    if (!isOpen()) return;
+    if (overlay.contains(e.target as Node)) return;
+    e.stopPropagation();
+    if (e.key === 'Escape') { e.preventDefault(); close(); }
+  }, { capture: true });
+  overlay.addEventListener('keydown', (e) => {
+    e.stopPropagation();
+    if (e.key === 'Escape') { e.preventDefault(); close(); }
+  });
+  overlay.addEventListener('pointerdown', (e) => {
+    e.stopPropagation();
+    if (e.target === overlay) close();     // backdrop click closes
+  });
+
+  function open() {
+    say('');
+    overlay.classList.add('open');
+    rescale();
+    const signedIn = !!account.user;
+    formEl.hidden = !signedIn;
+    signinEl.hidden = signedIn;
+    emptyEl.hidden = true;
+    listEl.replaceChildren();              // no stale rows: the server is the board
+    void load().then(() => {
+      if (!isOpen()) return;
+      if (account.user) inputEl.focus();
+      else closeEl.focus();
+    });
+  }
+  function close() {
+    overlay.classList.remove('open');
+    say('');
+    inputEl.value = '';
+    (document.activeElement as HTMLElement | null)?.blur?.();
+  }
+
+  return { open, close, isOpen };
 })();
 
 /* ---- garage power clips (DOM <video> over the garage's demo window) ------
@@ -681,6 +913,13 @@ async function boot() {
       settings = !settings;
       if (settings) { powerInfo = false; fullBoardOpen = false; }
     }
+    else if (a === 'requests') {
+      // the temporary wishlist: the server's own dispatch, not a game feature
+      powerInfo = false;
+      settings = false;
+      fullBoardOpen = false;
+      wishlist.open();
+    }
     else if (a === 'setting-sound') sound.toggleMute();
     else if (a === 'setting-ghost') {
       playerGhost = !playerGhost;
@@ -765,7 +1004,7 @@ async function boot() {
 
   // keep the title board fresh (and recover from a transient API restart)
   const refreshBoard = () => {
-    if (!running && !loginForm.isOpen()) void account.refresh(mapId);
+    if (!running && !loginForm.isOpen() && !wishlist.isOpen()) void account.refresh(mapId);
   };
   addEventListener('focus', refreshBoard);
   document.addEventListener('visibilitychange', () => {
@@ -773,7 +1012,7 @@ async function boot() {
   });
 
   addEventListener('pointerdown', (e) => {
-    if (loginForm.isOpen()) return;
+    if (loginForm.isOpen() || wishlist.isOpen()) return;
     const hit = ui.hit(e.clientX, e.clientY);
     if (!hit) return;
     if (running) {                 // mid-race the only wired chip is the menu
@@ -783,7 +1022,7 @@ async function boot() {
     ui.onAction?.(hit);   // only the PLAY button starts a race
   });
   addEventListener('keydown', (e) => {
-    if (loginForm.isOpen()) return;   // the form handles its own keys
+    if (loginForm.isOpen() || wishlist.isOpen()) return;   // the overlay owns its keys
     /* session keys are single-shot: key auto-repeat would storm them */
     const fresh = !e.repeat;
     /* pause is handled here rather than in Input so a held key cannot toggle it on
