@@ -38,6 +38,25 @@ export interface World {
 
 type P2 = { x: number; z: number };
 
+/** one unit box, shared by every batched prop in the file */
+const UNIT_BOX = new THREE.BoxGeometry(1, 1, 1);
+
+/** One authored piece of planting. A grove is a stand with a dense middle and a
+ *  ragged edge, a row is a line that follows the circuit for a stretch, a bed is
+ *  a pile of rock, and open ground is nothing at all — negative space is part of
+ *  the composition, not an oversight. */
+export interface Dressing {
+  /** stands of trees: [x, z, radius, count, palm?, scale?] */
+  groves?: { x: number; z: number; r: number; n: number; palm?: boolean; scale?: number }[];
+  /** a row that hugs the circuit, centred on the track point nearest `near` */
+  rows?: { near: [number, number]; metres: number; side: number; offset: number;
+    step: number; palm?: boolean; scale?: number }[];
+  /** rock as a bed rather than as noise */
+  beds?: { x: number; z: number; r: number; n: number; scale?: number }[];
+  /** ground the map keeps clear of every prop */
+  open?: { x: number; z: number; r: number }[];
+}
+
 export interface MapDef {
   id: string;
   name: string;
@@ -79,13 +98,26 @@ export interface MapDef {
   mown?: boolean;
   /** rust-red laterite blotches through the infield grass */
   redEarth?: boolean;
-  yachts?: { x: number; z: number; rot: number; scale: number }[];
   ferris?: { x: number; z: number; rot: number; scale: number };
   torii?: { x: number; z: number; rot: number; scale: number };
   pagoda?: { x: number; z: number; rot: number; scale: number };
   pondBridge?: boolean;
   fuji?: { x: number; z: number; scale: number };
   overpass?: boolean;
+  /** where the planting, the rows and the empty ground go */
+  dressing?: Dressing;
+  /** reeds and a foam line at the waterline of every lake on the map */
+  shoreReeds?: boolean;
+  /** saltmarsh: reed belts and pale salt pans spread out from the water */
+  marsh?: boolean;
+  /** desert wind ripples combed through the sand, all one way */
+  windRipples?: boolean;
+  /** a timber jetty out over the lake */
+  jetty?: { x: number; z: number; rot: number; len: number };
+  /** flat-topped rock plateaus standing out in the desert */
+  mesas?: { x: number; z: number; r: number; h: number; rot: number }[];
+  /** saguaro cactus families */
+  cacti?: { x: number; z: number; rot: number; scale: number }[];
   /** tyre-wall lines that close a gap between two branches of the circuit, as
    *  centreline points (x1, z1, x2, z2); the wall stops short of both roads */
   fences?: [number, number, number, number][];
@@ -120,6 +152,55 @@ export const MAPS: MapDef[] = [
     lake: { x: 34, z: -37, rx: 11, rz: 8 },
     trees: 'mixed', density: 1,
     props: { trees: 280, rocks: 58, buildings: 15, lampStride: 58, rockScale: 1 },
+    /* The coast is a fishing hamlet on the water and a pine ridge behind it, and
+       then a great deal of nothing: salt flat to the west and south, open marsh
+       north. The village sits on the far shore of the lake so the top corner
+       looks across the water at it, and the pines start behind the rooftops. */
+    town: [
+      [18, -49], [27, -47], [36, -49], [45, -46],
+      [21, -57], [30, -58], [39, -56], [46, -55],
+    ],
+    dressing: {
+      rows: [
+        // a pine line down the outside of the pit straight, the only grandstand
+        // the circuit has: it frames the run to the line
+        { near: [60, 6], metres: 96, side: 1, offset: 10, step: 7.5 },
+        // palms along the beach where the top corner meets the water
+        { near: [46, -22], metres: 34, side: -1, offset: 8, step: 6, palm: true },
+        // a windbreak behind the far side of the bottom straight
+        { near: [-6, 58], metres: 110, side: -1, offset: 12, step: 9 },
+      ],
+      groves: [
+        { x: 30, z: -63, r: 15, n: 20 },                       // the ridge behind the village
+        { x: 58, z: -55, r: 12, n: 12 },                       // north-east treeline
+        { x: 6, z: -58, r: 13, n: 14 },                        // north-west shoulder
+        { x: 70, z: -12, r: 8, n: 7 },                         // the point past the pits
+        { x: 74, z: 26, r: 11, n: 10 },                        // the east wood
+        { x: 70, z: 62, r: 12, n: 12 },                        // closes the south-east corner
+        { x: -76, z: 44, r: 11, n: 11 },                       // the west treeline
+        { x: -74, z: -46, r: 9, n: 9 },                        // and its north end
+        { x: -8, z: -34, r: 9, n: 8 },                         // west of the lake
+        { x: 12, z: -44, r: 8, n: 6, palm: true, scale: 1.05 },  // west beach palms
+        { x: 52, z: -30, r: 6, n: 5, palm: true },              // the east beach
+      ],
+      beds: [
+        { x: 20, z: -30, r: 7, n: 6, scale: 1.4 },   // the boulders the shore is made of
+        { x: 8, z: 40, r: 8, n: 5, scale: 1.2 },
+        { x: -34, z: 62, r: 9, n: 5 },
+        { x: 76, z: -40, r: 7, n: 4, scale: 1.6 },
+      ],
+      /* The salt flat is the composition: a wide plain of pan and reed that the
+         circuit curls around, deliberately bare of trees. */
+      open: [
+        { x: -44, z: 26, r: 32 },
+        { x: -66, z: -24, r: 20 },
+        { x: -30, z: -66, r: 16 },
+        { x: 30, z: 40, r: 14 },
+      ],
+    },
+    jetty: { x: 38, z: -44.5, rot: -0.52, len: 9 },
+    shoreReeds: true,
+    marsh: true,
   },
   {
     id: 'alpine', name: 'Frostbite Pass', roadHalf: 4.2, smooth: true,
@@ -152,6 +233,38 @@ export const MAPS: MapDef[] = [
     ],
     town: [],
     sky: '#cfe4f2',
+    /* Frostbite is a pass between two walls of pine: the tree lines follow the
+       outside of the corners, the boulders drift into the pockets between the
+       switchbacks, and the high ground stays open snow, because an open
+       snowfield is what the map is. */
+    dressing: {
+      rows: [
+        { near: [4, 42], metres: 70, side: -1, offset: 9, step: 6.5 },     // the north sweep
+        { near: [58, 0], metres: 66, side: -1, offset: 10, step: 6.5 },    // the east wall
+        { near: [-40, 22], metres: 44, side: -1, offset: 8, step: 6 },     // run down to the west
+        { near: [34, -44], metres: 48, side: -1, offset: 9, step: 6.5 },   // the top hairpin
+        { near: [-24, -46], metres: 54, side: -1, offset: 8.5, step: 6 },  // the switchback wall
+      ],
+      groves: [
+        { x: 6, z: -62, r: 16, n: 22 },      // the wood in the south bowl
+        { x: 18, z: -70, r: 11, n: 12 },     // its far edge, clear of the lift
+        { x: -66, z: 16, r: 13, n: 14 },     // the west wood
+        { x: 14, z: 62, r: 14, n: 16 },      // the run-out
+        { x: 24, z: 20, r: 7, n: 8 },        // the pocket inside the last switchback
+        { x: -6, z: -24, r: 6, n: 6 },       // a stand between the folds
+      ],
+      beds: [
+        { x: -2, z: -20, r: 7, n: 5, scale: 1.5 },   // boulders at the switchback
+        { x: 20, z: 2, r: 8, n: 6, scale: 1.3 },
+        { x: -50, z: 2, r: 6, n: 4, scale: 1.4 },
+        { x: 52, z: -34, r: 7, n: 5, scale: 1.6 },
+      ],
+      open: [
+        { x: -38, z: -66, r: 18 },    // the high snowfield, nothing on it
+        { x: 64, z: 46, r: 16 },
+        { x: -30, z: 56, r: 14 },
+      ],
+    },
   },
   {
     id: 'sakura', name: 'Sakura Circuit', roadHalf: 4.2, smooth: true,
@@ -173,6 +286,37 @@ export const MAPS: MapDef[] = [
     pagoda: { x: 0, z: 30, rot: 0, scale: 0.8 },
     pondBridge: true,
     overpass: true,
+    shoreReeds: true,
+    /* The figure eight leaves four wide corners off the track and a clearing
+       round the pond. The blossom grows in groves in the four corners and along
+       the two straights that feed the crossing, so the infield stays open lawn
+       and the pond keeps its petalled shore clear. */
+    dressing: {
+      rows: [
+        { near: [-40, -18], metres: 54, side: 1, offset: 9, step: 7 },
+        { near: [40, 18], metres: 54, side: -1, offset: 9, step: 7 },
+        { near: [6, -34], metres: 40, side: -1, offset: 10, step: 7.5 },
+      ],
+      groves: [
+        { x: -58, z: -42, r: 12, n: 14 },
+        { x: 58, z: -42, r: 12, n: 14 },
+        { x: -58, z: 42, r: 12, n: 14 },
+        { x: 58, z: 42, r: 13, n: 15 },
+        { x: -34, z: 14, r: 9, n: 10 },
+        { x: 34, z: -14, r: 9, n: 10 },
+        { x: 2, z: -62, r: 10, n: 11 },
+        { x: -4, z: 62, r: 10, n: 11 },
+      ],
+      beds: [
+        { x: 22, z: -18, r: 6, n: 4, scale: 1.3 },
+        { x: -20, z: 24, r: 6, n: 4 },
+        { x: 62, z: 16, r: 5, n: 3, scale: 1.1 },
+      ],
+      open: [
+        { x: 0, z: -30, r: 17 },    // the pond and its shore
+        { x: -16, z: 6, r: 12 },    // the infield of the crossing
+      ],
+    },
   },
   {
     id: 'mesa', name: 'Mirage Mesa', roadHalf: 3.4, smooth: true,
@@ -211,10 +355,60 @@ export const MAPS: MapDef[] = [
       shoulder: '#8d7448', asphalt: '#4a4640', grainA: '#6f6759', grainB: '#2f2b26',
       line: 'rgba(240,232,206,0.85)', kerbA: '#e8d7ab', kerbB: '#b4553a',
     },
-    trees: 'palm', density: 0.9,
+    trees: 'palm', density: 0.9, windRipples: true,
     props: { trees: 170, rocks: 76, buildings: 0, lampStride: 52, rockScale: 1.4 },
     town: [],
     sky: '#e8c49a',
+    /* Mirage Mesa is read from the carousel and the two hairpins, so that is
+       where the dressing is: a cactus garden on the outside of the carousel, a
+       rock garden in the pocket between the hairpins, a palm oasis in the
+       middle of the infield, and bare desert everywhere else. The buttes stand
+       on the horizon the circuit turns around, never on the racing surface. */
+    mesas: [
+      { x: -72, z: -34, r: 17, h: 7, rot: 0.3 },
+      { x: 62, z: -56, r: 12, h: 5.5, rot: 0.9 },
+      { x: -46, z: 58, r: 11, h: 4.5, rot: -0.4 },
+      { x: 66, z: 34, r: 9, h: 4, rot: 0.2 },
+    ],
+    cacti: [
+      { x: -62, z: 6, rot: 0.4, scale: 1.15 },
+      { x: -60, z: -2, rot: 2.1, scale: 0.9 },
+      { x: -64, z: -1, rot: 1.2, scale: 1.35 },
+      { x: -58, z: 8, rot: 3.4, scale: 0.8 },
+      { x: -65, z: 9, rot: 0.9, scale: 1.05 },
+      { x: 30, z: 40, rot: 1.7, scale: 1.1 },
+      { x: 35, z: 43, rot: 0.2, scale: 0.85 },
+      { x: 39, z: 38, rot: 2.6, scale: 1.25 },
+      { x: 26, z: 44, rot: 3.9, scale: 0.95 },
+      { x: 6, z: -48, rot: 0.7, scale: 1.2 },
+      { x: 12, z: -52, rot: 2.9, scale: 0.9 },
+      { x: 1, z: -54, rot: 1.4, scale: 1.05 },
+      { x: 56, z: -4, rot: 2.2, scale: 1.0 },
+      { x: 60, z: 2, rot: 0.5, scale: 0.8 },
+    ],
+    dressing: {
+      rows: [
+        // palms down the outside of the main straight, the only shade in sight
+        { near: [4, 32], metres: 76, side: -1, offset: 10, step: 9, palm: true },
+      ],
+      groves: [
+        { x: -14, z: -52, r: 8, n: 9, palm: true },    // the oasis in the infield
+        { x: 16, z: -46, r: 5, n: 5, palm: true },
+        { x: 44, z: -20, r: 6, n: 6, palm: true },     // and shade on the east hairpin
+        { x: -34, z: 48, r: 7, n: 7, palm: true },
+      ],
+      beds: [
+        { x: -20, z: -30, r: 9, n: 9, scale: 1.7 },    // the rock garden in the carousel
+        { x: 44, z: -8, r: 10, n: 8, scale: 1.5 },
+        { x: -54, z: 22, r: 8, n: 6, scale: 1.9 },     // the big slabs at the carousel exit
+        { x: 12, z: 52, r: 9, n: 6, scale: 1.4 },
+      ],
+      open: [
+        { x: -70, z: 40, r: 20 },     // bare desert, the mesa's own floor
+        { x: 24, z: -66, r: 16 },
+        { x: 0, z: 6, r: 14 },        // the middle of the loop stays clean
+      ],
+    },
   },
   {
     id: 'interlagos', name: 'Interlagos', roadHalf: 3.4, smooth: true,
@@ -287,6 +481,21 @@ export const MAPS: MapDef[] = [
     groves: true,
     mown: true,
     redEarth: true,
+    /* The palm rows are the one thing this circuit is known by from the air, so
+       they are placed by hand along the main straight and the run out of the
+       Senna S rather than left to the grove scatter. The park between the
+       lakes stays the open lawn the grove pass already gives it. */
+    dressing: {
+      rows: [
+        { near: [121, 20], metres: 150, side: -1, offset: 11, step: 9, palm: true },
+        { near: [121, 20], metres: 150, side: 1, offset: 11, step: 9, palm: true },
+        { near: [-100, 116], metres: 90, side: 1, offset: 10, step: 9, palm: true },
+      ],
+      open: [
+        { x: -26, z: -60, r: 34 },     // the infield lawn inside the loop
+        { x: 30, z: 60, r: 26 },
+      ],
+    },
   },
 ];
 
@@ -434,9 +643,9 @@ function paintGround(track: P2[], map: MapDef): HTMLCanvasElement {
   const g = cv.getContext('2d')!;
 
   const rnd = mulberry(1337);
-  // only a map that owns several water bodies gets the shoreline pass; every
-  // map with a single lake keeps the flat disc it has always had
-  const shoreDetail = (map.lakes?.length ?? 0) > 0;
+  // a map with several water bodies, or one that asks for a coast, gets the
+  // shoreline pass; every other map with a single lake keeps the flat disc
+  const shoreDetail = (map.lakes?.length ?? 0) > 0 || !!map.shoreReeds;
 
   g.fillStyle = map.palette.grass;
   g.fillRect(0, 0, PX, PX);
@@ -526,6 +735,127 @@ function paintGround(track: P2[], map: MapDef): HTMLCanvasElement {
     }
   }
   g.globalAlpha = 1;
+
+  /* Wind ripples. A desert floor is not one flat colour: the wind combs the
+     sand into low ridges, and every ridge in a stretch of desert runs the same
+     way. Two tones of short stroke at one angle, and the sand reads as sand. */
+  if (map.windRipples) {
+    g.save();
+    g.translate(PX / 2, PX / 2);
+    g.rotate(0.52);
+    for (let i = 0; i < 1600; i++) {
+      const x = (rnd() - 0.5) * PX * 1.5;
+      const y = (rnd() - 0.5) * PX * 1.5;
+      g.fillStyle = rnd() > 0.5 ? 'rgba(232,210,164,0.28)' : 'rgba(148,116,70,0.20)';
+      g.fillRect(x, y, 9 + rnd() * 24, 1);
+    }
+    g.restore();
+  }
+
+  /* Saltmarsh. The water sits in a flat of reed and salt pan instead of in a
+     lawn, which is what makes this a coast: pale pans spreading out from the
+     lake, reed beds round every rim, and a tide line left a little way back. */
+  if (map.marsh && map.lake) {
+    const lk = map.lake;
+    const lx = (lk.x + HALF_G) * PPU, ly = (lk.z + HALF_G) * PPU;
+    const pans: { x: number; y: number; rx: number; ry: number }[] = [];
+    const panAt = (px: number, py: number) => {
+      if (px < 40 || py < 40 || px > PX - 40 || py > PX - 40) return;
+      const rx = (4.5 + rnd() * 9) * PPU, ry = (3 + rnd() * 6) * PPU;
+      pans.push({ x: px, y: py, rx, ry });
+      g.fillStyle = rnd() > 0.5 ? 'rgba(122,148,96,0.30)' : 'rgba(186,192,146,0.26)';
+      g.beginPath();
+      g.ellipse(px, py, rx, ry, rnd() * Math.PI, 0, Math.PI * 2);
+      g.fill();
+    };
+    for (let i = 0; i < 140 && pans.length < 24; i++) {
+      const a = rnd() * Math.PI * 2;
+      const d = lk.rx * (1.2 + rnd() * 1.5);
+      panAt(lx + Math.cos(a) * d * PPU, ly + Math.sin(a) * d * 0.8 * PPU);
+    }
+    /* The ground the map keeps clear of trees is the salt flat, so the flat is
+       painted as pan and reed: an empty quarter that reads as a place. */
+    if (map.marsh && map.dressing?.open) {
+      for (const zone of map.dressing.open) {
+        const n = Math.max(3, Math.round(zone.r / 6));
+        for (let i = 0; i < n; i++) {
+          const a = rnd() * Math.PI * 2, r = zone.r * Math.sqrt(rnd()) * 0.85;
+          panAt((zone.x + Math.cos(a) * r + HALF_G) * PPU,
+            (zone.z + Math.sin(a) * r + HALF_G) * PPU);
+        }
+      }
+    }
+    const tuft = (x: number, y: number) => {
+      const n = 2 + ((rnd() * 4) | 0);
+      for (let k = 0; k < n; k++) {
+        g.fillStyle = rnd() > 0.4 ? 'rgba(56,90,50,0.8)' : 'rgba(126,154,88,0.75)';
+        g.fillRect((x + (rnd() - 0.5) * 7) | 0, (y + (rnd() - 0.5) * 5) | 0, 1,
+          2 + ((rnd() * 3) | 0));
+      }
+    };
+    for (let i = 0; i < 1100; i++) {
+      const a = rnd() * Math.PI * 2;
+      const r = 1 + rnd() * 0.55;
+      tuft(lx + Math.cos(a) * lk.rx * r * PPU, ly + Math.sin(a) * lk.rz * r * PPU);
+    }
+    for (const p of pans) {
+      for (let i = 0; i < 34; i++) {
+        const a = rnd() * Math.PI * 2;
+        tuft(p.x + Math.cos(a) * p.rx * (0.88 + rnd() * 0.22),
+          p.y + Math.sin(a) * p.ry * (0.88 + rnd() * 0.22));
+      }
+    }
+    g.strokeStyle = 'rgba(74,92,62,0.32)';
+    g.lineWidth = 2;
+    for (let i = 0; i < 4; i++) {
+      const a0 = rnd() * Math.PI * 2;
+      const rad = 1.55 + rnd() * 0.85;
+      g.beginPath();
+      for (let s = 0; s <= 20; s++) {
+        const a = a0 + s * 0.07;
+        const x = lx + Math.cos(a) * lk.rx * rad * PPU;
+        const y = ly + Math.sin(a) * lk.rz * rad * PPU;
+        s ? g.lineTo(x, y) : g.moveTo(x, y);
+      }
+      g.stroke();
+    }
+  }
+
+  /* A street through a village. Buildings standing alone in a field read as
+     crates dropped from above; a track between them reads as a place. Every
+     building is joined to its two nearest neighbours, so the streets follow the
+     layout instead of a hand-drawn line that no longer fits it. */
+  if (map.town && map.town.length > 2) {
+    const pts = map.town.map(([x, z]) => ({ x: (x + HALF_G) * PPU, y: (z + HALF_G) * PPU }));
+    const links = new Set<string>();
+    const mToPx = 1 * PPU;
+    g.lineCap = 'round';
+    for (let i = 0; i < pts.length; i++) {
+      const near = pts
+        .map((p, j) => ({ j, d: Math.hypot(p.x - pts[i].x, p.y - pts[i].y) }))
+        .filter((o) => o.j !== i && o.d < 16 * mToPx)
+        .sort((a, b) => a.d - b.d)
+        .slice(0, 2);
+      for (const { j } of near) {
+        const key = i < j ? `${i}-${j}` : `${j}-${i}`;
+        if (links.has(key)) continue;
+        links.add(key);
+        g.strokeStyle = 'rgba(150,132,98,0.55)';
+        g.lineWidth = 3.2 * mToPx;
+        g.beginPath();
+        g.moveTo(pts[i].x, pts[i].y);
+        g.lineTo(pts[j].x, pts[j].y);
+        g.stroke();
+      }
+    }
+    for (let i = 0; i < 2400; i++) {
+      const p = pts[(rnd() * pts.length) | 0];
+      g.fillStyle = rnd() > 0.5 ? 'rgba(120,104,74,0.5)' : 'rgba(176,160,124,0.5)';
+      g.fillRect((p.x + (rnd() - 0.5) * 26 * mToPx) | 0,
+        (p.y + (rnd() - 0.5) * 26 * mToPx) | 0, 1, 1);
+    }
+    g.lineCap = 'butt';
+  }
 
   for (const lake of [map.lake, ...(map.lakes ?? [])]) {
     if (!lake) continue;
@@ -1099,9 +1429,17 @@ export async function buildWorld(scene: THREE.Scene, mapId?: string): Promise<Wo
     }
     return false;
   };
+  /* Negative space: ground the map deliberately keeps empty. Composition is as
+     much about where the dressing stops as where it goes. */
+  const openZones = map.dressing?.open ?? [];
+  const inOpen = (x: number, z: number) => {
+    for (const o of openZones) if ((o.x - x) ** 2 + (o.z - z) ** 2 < o.r * o.r) return true;
+    return false;
+  };
   const free = (x: number, z: number, r: number, pad = 2.4) => {
     if (Math.abs(x) > HALF - 2 || Math.abs(z) > HALF - 2) return false;
     if (inLake(x, z, 1.5)) return false;
+    if (inOpen(x, z)) return false;
     if (nearbyRoad(x, z, ROAD_HALF + pad + r)) return false;
     for (const t of taken) if ((t.x - x) ** 2 + (t.z - z) ** 2 < (t.r + r) ** 2) return false;
     return true;
@@ -1126,72 +1464,147 @@ export async function buildWorld(scene: THREE.Scene, mapId?: string): Promise<Wo
   });
 
   const pines: Placement[] = [], palms: Placement[] = [], sakuras: Placement[] = [];
-  const addTree = (x: number, z: number, palm = false) => {
-    if (!free(x, z, 1.5, 0.9)) return;
-    if (map.trees === 'sakura') sakuras.push({ x, z, rot: rnd() * 6.28, scale: 0.85 + rnd() * 0.45 });
-    else if (palm) palms.push({ x, z, rot: rnd() * 6.28, scale: 0.9 + rnd() * 0.3 });
-    else pines.push({ x, z, rot: rnd() * 6.28, scale: 0.85 + rnd() * 0.45 });
+  const addTree = (x: number, z: number, palm = false, scale = 0) => {
+    if (!free(x, z, 1.5, 0.9)) return false;
+    const s = scale > 0 ? scale : 0.85 + rnd() * 0.45;
+    if (map.trees === 'sakura') sakuras.push({ x, z, rot: rnd() * 6.28, scale: s });
+    else if (palm) palms.push({ x, z, rot: rnd() * 6.28, scale: s });
+    else pines.push({ x, z, rot: rnd() * 6.28, scale: s });
     taken.push({ x, z, r: 1.5 });
     colliders.push({ x, z, r: 0.7 });
     shadows.push({ x, z, rot: 0, scale: 1.7 });
+    return true;
   };
 
-  // Trees: a corridor along the track, then loose woodland clusters in the open.
-  for (let i = 0; i < track.length; i += 9) {
-    if (rnd() > 0.62) continue;
-    const p = track[i];
-    const q = track[(i + 4) % track.length];
-    const dx = q.x - p.x, dz = q.z - p.z;
-    const len = Math.hypot(dx, dz) || 1;
-    const side = rnd() > 0.5 ? 1 : -1;
-    const out = ROAD_HALF + 1.8 + rnd() * 7.5;
-    const x = p.x + (dz / len) * out * side;
-    const z = p.z - (dx / len) * out * side;
-    const nearLake = map.lake ? Math.hypot(x - map.lake.x, z - map.lake.z) < map.lake.rx + 2 : false;
-    const palmChance = map.snow ? 0 : map.trees === 'palm' ? 0.9 : map.trees === 'mixed' ? 0.45 : 0.08;
-    addTree(x + (rnd() - 0.5) * 2, z + (rnd() - 0.5) * 2, !map.snow && nearLake ? rnd() > 0.35 : rnd() < palmChance);
-  }
-
-  let guard = 0;
-  const treeTarget = map.props?.trees ?? Math.round(190 * (map.density ?? 1));
-  /* Groves: an even scatter over a big field reads as noise from above. A map
-     that asks for groves grows most of its trees in a handful of stands of
-     palms and keeps the rest of the ground open lawn. */
-  const groveCentres: P2[] = [];
-  if (map.groves) {
-    for (let a = 0; a < 400 && groveCentres.length < 8; a++) {
-      const x = (rnd() - 0.5) * (WORLD - 40);
-      const z = (rnd() - 0.5) * (WORLD - 40);
-      if (nearbyRoad(x, z, ROAD_HALF + 16)) continue;
-      if (inLake(x, z, 8)) continue;
-      if (groveCentres.some((c) => Math.hypot(c.x - x, c.z - z) < 56)) continue;
-      groveCentres.push({ x, z });
-    }
-  }
-  while (pines.length + palms.length + sakuras.length < treeTarget && guard++ < 3000) {
-    let x = (rnd() - 0.5) * (WORLD - 8);
-    let z = (rnd() - 0.5) * (WORLD - 8);
-    if (groveCentres.length && rnd() < 0.78) {
-      const c = groveCentres[(rnd() * groveCentres.length) | 0];
-      const a = rnd() * Math.PI * 2, r = Math.sqrt(rnd()) * 30;
-      x = c.x + Math.cos(a) * r;
-      z = c.z + Math.sin(a) * r;
-    }
-    const palmChance = map.snow ? 0 : map.trees === 'palm' ? 0.9 : map.trees === 'mixed' ? 0.45 : 0.08;
-    const nearLake = map.lake ? Math.hypot(x - map.lake.x, z - map.lake.z) < map.lake.rx + 3 : false;
-    addTree(x, z, !map.snow && nearLake ? rnd() > 0.35 : rnd() < palmChance);
-  }
-
   const rocks: Placement[] = [];
-  const rockCount = map.props?.rocks ?? 34;
-  for (let i = 0; i < rockCount; i++) {
-    const x = (rnd() - 0.5) * (WORLD - 10);
-    const z = (rnd() - 0.5) * (WORLD - 10);
-    if (!free(x, z, 1.3)) continue;
-    rocks.push({ x, z, rot: rnd() * 6.28, scale: (0.7 + rnd() * 0.7) * (map.props?.rockScale ?? 1) });
+  const addRock = (x: number, z: number, scale: number) => {
+    if (!free(x, z, 1.3)) return false;
+    rocks.push({ x, z, rot: rnd() * 6.28, scale });
     taken.push({ x, z, r: 1.3 });
     colliders.push({ x, z, r: 0.7 });
     shadows.push({ x, z, rot: 0, scale: 1.5 });
+    return true;
+  };
+
+  /* Distances along the centreline, so a planted row can be placed in metres
+     from a track point instead of a lap fraction nobody can read. */
+  const cum: number[] = [0];
+  for (let i = 1; i < track.length; i++) {
+    cum.push(cum[i - 1] + Math.hypot(track[i].x - track[i - 1].x, track[i].z - track[i - 1].z));
+  }
+  const lapLen = cum[cum.length - 1] + Math.hypot(
+    track[0].x - track[cum.length - 1].x, track[0].z - track[cum.length - 1].z);
+  const indexAt = (m: number) => {
+    const d = ((m % lapLen) + lapLen) % lapLen;
+    let lo = 0, hi = cum.length - 1;
+    while (lo < hi) {
+      const mid = (lo + hi) >> 1;
+      if (cum[mid] < d) lo = mid + 1; else hi = mid;
+    }
+    return lo;
+  };
+  const nearestIndex = (x: number, z: number) => {
+    let best = 0, bestD = Infinity;
+    for (let i = 0; i < track.length; i++) {
+      const d = (track[i].x - x) ** 2 + (track[i].z - z) ** 2;
+      if (d < bestD) { bestD = d; best = i; }
+    }
+    return best;
+  };
+
+  const dress = map.dressing;
+  /* A row is a line of trees at a fixed offset from the circuit, on a chosen
+     side, over a measured stretch: the pine wall on the outside of a corner
+     instead of trees that happen to fall near it. */
+  for (const row of dress?.rows ?? []) {
+    const centre = cum[nearestIndex(row.near[0], row.near[1])];
+    const from = centre - row.metres / 2;
+    const base = row.scale ?? 1;
+    for (let m = from; m <= from + row.metres; m += row.step) {
+      const i = indexAt(m + (rnd() - 0.5) * row.step * 0.3);
+      const p = edgeAt(track, i, row.side * (row.offset + (rnd() - 0.5) * 1.1));
+      addTree(p.x, p.z, !!row.palm, base * (0.9 + rnd() * 0.2));
+    }
+  }
+
+  /* Authored stands. Each grove grows outward from a dense middle and thins to a
+     ragged edge, with a few strays loose in the grass around it, which is what a
+     stand of trees looks like from above and what even scatter never does. */
+  for (const g of dress?.groves ?? []) {
+    const base = g.scale ?? 1;
+    for (let k = 0; k < g.n; k++) {
+      const core = k < g.n * 0.7;
+      const t = core ? 0.12 + rnd() * 0.6 : 0.72 + rnd() * 0.7;
+      const a = rnd() * Math.PI * 2;
+      const r = g.r * Math.sqrt(t);
+      addTree(g.x + Math.cos(a) * r, g.z + Math.sin(a) * r, !!g.palm, base * (0.88 + rnd() * 0.24));
+    }
+  }
+
+  // Trees: a corridor along the track, then loose woodland clusters in the open.
+  // Only for a map that does not plant by hand.
+  if (!dress?.groves) {
+    for (let i = 0; i < track.length; i += 9) {
+      if (rnd() > 0.62) continue;
+      const p = track[i];
+      const q = track[(i + 4) % track.length];
+      const dx = q.x - p.x, dz = q.z - p.z;
+      const len = Math.hypot(dx, dz) || 1;
+      const side = rnd() > 0.5 ? 1 : -1;
+      const out = ROAD_HALF + 1.8 + rnd() * 7.5;
+      const x = p.x + (dz / len) * out * side;
+      const z = p.z - (dx / len) * out * side;
+      const nearLake = map.lake ? Math.hypot(x - map.lake.x, z - map.lake.z) < map.lake.rx + 2 : false;
+      const palmChance = map.snow ? 0 : map.trees === 'palm' ? 0.9 : map.trees === 'mixed' ? 0.45 : 0.08;
+      addTree(x + (rnd() - 0.5) * 2, z + (rnd() - 0.5) * 2, !map.snow && nearLake ? rnd() > 0.35 : rnd() < palmChance);
+    }
+
+    let guard = 0;
+    const treeTarget = map.props?.trees ?? Math.round(190 * (map.density ?? 1));
+    /* Groves: an even scatter over a big field reads as noise from above. A map
+       that asks for groves grows most of its trees in a handful of stands of
+       palms and keeps the rest of the ground open lawn. */
+    const groveCentres: P2[] = [];
+    if (map.groves) {
+      for (let a = 0; a < 400 && groveCentres.length < 8; a++) {
+        const x = (rnd() - 0.5) * (WORLD - 40);
+        const z = (rnd() - 0.5) * (WORLD - 40);
+        if (nearbyRoad(x, z, ROAD_HALF + 16)) continue;
+        if (inLake(x, z, 8)) continue;
+        if (groveCentres.some((c) => Math.hypot(c.x - x, c.z - z) < 56)) continue;
+        groveCentres.push({ x, z });
+      }
+    }
+    while (pines.length + palms.length + sakuras.length < treeTarget && guard++ < 3000) {
+      let x = (rnd() - 0.5) * (WORLD - 8);
+      let z = (rnd() - 0.5) * (WORLD - 8);
+      if (groveCentres.length && rnd() < 0.78) {
+        const c = groveCentres[(rnd() * groveCentres.length) | 0];
+        const a = rnd() * Math.PI * 2, r = Math.sqrt(rnd()) * 30;
+        x = c.x + Math.cos(a) * r;
+        z = c.z + Math.sin(a) * r;
+      }
+      const palmChance = map.snow ? 0 : map.trees === 'palm' ? 0.9 : map.trees === 'mixed' ? 0.45 : 0.08;
+      const nearLake = map.lake ? Math.hypot(x - map.lake.x, z - map.lake.z) < map.lake.rx + 3 : false;
+      addTree(x, z, !map.snow && nearLake ? rnd() > 0.35 : rnd() < palmChance);
+    }
+  }
+
+  /* Rock beds: a cluster where the ground says so, none anywhere else. */
+  for (const b of dress?.beds ?? []) {
+    for (let k = 0; k < b.n; k++) {
+      const a = rnd() * Math.PI * 2, r = b.r * Math.sqrt(rnd());
+      addRock(b.x + Math.cos(a) * r, b.z + Math.sin(a) * r,
+        (b.scale ?? 1) * (0.7 + rnd() * 0.7));
+    }
+  }
+  if (!dress?.beds) {
+    const rockCount = map.props?.rocks ?? 34;
+    for (let i = 0; i < rockCount; i++) {
+      const x = (rnd() - 0.5) * (WORLD - 10);
+      const z = (rnd() - 0.5) * (WORLD - 10);
+      addRock(x, z, (0.7 + rnd() * 0.7) * (map.props?.rockScale ?? 1));
+    }
   }
 
   const lamps: Placement[] = [];
@@ -1203,8 +1616,10 @@ export async function buildWorld(scene: THREE.Scene, mapId?: string): Promise<Wo
     const nx = dz / len, nz = -dx / len;
     const x = p.x + nx * (ROAD_HALF + 1.6);
     const z = p.z + nz * (ROAD_HALF + 1.6);
-    // A nearby branch of the circuit can put the lamp on tarmac; skip those.
+    // A nearby branch of the circuit can put the lamp on tarmac, and a lake
+    // can put it on the sand; skip both.
     if (nearbyRoad(x, z, ROAD_HALF + 0.7)) continue;
+    if (inLake(x, z, 1.2)) continue;
     lamps.push({ x, z, rot: Math.atan2(dx, dz), scale: 1 });
     colliders.push({ x, z, r: 0.28 });
     shadows.push({ x, z, rot: 0, scale: 0.6 });
@@ -1275,13 +1690,48 @@ export async function buildWorld(scene: THREE.Scene, mapId?: string): Promise<Wo
     }
   }
 
-  const basic = (color: number) => new THREE.MeshBasicMaterial({ color, toneMapped: false });
+  /* Every hand-built prop is a box. A box is recorded here as an empty node
+     carrying its size and colour, and the whole furniture layer is baked into
+     one instanced mesh per colour at the end: the gantry, the stands, the torii
+     and the pit wall were several hundred draw calls between them. */
+  const matCache = new Map<number, THREE.MeshBasicMaterial>();
+  const basic = (color: number) => {
+    let m = matCache.get(color);
+    if (!m) {
+      m = new THREE.MeshBasicMaterial({ color, toneMapped: false });
+      matCache.set(color, m);
+    }
+    return m;
+  };
   const addBox = (g: THREE.Group, w: number, h: number, d: number, color: number,
     x: number, y: number, z: number) => {
-    const m = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), basic(color));
-    m.position.set(x, y, z);
-    g.add(m);
-    return m;
+    const o = new THREE.Object3D();
+    o.userData.box = { w, h, d, color };
+    o.position.set(x, y, z);
+    g.add(o);
+    return o;
+  };
+  const bakeBoxes = (root: THREE.Object3D) => {
+    const byColor = new Map<number, THREE.Matrix4[]>();
+    const marked: THREE.Object3D[] = [];
+    root.traverse((o) => {
+      const box = o.userData.box as { w: number; h: number; d: number; color: number } | undefined;
+      if (!box) return;
+      marked.push(o);
+      o.updateWorldMatrix(true, false);
+      const s = new THREE.Matrix4().makeScale(box.w, box.h, box.d);
+      const m = new THREE.Matrix4().multiplyMatrices(o.matrixWorld, s);
+      const list = byColor.get(box.color);
+      if (list) list.push(m); else byColor.set(box.color, [m]);
+    });
+    for (const o of marked) o.removeFromParent();
+    for (const [color, mats] of byColor) {
+      const mesh = new THREE.InstancedMesh(UNIT_BOX, basic(color), mats.length);
+      mats.forEach((m, i) => mesh.setMatrixAt(i, m));
+      mesh.instanceMatrix.needsUpdate = true;
+      mesh.frustumCulled = false;
+      root.add(mesh);
+    }
   };
 
   if (map.grandstands) {
@@ -1389,21 +1839,82 @@ export async function buildWorld(scene: THREE.Scene, mapId?: string): Promise<Wo
     group.add(rails, caps);
   }
 
-  if (map.yachts) {
-    for (const y of map.yachts) {
+  /* The jetty makes the lake a coast: planks on piles running out from the
+     beach, with a lantern on the end of it. */
+  if (map.jetty) {
+    const j = map.jetty;
+    const g = new THREE.Group();
+    g.position.set(j.x, 0, j.z);
+    g.rotation.y = j.rot;
+    const plank = 0x9a7a52, pile = 0x6b5236;
+    addBox(g, 2.0, 0.20, j.len, plank, 0, 0.62, j.len / 2);
+    for (const sx of [-0.8, 0.8]) {
+      for (let z = 0.8; z < j.len; z += 1.8) {
+        addBox(g, 0.18, 0.85, 0.18, pile, sx, 0.3, z);
+      }
+    }
+    // a mooring bollard at the end, low and out of the sight line: no lamp post,
+    // the jetty is a quiet walk and a lamp on it reads as a pylon on the shore
+    addBox(g, 0.30, 0.42, 0.30, pile, 0.75, 0.83, j.len - 0.5);
+    group.add(g);
+  }
+
+  /* Cacti: a saguaro has a trunk and two arms that turn up, which is four boxes
+     for the silhouette that says desert faster than any palm. */
+  if (map.cacti) {
+    for (const c of map.cacti) {
       const g = new THREE.Group();
-      g.position.set(y.x, 0.02, y.z);
-      g.rotation.y = y.rot;
-      g.scale.setScalar(y.scale);
-      addBox(g, 5.8, 0.68, 1.75, 0xf6f3e8, 0, 0.38, 0);       // hull
-      addBox(g, 4.9, 0.12, 1.55, 0xe6dcc2, -0.1, 0.76, 0);     // deck
-      addBox(g, 2.0, 0.78, 1.25, 0xf6f3e8, -0.45, 1.20, 0);    // cabin
-      addBox(g, 1.8, 0.24, 1.28, 0x1b2b36, -0.45, 1.24, 0);    // windows
-      addBox(g, 1.3, 0.10, 1.34, 0xc8463c, -0.45, 1.62, 0);    // cabin roof
-      addBox(g, 0.08, 3.3, 0.08, 0xd8d8d8, -0.55, 2.4, 0);     // mast
-      addBox(g, 0.55, 0.06, 0.06, 0xd8d8d8, -0.55, 2.9, 0.2);  // spreader
-      addBox(g, 0.9, 0.08, 0.9, 0xe0513f, 2.1, 0.78, 0);       // bow cushion
+      g.position.set(c.x, 0, c.z);
+      g.rotation.y = c.rot;
+      g.scale.setScalar(c.scale);
+      const green = 0x4f7d3f, dark = 0x3c6330;
+      addBox(g, 0.95, 3.5, 0.95, green, 0, 1.75, 0);       // trunk
+      addBox(g, 0.78, 0.3, 0.78, dark, 0, 3.6, 0);         // crown
+      addBox(g, 0.7, 0.62, 0.7, green, -0.86, 1.85, 0);    // left elbow
+      addBox(g, 0.58, 1.45, 0.58, green, -0.86, 2.7, 0);   // left arm
+      addBox(g, 0.5, 0.22, 0.5, dark, -0.86, 3.45, 0);
+      addBox(g, 0.7, 0.62, 0.7, green, 0.88, 2.25, 0);     // right elbow
+      addBox(g, 0.58, 1.2, 0.58, green, 0.88, 3.0, 0);     // right arm
+      addBox(g, 0.5, 0.22, 0.5, dark, 0.88, 3.62, 0);
       group.add(g);
+      colliders.push({ x: c.x, z: c.z, r: 0.7 });
+    }
+  }
+
+  /* Buttes: stepped strata with a talus skirt, standing out in the desert. The
+     map is named for them and until now it had none. */
+  if (map.mesas) {
+    for (const m of map.mesas) {
+      const g = new THREE.Group();
+      g.position.set(m.x, 0, m.z);
+      g.rotation.y = m.rot;
+      const strata = [0xc08a5a, 0xb2794a, 0xc99465, 0xa96f43];
+      const tiers = 4;
+      const band = m.h / tiers;
+      for (let i = 0; i < tiers; i++) {
+        // each tier weathers to its own footprint, so the silhouette is rock
+        // and not a staircase
+        const f = 1 - i * 0.11;
+        const wx = (i % 2 ? 1.08 : 0.92) * f;
+        const wz = (i % 2 ? 0.88 : 1.04) * f;
+        addBox(g, m.r * 2 * wx, band, m.r * 1.55 * wz, strata[i % strata.length],
+          (i % 2 ? -0.05 : 0.06) * m.r, band * (i + 0.5), (i % 2 ? 0.05 : -0.06) * m.r);
+      }
+      addBox(g, m.r * 2 * 0.72, 0.5, m.r * 1.55 * 0.72, 0xd8a877, 0, m.h + 0.25, 0);
+      // talus: the scree apron the rock has shed, with a few slabs come loose
+      addBox(g, m.r * 2.5, 0.5, m.r * 2.0, 0xb08a63, 0, 0.25, 0);
+      addBox(g, m.r * 0.9, 0.8, m.r * 0.7, 0xa07a52, -m.r * 0.9, 0.4, m.r * 0.6);
+      addBox(g, m.r * 0.6, 0.55, m.r * 0.5, 0xb08a63, m.r * 1.05, 0.28, -m.r * 0.5);
+      group.add(g);
+      // the footprint is solid: the car must not drive into the rock face
+      for (let a = 0; a < 6; a++) {
+        const t = (a / 6) * Math.PI * 2;
+        colliders.push({
+          x: m.x + Math.cos(t) * m.r * 0.8,
+          z: m.z + Math.sin(t) * m.r * 0.62,
+          r: m.r * 0.42,
+        });
+      }
     }
   }
 
@@ -1425,21 +1936,15 @@ export async function buildWorld(scene: THREE.Scene, mapId?: string): Promise<Wo
     g.add(hub);
     for (let i = 0; i < 12; i++) {
       const a = (i / 12) * Math.PI * 2;
-      const sp = new THREE.Mesh(new THREE.BoxGeometry(0.10, 5, 0.10), basic(0xd8d8d8));
-      sp.position.set(Math.cos(a) * 2.5, 7.2 + Math.sin(a) * 2.5, 0);
+      const sp = addBox(g, 0.10, 5, 0.10, 0xd8d8d8,
+        Math.cos(a) * 2.5, 7.2 + Math.sin(a) * 2.5, 0);
       sp.rotation.z = a - Math.PI / 2;
-      g.add(sp);
-      const car = new THREE.Mesh(new THREE.BoxGeometry(0.62, 0.62, 0.62), basic(
-        [0xe0513f, 0xf2eee1, 0x2b6d7a][i % 3],
-      ));
-      car.position.set(Math.cos(a) * 5, 7.2 + Math.sin(a) * 5, 0);
-      g.add(car);
+      addBox(g, 0.62, 0.62, 0.62, [0xe0513f, 0xf2eee1, 0x2b6d7a][i % 3],
+        Math.cos(a) * 5, 7.2 + Math.sin(a) * 5, 0);
     }
     for (const sx of [-3.6, 3.6]) {
-      const leg = new THREE.Mesh(new THREE.BoxGeometry(0.34, 8.2, 0.34), basic(0xf2eee1));
-      leg.position.set(sx * 0.5, 3.6, 0);
+      const leg = addBox(g, 0.34, 8.2, 0.34, 0xf2eee1, sx * 0.5, 3.6, 0);
       leg.rotation.z = sx > 0 ? -0.38 : 0.38;
-      g.add(leg);
     }
     addBox(g, 8.0, 0.3, 2.0, 0x2b2d33, 0, 0.15, 0);
     group.add(g);
@@ -1476,10 +1981,9 @@ export async function buildWorld(scene: THREE.Scene, mapId?: string): Promise<Wo
     const beam = (ax: number, ay: number, az: number, bx: number, by: number, bz: number, t: number, color: number) => {
       const a = new THREE.Vector3(ax, ay, az), b = new THREE.Vector3(bx, by, bz);
       const d = b.clone().sub(a);
-      const m = new THREE.Mesh(new THREE.BoxGeometry(t, d.length(), t), basic(color));
-      m.position.copy(a).addScaledVector(d, 0.5);
-      m.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), d.clone().normalize());
-      g.add(m);
+      const o = addBox(g, t, d.length(), t, color, 0, 0, 0);
+      o.position.copy(a).addScaledVector(d, 0.5);
+      o.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), d.clone().normalize());
     };
 
     for (const sx of [-W / 2 + 0.12, W / 2 - 0.12]) {
@@ -1615,19 +2119,39 @@ export async function buildWorld(scene: THREE.Scene, mapId?: string): Promise<Wo
   if (map.snowGear) {
     const white = 0xf4f8fb, blue = 0x4f8fb5, red = 0xc8463c, ink = 0x22262c, steel = 0x9aa7b0;
 
+    /* The lift climbs out of the south bowl toward the map edge: three pylons,
+       each taller than the last, with the cable rising over them. A lift that
+       stands in a field reads as scaffolding; a lift that climbs reads as a
+       mountain. */
     const lift = new THREE.Group();
-    for (const z of [-22, 0, 22]) {
-      addBox(lift, 0.55, 8.4, 0.55, steel, 66, 4.2, z);
-      addBox(lift, 3.4, 0.24, 0.3, steel, 66, 8.2, z);
-      addBox(lift, 0.32, 0.34, 0.32, red, 64.4, 8.0, z);
-      addBox(lift, 0.32, 0.34, 0.32, red, 67.6, 8.0, z);
+    const LX = 42;
+    const pylons: [number, number][] = [[-48, 6.0], [-62, 8.2], [-76, 10.4]];
+    const armY = (z: number) => pylons.find(([pz]) => pz === z)![1] + 0.3;
+    for (const [pz, h] of pylons) {
+      addBox(lift, 0.55, h, 0.55, steel, LX, h / 2, pz);
+      addBox(lift, 3.4, 0.24, 0.3, steel, LX, h + 0.3, pz);
+      addBox(lift, 0.32, 0.34, 0.32, red, LX - 1.6, h + 0.1, pz);
+      addBox(lift, 0.32, 0.34, 0.32, red, LX + 1.6, h + 0.1, pz);
     }
-    addBox(lift, 0.12, 0.12, 44, ink, 64.5, 8.1, 0);
-    addBox(lift, 0.12, 0.12, 44, ink, 67.5, 8.1, 0);
-    for (const z of [-16, -5, 6, 17]) {
-      addBox(lift, 0.08, 1.0, 0.08, ink, 66, 7.5, z);
-      addBox(lift, 1.0, 1.15, 1.15, red, 66, 6.7, z);
-      addBox(lift, 0.8, 0.7, 0.9, white, 66, 6.75, z);
+    // the haul cable, rising pylon to pylon
+    const slope = (ax: number, ay: number, az: number, bx: number, by: number, bz: number,
+      t: number, color: number) => {
+      const a = new THREE.Vector3(ax, ay, az), b = new THREE.Vector3(bx, by, bz);
+      const d = b.clone().sub(a);
+      const o = addBox(lift, t, d.length(), t, color, 0, 0, 0);
+      o.position.copy(a).addScaledVector(d, 0.5);
+      o.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), d.clone().normalize());
+    };
+    for (const cx of [LX - 1.5, LX + 1.5]) {
+      slope(cx, armY(-48), -48, cx, armY(-62), -62, 0.12, ink);
+      slope(cx, armY(-62), -62, cx, armY(-76), -76, 0.12, ink);
+    }
+    // chairs riding the cable, hanging level while it climbs
+    for (const [cz, f] of [[-53, 0.18], [-58, 0.36], [-68, 0.64], [-72, 0.82]] as [number, number][]) {
+      const y = armY(-48) + (armY(-76) - armY(-48)) * f;
+      addBox(lift, 0.08, 1.0, 0.08, ink, LX, y - 0.5, cz);
+      addBox(lift, 1.0, 1.15, 1.15, red, LX, y - 1.3, cz);
+      addBox(lift, 0.8, 0.7, 0.9, white, LX, y - 1.25, cz);
     }
     group.add(lift);
 
@@ -1683,7 +2207,8 @@ export async function buildWorld(scene: THREE.Scene, mapId?: string): Promise<Wo
     }
 
     if (map.lake) {
-      const huts: [number, number, number][] = [[-2, 8, 0.25], [7, 5, -0.35], [1, 13, 0.7]];
+      // the base station huts, at the foot of the lift and clear of the ice
+      const huts: [number, number, number][] = [[47, -42, 0.3], [52, -46, -0.4], [44, -46, 0.8]];
       for (const [x, z, rot] of huts) {
         const g = new THREE.Group();
         g.position.set(x, 0, z);
@@ -1740,19 +2265,13 @@ export async function buildWorld(scene: THREE.Scene, mapId?: string): Promise<Wo
 
   {
     const g = new THREE.Group();
-    const steel = new THREE.MeshBasicMaterial({ color: 0x2a2d33, toneMapped: false });
+    const ink = 0x2a2d33;
     const span = (ROAD_HALF + 1.6) * 2;
     for (const side of [-1, 1]) {
-      const post = new THREE.Mesh(new THREE.BoxGeometry(0.28, 5.2, 0.28), steel);
-      post.position.set(side * (span / 2 - 0.14), 2.6, 0);
-      g.add(post);
-      const foot = new THREE.Mesh(new THREE.BoxGeometry(0.7, 0.18, 0.7), steel);
-      foot.position.set(side * (span / 2 - 0.14), 0.09, 0);
-      g.add(foot);
+      addBox(g, 0.28, 5.2, 0.28, ink, side * (span / 2 - 0.14), 2.6, 0);
+      addBox(g, 0.7, 0.18, 0.7, ink, side * (span / 2 - 0.14), 0.09, 0);
     }
-    const beam = new THREE.Mesh(new THREE.BoxGeometry(span, 0.3, 0.36), steel);
-    beam.position.set(0, 5.2, 0);
-    g.add(beam);
+    addBox(g, span, 0.3, 0.36, ink, 0, 5.2, 0);
 
     const cv = document.createElement('canvas');
     cv.width = 256; cv.height = 48;
@@ -1800,17 +2319,19 @@ export async function buildWorld(scene: THREE.Scene, mapId?: string): Promise<Wo
 
   {
     const furniture = new THREE.Group();
-    const postMat = new THREE.MeshBasicMaterial({ color: 0x24262b, toneMapped: false });
+    const postColor = 0x24262b;
     const backMat = new THREE.MeshBasicMaterial({ color: 0xe8e2d2, toneMapped: false });
     const n = track.length;
 
     const placeBoard = (x: number, z: number, rot: number, tex: THREE.Texture,
       w: number, h: number, bottom: number) => {
+      // never on the water or on the beach it frames: a board on a shore reads
+      // as a sign nailed to the lake
+      if (inLake(x, z, 1.4)) return;
       const g = new THREE.Group();
       for (const side of [-1, 1]) {
-        const post = new THREE.Mesh(new THREE.BoxGeometry(0.12, bottom + h * 0.5, 0.12), postMat);
-        post.position.set(side * (w / 2 - 0.22), (bottom + h * 0.5) / 2, 0);
-        g.add(post);
+        addBox(g, 0.12, bottom + h * 0.5, 0.12, postColor,
+          side * (w / 2 - 0.22), (bottom + h * 0.5) / 2, 0);
       }
       const geo = new THREE.PlaneGeometry(w, h);
       const face = new THREE.Mesh(geo, new THREE.MeshBasicMaterial({ map: tex, toneMapped: false }));
@@ -1954,6 +2475,10 @@ export async function buildWorld(scene: THREE.Scene, mapId?: string): Promise<Wo
     }
     group.add(furniture);
   }
+
+  // Everything above drew boxes one mesh at a time. Collapse them now: one
+  // instanced mesh per colour for the whole furniture layer of the map.
+  bakeBoxes(group);
 
   return {
     group, colliders, roadAt, kerbAt, start, addSkid, clearSkid,
