@@ -19,8 +19,8 @@ const ACCENT = '#e0513f';
    and boards: at this size two accents on one tile reads as noise, and the
    green is the flag's field. */
 const MAP_ACCENTS: Record<string, string> = {
-  coast: '#2f9fb5',       // Saltmarsh Coast: the lake's teal, up out of the water's murk
-  alpine: '#4f97cb',      // Frostbite Pass: glacier ice between the pale water and the kerb blue
+  coast: '#1fb5a8',       // Saltmarsh Coast: turquoise — the lake's shallows, green side of the cyan
+  alpine: '#4a7fd6',      // Frostbite Pass: glacier blue, well clear of the coast's green-cyan
   sakura: '#d4547e',      // Sakura Circuit: petal pink, the blossom tint given weight
   mesa: '#d0803a',        // Mirage Mesa: baked dust between the terracotta kerbs and the sand sky
   interlagos: '#2f9e55',  // Interlagos: the flag green its kerbs and boards fly
@@ -1724,7 +1724,9 @@ export class PixelUI {
         const lead = row.rank === 1;
         const mine = me !== '' && row.username.toUpperCase() === me;
         if (lead) {
-          pxRect(c, lx + 3, ry, pw - 6, rh, ACCENT);
+          /* the leader's row wears the circuit's own accent — the panel says
+             SAKURA CIRCUIT in pink, so its crown is pink too, not the game red */
+          pxRect(c, lx + 3, ry, pw - 6, rh, accent);
         } else if (mine) {
           c.fillStyle = 'rgba(242,238,225,0.1)';
           c.fillRect(lx + 3, ry, pw - 6, rh);
@@ -2021,12 +2023,15 @@ export class PixelUI {
     c.fillRect(0, 0, this.w, this.h);
     const maps = fb.maps;
     const page = Math.max(0, Math.min(fb.page, maps.length - 1));
+    /* the whole modal follows the circuit on show: header bar, the open tab,
+       the leader's row — the same accent the corner panel wears */
+    const accent = mapAccent(maps[page]?.id);
     const w = Math.min(this.w - 16, 620), h = Math.min(this.h - 16, 348);
     const x = Math.round((this.w - w) / 2), y = Math.round((this.h - h) / 2);
     pxRect(c, x, y, w, h, SLAB);
     pxRect(c, x, y, w, 14, INK);
     pxBorder(c, x, y, w, h, 'rgba(242,238,225,0.75)');
-    c.fillStyle = ACCENT;
+    c.fillStyle = accent;
     c.fillRect(x + 5, y + 4, 2, 8);
     this.text('FULL LEADERBOARD', x + 12, y + 3, { size: 8, weight: 700, color: CREAM, spacing: 2 });
     if (fb.offline) {
@@ -2043,7 +2048,7 @@ export class PixelUI {
       const label = (maps[i].id || maps[i].name).toUpperCase();
       const tw = this.measure(label, 8, 700) + 14;
       const on = i === page;
-      pxRect(c, tx, tabY, tw, tabH, on ? ACCENT : SLAB);
+      pxRect(c, tx, tabY, tw, tabH, on ? accent : SLAB);
       pxBorder(c, tx, tabY, tw, tabH, on ? CREAM : 'rgba(242,238,225,0.4)');
       this.text(label, tx + tw / 2, tabY + 2.5, { size: 8, weight: 700, color: on ? CREAM : DIM, align: 'center' });
       this.buttons.push({ id: `fb-map-${i}` as HitId, x: tx, y: tabY, w: tw, h: tabH, label });
@@ -2077,7 +2082,7 @@ export class PixelUI {
         const lead = t.rank === 1;
         const mine = fb.me !== '' && t.username.toUpperCase() === fb.me;
         if (lead) {
-          pxRect(c, left, ry, right - left, rh, ACCENT);
+          pxRect(c, left, ry, right - left, rh, accent);
         } else if (mine) {
           c.fillStyle = 'rgba(242,238,225,0.1)';
           c.fillRect(left, ry, right - left, rh);
