@@ -9,6 +9,24 @@ const CREAM = '#f2eee1';
 const INK = '#14161a';
 const ACCENT = '#e0513f';
 
+/* One accent per circuit, lifted from the identity each map already wears in
+   its palette — the coast's lake, the pass's ice, the circuit's blossom — and
+   brought to the red's own weight (the same mid lightness and saturation, only
+   the hue moved) so a coloured card still sits inside the cream/ink/red family.
+   They have to work three ways: cream text on them as a fill, as text on ink,
+   and as a stroke on the slab, which is why none of them is the pale source
+   colour itself. The yellow of Interlagos' flag pair stays in the map's kerbs
+   and boards: at this size two accents on one tile reads as noise, and the
+   green is the flag's field. */
+const MAP_ACCENTS: Record<string, string> = {
+  coast: '#2f9fb5',       // Saltmarsh Coast: the lake's teal, up out of the water's murk
+  alpine: '#4f97cb',      // Frostbite Pass: glacier ice between the pale water and the kerb blue
+  sakura: '#d4547e',      // Sakura Circuit: petal pink, the blossom tint given weight
+  mesa: '#d0803a',        // Mirage Mesa: baked dust between the terracotta kerbs and the sand sky
+  interlagos: '#2f9e55',  // Interlagos: the flag green its kerbs and boards fly
+};
+const mapAccent = (id: string | undefined) => (id && MAP_ACCENTS[id]) || ACCENT;
+
 const DIM = 'rgba(242,238,225,0.55)';
 const INKD = 'rgba(20,22,26,0.55)';
 const SLAB = 'rgba(43,43,51,0.88)';
@@ -504,7 +522,7 @@ export class PixelUI {
     const ms = 96, mx = 8, my = this.h - ms - 26;
     pxRect(c, mx, my, ms, ms, SLAB);
     pxBorder(c, mx, my, ms, ms, LINE);
-    this.drawMap(car, mx + 5, my + 5, ms - 10);
+    this.drawMap(car, mx + 5, my + 5, ms - 10, mapAccent(state.maps?.[state.mapIndex ?? 0]?.id));
     const stage = (state.mapName ?? state.maps?.[state.mapIndex ?? 0]?.name ?? 'PIXEL DRIFT').toUpperCase();
     this.font(8, 700);
     const nw = Math.max(ms, Math.ceil(c.measureText(stage).width) + 12);
@@ -1137,7 +1155,9 @@ export class PixelUI {
     this.text(label, x + 10, y + 4, { size: 8, weight: 700, color: CREAM });
   }
 
-  private drawMap(car: Car, x: number, y: number, size: number) {
+  /** the route stroked in the map's own accent, so the panel belongs to the
+      circuit it names; the player's wedge stays the game's red on top of it */
+  private drawMap(car: Car, x: number, y: number, size: number, accent: string) {
     const c = this.ctx;
 
     let minX = 1e9, maxX = -1e9, minZ = 1e9, maxZ = -1e9;
@@ -1168,7 +1188,7 @@ export class PixelUI {
     c.lineWidth = 4;
     c.stroke();
     path();
-    c.strokeStyle = 'rgba(242,238,225,0.9)';
+    c.strokeStyle = accent;
     c.lineWidth = 2;
     c.stroke();
 
@@ -1309,19 +1329,25 @@ export class PixelUI {
   }
 
   /**
-   * A map tile: the circuit's outline over its short name, accent-painted when
-   * it is the map you are on. `hot` is the hover state (lifted one pixel and a
-   * brighter border), `inset` is the entrance/press squash.
+   * A map tile: the circuit's outline over its short name, painted in the
+   * map's own accent when it is the map you are on. `hot` is the hover state
+   * (lifted one pixel and a brighter border), `inset` is the entrance/press
+   * squash. `best` is the player's best on the circuit in seconds — 0 means
+   * none yet, undefined means nobody counted (no account state at all).
    */
   private drawMapCard(x: number, y: number, cw: number, ch: number, o: {
     id: string; label: string; digit: string; on: boolean; hot: boolean;
+    accent: string; best?: number;
   }) {
     const c = this.ctx;
-    pxRect(c, x, y, cw, ch, o.on ? ACCENT : SLAB);
+    pxRect(c, x, y, cw, ch, o.on ? o.accent : SLAB);
     pxBorder(c, x, y, cw, ch, o.on ? CREAM : o.hot ? 'rgba(242,238,225,0.85)' : LINE);
     const boxY = y + 3;
     const boxH = ch - 14;
-    const ink = o.on ? INK : o.hot ? CREAM : 'rgba(242,238,225,0.92)';
+    /* the track itself carries the accent on every tile, so the five read as
+       five places before any of them is picked; on the selected tile the fill
+       already says it, so the outline goes back to ink to keep its shape */
+    const ink = o.on ? INK : o.hot ? o.accent : o.accent + 'cc';
     if (!this.miniOutline(o.id, x + 3, boxY, cw - 6, boxH, ink, o.on ? 2 : 1)) {
       // a map with no polygon yet: a centred dot, so the tile still reads
       c.fillStyle = ink;
@@ -1330,12 +1356,33 @@ export class PixelUI {
     this.text(o.digit, x + 4, y + 2, {
       size: 8, color: o.on ? 'rgba(20,22,26,0.55)' : 'rgba(242,238,225,0.35)',
     });
+    /* the name and the player's best share the foot row, the best right-aligned
+       like a table's number: a time there is a call to play, and the dash when
+       there is none is the same dim "not yet" the settings modal prints. The
+       name gives way to it, and if the tile gets too narrow the whole best
+       drops out before the row ever crowds */
+    const has = (o.best ?? 0) > 0;
+    const bestTxt = o.best === undefined ? null : has ? fmtMs(o.best * 1000) : '–';
     let label = o.label;
     this.font(8, 700);
-    while (label.length > 1 && c.measureText(label).width > cw - 8) label = label.slice(0, -1);
-    this.text(label, x + cw / 2, y + ch - 11, {
-      size: 8, weight: 700, color: o.on ? CREAM : o.hot ? CREAM : DIM, align: 'center',
-    });
+    if (bestTxt && cw >= 64) {
+      const bestW = Math.ceil(c.measureText(bestTxt).width);
+      while (label.length > 1 && c.measureText(label).width > cw - bestW - 12) label = label.slice(0, -1);
+      this.text(label, x + 4, y + ch - 11, {
+        size: 8, weight: 700, color: o.on ? CREAM : o.hot ? CREAM : DIM,
+      });
+      this.text(bestTxt, x + cw - 4, y + ch - 11, {
+        size: 8, weight: has ? 700 : 400, align: 'right',
+        color: o.on
+          ? (has ? CREAM : 'rgba(20,22,26,0.55)')
+          : has ? CREAM : DIM,
+      });
+    } else {
+      while (label.length > 1 && c.measureText(label).width > cw - 8) label = label.slice(0, -1);
+      this.text(label, x + cw / 2, y + ch - 11, {
+        size: 8, weight: 700, color: o.on ? CREAM : o.hot ? CREAM : DIM, align: 'center',
+      });
+    }
   }
 
   private drawTitle(time: number, state: UiState) {
@@ -1428,12 +1475,18 @@ export class PixelUI {
       let label = full;
       this.font(8, 700);
       while (label.length > 1 && c.measureText(label).width > colW * 0.62) label = label.slice(0, -1);
+      /* the caption name wears the same accent as the selected tile below it,
+         so the caption and the grid read as one TRACK block in the map's colours */
       this.text(label, gridRight, y[1] + 1, {
-        size: 8, weight: 700, color: ACCENT, align: 'right', spacing: 1,
+        size: 8, weight: 700, color: mapAccent(maps[mi]?.id), align: 'right', spacing: 1,
       });
       c.restore();
     }
 
+    /* the player's own bests, the same source the settings modal's YOUR BESTS
+       rows read: the account's validated times when signed in, the local lap
+       records otherwise, keyed by the map's uppercased id */
+    const bests = new Map((state.stats?.maps ?? []).map((m) => [m.map, m.best]));
     for (let i = 0; i < maps.length; i++) {
       const a = this.stage(t, 0.24 + i * 0.045, 0.09, 3);
       if (a <= 0) continue;
@@ -1457,6 +1510,8 @@ export class PixelUI {
         digit: i < 9 ? String(i + 1) : '',
         on,
         hot: hot === `pick-map-${i}`,
+        accent: mapAccent(maps[i].id),
+        best: bests.get(maps[i].id.toUpperCase()),
       });
       this.buttons.push({
         id: `pick-map-${i}` as HitId, x: Math.round(bx), y: Math.round(by),
@@ -1628,13 +1683,17 @@ export class PixelUI {
     pxRect(c, lx, py, pw, bh, SLAB);
     pxRect(c, lx, py, pw, hh, INK);
     pxBorder(c, lx, py, pw, bh, 'rgba(242,238,225,0.45)');
-    c.fillStyle = ACCENT;
+    /* the bar and the subtitle wear the circuit's own accent, so the corner
+       panel follows the map the way the TRACK block does; red only when the
+       map somehow has none */
+    const accent = mapAccent(state.maps?.[state.mapIndex ?? 0]?.id);
+    c.fillStyle = accent;
     c.fillRect(lx + 5, py + 4, 2, 15);
     let track = (state.mapName ?? '').toUpperCase();
     this.font(8, 700);
     while (track.length > 1 && c.measureText(track).width > right - lx - 14) track = track.slice(0, -1);
     this.text('LEADERBOARD', lx + 12, py + 4, { size: 8, weight: 700, color: CREAM, spacing: 2 });
-    this.text(track, lx + 12, py + 14, { size: 8, weight: 700, color: ACCENT, spacing: 1 });
+    this.text(track, lx + 12, py + 14, { size: 8, weight: 700, color: accent, spacing: 1 });
 
     const nameX = lx + 30;
     const rankX = nameX - 8;
