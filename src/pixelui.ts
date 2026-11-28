@@ -1581,6 +1581,21 @@ export class PixelUI {
       pxBorder(c, ax, chipY, aw, 13, hot === 'board-all' ? CREAM : 'rgba(242,238,225,0.55)');
       this.text(label, ax + aw / 2, chipY + 2.5, { size: 8, weight: 700, color: CREAM, align: 'center' });
       this.buttons.push({ id: 'board-all', x: ax, y: chipY, w: aw, h: 13, label: 'ALL MAPS' });
+
+      /* the wishlist rides beside ALL MAPS on the title itself, not only in
+         the corner menu: the board is how players shape the game, so it is
+         first-screen furniture whenever the flag has it on */
+      if (acct?.features?.requests === true) {
+        const rl = 'REQUESTS';
+        const rw = this.measure(rl, 8, 700) + 18;
+        const rx = ax - rw - 6;
+        if (rx > w * 0.5) {
+          pxRect(c, rx, chipY, rw, 13, hot === 'requests' ? 'rgba(242,238,225,0.18)' : SLAB);
+          pxBorder(c, rx, chipY, rw, 13, hot === 'requests' ? CREAM : 'rgba(242,238,225,0.55)');
+          this.text(rl, rx + rw / 2, chipY + 2.5, { size: 8, weight: 700, color: CREAM, align: 'center' });
+          this.buttons.push({ id: 'requests', x: rx, y: chipY, w: rw, h: 13, label: 'REQUESTS' });
+        }
+      }
     }
 
     /* ---- ONE corner button for account, admin, settings and the power ---- */
@@ -1628,11 +1643,13 @@ export class PixelUI {
     const nameMax = right - timeW - 8 - nameX;
 
     if (n === 0) {
+      /* offline is a normal way to play this (the itch build has no server):
+         the empty panel points at the boards instead of crying error */
       this.text(acct.offline ? 'OFFLINE' : 'NO TIMES YET', lx + pw / 2, py + hh + 11, {
         size: 8, weight: 700, color: acct.offline ? ACCENT : CREAM,
         align: 'center', spacing: 2,
       });
-      this.text(acct.offline ? 'BOARD UNREACHABLE' : 'BE THE FIRST', lx + pw / 2, py + hh + 22,
+      this.text(acct.offline ? 'DRIFT.LUCASIAN.TECH' : 'BE THE FIRST', lx + pw / 2, py + hh + 22,
         { size: 8, color: DIM, align: 'center' });
     } else {
       this.text('RK', rankX, py + hh + 2, { size: 8, color: DIM, align: 'right' });
@@ -1954,7 +1971,7 @@ export class PixelUI {
     c.fillRect(x + 5, y + 4, 2, 8);
     this.text('FULL LEADERBOARD', x + 12, y + 3, { size: 8, weight: 700, color: CREAM, spacing: 2 });
     if (fb.offline) {
-      this.text('OFFLINE · BOARD UNREACHABLE', x + w - 12, y + 3, { size: 8, color: ACCENT, align: 'right' });
+      this.text('OFFLINE · DRIFT.LUCASIAN.TECH', x + w - 12, y + 3, { size: 8, color: ACCENT, align: 'right' });
     }
 
     // the map tabs: one per circuit, the open page painted in accent
@@ -1989,7 +2006,7 @@ export class PixelUI {
       this.text(fb.offline ? 'OFFLINE' : 'NO TIMES YET', x + w / 2, listTop + 10, {
         size: 8, weight: 700, color: fb.offline ? ACCENT : CREAM, align: 'center', spacing: 2,
       });
-      this.text(fb.offline ? 'BOARD UNREACHABLE' : 'BE THE FIRST', x + w / 2, listTop + 22, {
+      this.text(fb.offline ? 'DRIFT.LUCASIAN.TECH' : 'BE THE FIRST', x + w / 2, listTop + 22, {
         size: 8, color: DIM, align: 'center',
       });
     } else {
