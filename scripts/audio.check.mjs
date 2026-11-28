@@ -33,8 +33,9 @@ registerHooks({
 
 const audio = await import('../src/audio.ts');
 const {
-  ENGINE_ORDERS, LIMITER_FRAC,
-  STINGERS, crankHz, cueLength, engineCutoff, engineLevel, gearOf, revsOf, stingerFor,
+  ENGINE_VOICES, LIMITER_FRAC,
+  STINGERS, crankHz, cueLength, engineCutoff, engineLevel, engineVoice, gearOf,
+  impactEvents, revsOf, squealCentre, squealQ, stingerFor,
 } = audio;
 
 /* --------------------------------------------------------------- pure numbers */
@@ -59,31 +60,55 @@ test('the engine reads the gear the dashboard prints', () => {
 });
 
 test('every gearband pulls from idle to redline and the shift drops the note', () => {
-  assert.equal(revsOf(0), audio.IDLE_RPM);
-  assert.equal(revsOf(1), audio.REDLINE_RPM);
-  assert.ok(revsOf(0.5) > audio.IDLE_RPM && revsOf(0.5) < audio.REDLINE_RPM);
+  for (const v of ENGINE_VOICES) {
+    assert.equal(revsOf(0, v), v.idle);
+    assert.equal(revsOf(1, v), v.redline);
+    assert.ok(revsOf(0.5, v) > v.idle && revsOf(0.5, v) < v.redline);
+  }
   // the top of a band and the bottom of the next: the shift, heard as a drop
   const beforeShift = gearOf(5.5);   // 20 km/h: still gear 1, nearly out of it
   const afterShift = gearOf(6.3);    // 23 km/h: gear 2, back at the bottom
   assert.equal(beforeShift.gear, 1);
   assert.equal(afterShift.gear, 2);
-  const hz = (g) => crankHz(revsOf(g.frac));
+  const hz = (g) => crankHz(revsOf(g.frac, ENGINE_VOICES[0]));
   assert.ok(hz(beforeShift) - hz(afterShift) > 60, 'the note must drop on the shift');
 });
 
-test('the firing note sits where a four-stroke puts it', () => {
-  // 900–7000 rpm is 15–117 Hz of crank; order 2 is the firing frequency, 30–233 Hz
-  assert.ok(Math.abs(crankHz(revsOf(0)) - 15) < 0.01);
-  assert.ok(Math.abs(crankHz(revsOf(1)) - 7000 / 60) < 0.01);
-  const orders = ENGINE_ORDERS.map((o) => o.order);
-  assert.ok(orders.includes(0.5) && orders.includes(2), 'low lope plus firing order');
-  assert.ok(ENGINE_ORDERS.length >= 4, 'a stack, not a single tone');
-  const sum = ENGINE_ORDERS.reduce((a, o) => a + o.gain, 0);
-  assert.ok(sum > 0.6 && sum < 1.2, `stack sums to ${sum}`);
-  for (const o of ENGINE_ORDERS) {
-    assert.ok(['sine', 'square', 'sawtooth', 'triangle'].includes(o.type));
-    assert.ok(o.gain > 0 && o.gain <= 1);
-    assert.ok(o.load >= 0 && o.load <= 1 && o.withRevs >= 0 && o.withRevs <= 1);
+test('each car has its own engine: distinct stacks, pearl revs highest, dune lowest', () => {
+  assert.equal(ENGINE_VOICES.length, 3);
+  const [pearl, groupb, dune] = ENGINE_VOICES;
+  assert.ok(pearl.redline > groupb.redline && groupb.redline > dune.redline, 'the stop is the character');
+  assert.ok(dune.idle < groupb.idle && groupb.idle < pearl.idle, 'the lope idles lower');
+  // distinct harmonic signatures: no two cars share an order multiset
+  const sig = (v) => v.orders.map((o) => `${o.order}:${o.type}`).sort().join(',');
+  assert.notEqual(sig(pearl), sig(groupb), 'pearl and group B share a voice');
+  assert.notEqual(sig(groupb), sig(dune), 'group B and dune share a voice');
+  for (const v of ENGINE_VOICES) {
+    assert.ok(v.orders.length >= 6, 'a stack, not a single tone');
+    const sum = v.orders.reduce((a, o) => a + o.gain, 0);
+    assert.ok(sum > 0.5 && sum < 1.2, `stack sums to ${sum}`);
+    for (const o of v.orders) {
+      assert.ok(['sine', 'square', 'sawtooth', 'triangle'].includes(o.type));
+      assert.ok(o.gain > 0 && o.gain <= 1);
+      assert.ok(o.load >= 0 && o.load <= 1 && o.withRevs >= 0 && o.withRevs <= 1);
+    }
+  }
+  // the grumble is the half-orders: group B leans on them, the pearl does not
+  const lope = (v) => v.orders.filter((o) => o.order % 1 !== 0).reduce((a, o) => a + o.gain, 0);
+  assert.ok(lope(groupb) > lope(pearl), 'group B must lope');
+  assert.ok(lope(dune) > lope(pearl), 'the truck lope is there too');
+  // an out-of-range variant clamps to the ends of the roster, never explodes
+  assert.equal(engineVoice(99).redline, dune.redline);
+  assert.equal(engineVoice(-5).redline, pearl.redline);
+});
+
+test('the firing note sits where a four-stroke puts it, for every car', () => {
+  // rpm over sixty is hertz of crank; order 2 is the firing frequency
+  for (const v of ENGINE_VOICES) {
+    assert.ok(Math.abs(crankHz(revsOf(0, v)) - v.idle / 60) < 0.01);
+    assert.ok(Math.abs(crankHz(revsOf(1, v)) - v.redline / 60) < 0.01);
+    const orders = v.orders.map((o) => o.order);
+    assert.ok(orders.includes(0.5) && orders.includes(2), 'low lope plus firing order');
   }
 });
 
@@ -96,16 +121,50 @@ test('load opens the filter; a closed throttle dulls the note', () => {
   assert.ok(engineLevel(200, 1) <= 0.14, 'conservative: the engine never dominates');
 });
 
-test('the cue layer is gone: two voices, and only two', () => {
-  // the owner listened: powers stay, everything else goes. Pin it, so the
-  // chimes/squeal/impact/click layer cannot creep back in unnoticed.
-  for (const gone of ['LAP_EVENTS', 'LAP_BEST_EVENTS', 'START_EVENTS', 'CLICK_EVENTS', 'GRAVEL_EVENTS', 'impactEvents', 'squealCentre', 'squealQ', 'squealTone']) {
+test('the decorative cue layer stays gone: chimes, lifts, clicks, scuffs', () => {
+  // the owner's verdict on the first listen: powers stay, impacts and the
+  // scrub came back by request — the chimes, lifts, clicks and scuffs did not
+  for (const gone of ['LAP_EVENTS', 'LAP_BEST_EVENTS', 'START_EVENTS', 'CLICK_EVENTS', 'GRAVEL_EVENTS', 'squealTone']) {
     assert.equal(audio[gone], undefined, `${gone} must stay deleted`);
   }
-  // the two voices that remain both start at or after zero
-  for (const cue of [...STINGERS.map((s) => s.events), audio.POWER_LAND_EVENTS]) {
+  // and the voices that DID come back must exist, so this cannot rot silently
+  assert.equal(typeof audio.impactEvents, 'function');
+  assert.equal(typeof audio.squealCentre, 'function');
+  // every one-shot starts at or after zero: no cue schedules into the past
+  for (const cue of [...STINGERS.map((s) => s.events), audio.POWER_LAND_EVENTS, impactEvents(0.9)]) {
     assert.ok(cue.every((e) => e.at >= 0), 'a cue must not start before it is played');
   }
+});
+
+test('the scrub is a low wide band, and the old whine stays gone', () => {
+  assert.equal(audio.squealTone, undefined, 'the sung partial must stay deleted');
+  const centres = [0, 1.5, 3, 4.5, 6, 9].map((slip) => squealCentre(slip, 60));
+  for (let i = 1; i < centres.length; i++) {
+    assert.ok(centres[i] >= centres[i - 1], 'monotonic in slip');
+  }
+  assert.ok(centres[0] >= 540 && centres[0] <= 700, 'a crawling lock-up is a low murmur');
+  assert.ok(centres[centres.length - 1] <= 1010, 'a hard slide stays under the whistle zone');
+  for (const slip of [0, 2, 4, 6, 8]) {
+    const q = squealQ(slip);
+    assert.ok(q >= 1.1 && q <= 2.2, `Q ${q}: wide, never a focused shriek`);
+  }
+  assert.ok(squealCentre(4, 100) > squealCentre(4, 10), 'faster slide, brighter scrub');
+});
+
+test('an impact is layered, and the layers switch on with strength', () => {
+  const light = impactEvents(0.1);
+  const hard = impactEvents(0.9);
+  assert.ok(hard.length > light.length, 'a hard hit has more layers than a nudge');
+  assert.ok(light.length >= 3, 'even a nudge is a thud + knock + crack');
+  for (const e of [...light, ...hard]) {
+    assert.ok(e.dur > 0 && e.dur < 0.6, `${e.k} length`);
+    assert.ok(e.gain > 0 && e.gain <= 0.36, `${e.k} peak ${e.gain}`);
+    if (e.k === 'noise') assert.ok(e.centre > 200 && e.q > 0);
+    if (e.k === 'tone') assert.ok(e.f > 20 && (e.to == null || e.to > 20));
+  }
+  // the debris spray only exists once the hit is worth it
+  assert.equal(light.filter((e) => e.k === 'noise').length, 2);
+  assert.ok(hard.filter((e) => e.k === 'noise').length >= 4);
 });
 
 test('each power has its own voice, and the fallback is not silence', () => {
@@ -222,7 +281,7 @@ function installGlobals({ AudioContext: AC, muted = null }) {
 const { Sound } = await import('../src/sound.ts');
 const { CAR_POWERS } = await import('../src/powers.ts');
 
-const IDLE = { speed: 0, slip: 0, onRoad: true, onKerb: false };
+const IDLE = { speed: 0, slip: 0, onRoad: true, onKerb: false, variant: 0 };
 
 function boot({ muted = null } = {}) {
   const a = fakeAudio();
@@ -250,7 +309,7 @@ function drive(sound, audio, state, frames = 60, dt = 1 / 120, throttle = 0.8, p
 
 test('start builds the car once: a stack, a limiter, a compressor', () => {
   const { sound, audio } = boot();
-  assert.equal(audio.log.osc.length, 8 + 1, 'eight orders and the limiter lfo, and nothing else');
+  assert.equal(audio.log.osc.length, ENGINE_VOICES[0].orders.length + 1, 'the pearl stack and the limiter lfo, and nothing else');
   assert.equal(audio.log.comp, 1, 'one compressor on the master');
   assert.equal(sound.levels.master, 0.55);
   // a second start (a new run on the same page) must not add a second car
@@ -266,7 +325,7 @@ test('the note climbs through a gear and drops on the shift', () => {
   const marks = [];
   for (let i = 0; i < 720; i++) marks.push(i);
   // sample the crank frequency the engine was told to play, frame by frame
-  for (let i = 1; i <= 720; i++) bases.push(crankHz(revsOf(gearOf(i * 0.05).frac)));
+  for (let i = 1; i <= 720; i++) bases.push(crankHz(revsOf(gearOf(i * 0.05).frac, ENGINE_VOICES[0])));
   let drops = 0;
   for (let i = 1; i < bases.length; i++) if (bases[i] < bases[i - 1] - 20) drops++;
   assert.ok(drops >= 3, `the shifts must be heard (${drops} drops)`);
@@ -282,7 +341,7 @@ test('engine pitch stays inside the speakers at every speed', () => {
     assert.ok(o.frequency.value >= 10 && o.frequency.value <= 12000, `${o.frequency.value} Hz`);
   }
   const s = sound.engineState;
-  assert.ok(s.base >= 14 && s.base <= 120, `crank at ${s.base} Hz`);
+  assert.ok(s.base >= 12 && s.base <= 140, `crank at ${s.base} Hz`);
 });
 
 test('the throttle opens the filter and the note gets louder', () => {
@@ -343,14 +402,30 @@ test('mute silences the cue and the car, and is remembered', () => {
   assert.ok(audio.log.osc.length > osc, 'unmuted, a power is heard');
 });
 
+test('switching cars swaps the engine: a new stack, a lower stop', () => {
+  const { sound, audio } = boot();
+  drive(sound, audio, { speed: 20, variant: 0 }, 30, 1 / 120, 1);
+  const pearlBase = sound.engineState.base;
+  const before = audio.log.osc.length;
+  drive(sound, audio, { speed: 20, variant: 1 }, 30, 1 / 120, 1);
+  const groupbBase = sound.engineState.base;
+  // group B's stack replaced pearl's, and its stop is lower at the same speed
+  assert.ok(groupbBase < pearlBase, `group B ${groupbBase.toFixed(1)} vs pearl ${pearlBase.toFixed(1)} Hz`);
+  assert.equal(audio.log.osc.length, before + ENGINE_VOICES[1].orders.length, 'the old stack was replaced, not stacked');
+  drive(sound, audio, { speed: 20, variant: 2 }, 30, 1 / 120, 1);
+  assert.ok(sound.engineState.base < groupbBase, 'the truck stops lowest of all');
+});
+
 test('the mix is conservative and the master is compressed', () => {
   const { sound, audio } = boot();
-  drive(sound, audio, (i) => ({ speed: 6 + (i % 240) / 20 }), 480);
+  drive(sound, audio, (i) => ({ speed: 6 + (i % 240) / 20, slip: (i % 12) }), 480);
+  sound.impact(0.8);
   sound.power('PEARL DRIFT');
   assert.equal(sound.levels.master, 0.55);
   assert.equal(audio.log.comp, 1);
   assert.ok(sound.levels.engine <= 0.10, `engine level ${sound.levels.engine}`);
-  assert.ok(gainRamps(audio.log).length > 0, 'the cue was rendered');
+  assert.ok(sound.levels.squeal <= 0.05, `scrub level ${sound.levels.squeal}`);
+  assert.ok(gainRamps(audio.log).length > 0, 'the cues were rendered');
   for (const r of gainRamps(audio.log)) assert.ok(r.v > 0 && r.v <= 0.36, `gain ${r.v}`);
   assert.deepEqual(audio.log.bad, [], 'nothing illegal was scheduled all drive');
   // every continuing voice is wired into the master, which is wired into the pump
@@ -360,10 +435,11 @@ test('the mix is conservative and the master is compressed', () => {
 
 test('paused is silence, not a torn-out graph', () => {
   const { sound, audio } = boot();
-  drive(sound, audio, { speed: 14 }, 30, 1 / 120, 0.9, false);
+  drive(sound, audio, { speed: 14, slip: 4 }, 30, 1 / 120, 0.9, false);
   const osc = audio.log.osc.length;
-  drive(sound, audio, { speed: 14 }, 30, 1 / 120, 0.9, true);
+  drive(sound, audio, { speed: 14, slip: 4 }, 30, 1 / 120, 0.9, true);
   assert.equal(sound.levels.engine, 0);
+  assert.equal(sound.levels.squeal, 0);
   assert.equal(sound.engineState.limiter, 0);
   assert.equal(audio.log.osc.length, osc, 'no nodes were built for a paused frame');
   assert.ok(audio.log.targets.some((x) => x.v === 0), 'the voices were turned down, not cut out');

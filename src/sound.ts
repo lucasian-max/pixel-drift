@@ -1,29 +1,40 @@
 import type { Car } from './car';
 import {
-  ENGINE_ORDERS, LIMITER_FRAC, POWER_LAND_EVENTS, crankHz, engineCutoff, engineLevel,
-  gearOf, hissCentre, hissLevel, revsOf, stingerFor,
+  LIMITER_FRAC, POWER_LAND_EVENTS, crankHz, engineCutoff, engineLevel, engineVoice,
+  gearOf, hissCentre, hissLevel, impactEvents, revsOf, squealCentre, squealQ, stingerFor,
 } from './audio';
-import type { Event, OrderSpec } from './audio';
+import type { EngineVoice, Event, OrderSpec } from './audio';
 
 /**
- * Pixel Drift's soundtrack: two voices, and nothing else. No assets, no music —
- * the engine (a harmonic stack through one lowpass, with a limiter chop on
- * top) runs continuously off the car's state, and the power stingers are
- * one-shots rendered from the event tables. That is the whole mix: a quiet
- * engine and the powers. The numbers live in src/audio.ts; this file is the
- * wiring.
+ * Pixel Drift's soundtrack: the car, and nothing else. No assets, no music —
+ * every voice here is oscillators and one shared noise buffer, built on the
+ * first input and then only ever retuned. The numbers it plays live in
+ * src/audio.ts; this file is the wiring.
+ *
+ * Layout: the engine (a per-car harmonic stack through one lowpass, with a
+ * limiter chop on top) and the tyre scrub run continuously off the car's
+ * state; impacts and power stingers are one-shots rendered from the event
+ * tables. Switching cars rebuilds the engine's oscillators so each of the
+ * three has its own voice. Master sits low and a compressor catches the
+ * frames where a stinger and an impact land together.
  */
 export class Sound {
   private ctx: AudioContext | null = null;
   private master!: GainNode;
   private pump!: DynamicsCompressorNode;
 
-  // engine: one oscillator per harmonic order, into one lowpass
+  // engine: one oscillator per harmonic order, into one lowpass — rebuilt per car
   private filter!: BiquadFilterNode;
   private engGain!: GainNode;
   private orders: { osc: OscillatorNode; gain: GainNode; spec: OrderSpec }[] = [];
   private limiterLfo!: OscillatorNode;
   private limiterDepth!: GainNode;
+  private voice: EngineVoice = engineVoice(0);
+  private voiceOf = -1;
+
+  // surfaces
+  private squeal!: GainNode;
+  private squealBp!: BiquadFilterNode;
 
   private hiss!: GainNode;
   private hissBp!: BiquadFilterNode;
@@ -58,7 +69,8 @@ export class Sound {
     /* ---- engine ----------------------------------------------------------
        Each order is its own oscillator, tuned to a multiple of the crank
        frequency, and its own gain so the load/revs mix can move per partial.
-       One lowpass across the stack does the on-load/off-load timbre. */
+       One lowpass across the stack does the on-load/off-load timbre. The
+       stack itself is the car's: see buildEngine. */
     this.filter = ctx.createBiquadFilter();
     this.filter.type = 'lowpass';
     this.filter.frequency.value = engineCutoff(0, 0);
@@ -66,16 +78,7 @@ export class Sound {
     this.engGain = ctx.createGain();
     this.engGain.gain.value = 0.0;
     this.filter.connect(this.engGain).connect(this.master);
-    for (const spec of ENGINE_ORDERS) {
-      const osc = ctx.createOscillator();
-      osc.type = spec.type;
-      osc.frequency.value = crankHz(revsOf(0)) * spec.order;
-      const gain = ctx.createGain();
-      gain.gain.value = spec.gain * (1 - spec.load);
-      osc.connect(gain).connect(this.filter);
-      osc.start();
-      this.orders.push({ osc, gain, spec });
-    }
+    this.buildEngine(0);
 
     /* rev limiter: a square wave chopping the engine's gain, silent until the
        needle sits on the stop. Sub-audio, so it reads as a stutter, not a tone */
@@ -106,6 +109,16 @@ export class Sound {
     this.hiss = ctx.createGain();
     this.hiss.gain.value = 0;
     noise.connect(this.hissBp).connect(this.hiss).connect(this.master);
+
+    // tyre scrub: one wide low band of filtered noise, no sung partial — the
+    // old whine was a triangle riding on top, and it is gone on purpose
+    this.squealBp = ctx.createBiquadFilter();
+    this.squealBp.type = 'bandpass';
+    this.squealBp.frequency.value = squealCentre(0, 0);
+    this.squealBp.Q.value = squealQ(0);
+    this.squeal = ctx.createGain();
+    this.squeal.gain.value = 0;
+    noise.connect(this.squealBp).connect(this.squeal).connect(this.master);
 
     noise.start();
 
@@ -165,6 +178,11 @@ export class Sound {
     }
   }
 
+  /** a hit: thud, knock, crack, and debris once it is hard enough */
+  impact(strength: number) {
+    this.play(impactEvents(strength));
+  }
+
   /** a power firing, by the name on the car: TUNNEL, THUNDERCLAP, PEARL DRIFT */
   power(name: string) {
     this.play(stingerFor(name).events);
@@ -181,6 +199,7 @@ export class Sound {
       master: this.master ? this.master.gain.value : 0,
       engine: this.engGain ? this.engGain.gain.value : 0,
       hiss: this.hiss ? this.hiss.gain.value : 0,
+      squeal: this.squeal ? this.squeal.gain.value : 0,
     };
   }
 
@@ -189,7 +208,7 @@ export class Sound {
     return {
       gear: this.lastGear,
       frac: this.lastFrac,
-      base: crankHz(revsOf(this.lastFrac)),
+      base: crankHz(revsOf(this.lastFrac, this.voice)),
       cutoff: this.filter ? this.filter.frequency.value : 0,
       limiter: this.limiterDepth ? this.limiterDepth.gain.value : 0,
     };
@@ -197,17 +216,46 @@ export class Sound {
 
   /* ---------------------------------------------------------------- per frame */
 
+  /** build (or rebuild) the engine's oscillators for a car variant: each of
+      the three cars has its own stack, so switching cars swaps the voice */
+  private buildEngine(variant: number) {
+    const ctx = this.ctx;
+    if (!ctx) return;
+    for (const o of this.orders) {
+      o.gain.gain.value = 0;
+      try { o.osc.stop(); } catch { /* already stopped */ }
+      o.osc.disconnect();
+      o.gain.disconnect();
+    }
+    this.orders.length = 0;
+    this.voice = engineVoice(variant);
+    this.voiceOf = variant;
+    for (const spec of this.voice.orders) {
+      const osc = ctx.createOscillator();
+      osc.type = spec.type;
+      osc.frequency.value = crankHz(revsOf(0, this.voice)) * spec.order;
+      const gain = ctx.createGain();
+      gain.gain.value = spec.gain * (1 - spec.load);
+      osc.connect(gain).connect(this.filter);
+      osc.start();
+      this.orders.push({ osc, gain, spec });
+    }
+  }
+
   update(car: Car, throttle: number, paused: boolean) {
     if (!this.ctx) return;
     const ctx = this.ctx;
     const t = ctx.currentTime;
+    /* a different car is a different engine: rebuild the stack once, on the
+       frame the variant changes, never mid-drive */
+    if (car.variant !== this.voiceOf) this.buildEngine(car.variant);
     const gear = gearOf(car.speed);
     const { reverse, kmh } = gear;
     // reverse has one long band rather than six: the note sits low and rises
     const frac = reverse ? Math.min(1, kmh / 14) : gear.frac;
     this.lastFrac = frac;
     this.lastGear = gear.gear;
-    const base = crankHz(revsOf(frac));
+    const base = crankHz(revsOf(frac, this.voice));
     const load = paused ? 0 : Math.min(1, Math.abs(throttle));
 
     /* engine: pitch follows the crank, each partial's level follows load and
@@ -226,5 +274,14 @@ export class Sound {
     this.hiss.gain.setTargetAtTime(paused ? 0 : level * hissLevel(load), t, 0.08);
     const onLimit = !paused && !reverse && frac > LIMITER_FRAC && load > 0.55;
     this.limiterDepth.gain.setTargetAtTime(onLimit ? level * 0.45 : 0, t, 0.02);
+
+    /* the scrub: low, wide and gentle — it leans in as the slide builds and
+       lets go slower than it grabs */
+    const slip = Math.max(0, car.slip);
+    const scrub = paused || !car.onRoad ? 0
+      : Math.min(0.05, Math.pow(Math.min(1, slip / 6), 1.3) * Math.min(1, kmh / 25) * 0.05);
+    this.squeal.gain.setTargetAtTime(scrub, t, scrub > 0 ? 0.05 : 0.12);
+    this.squealBp.frequency.setTargetAtTime(squealCentre(slip, kmh), t, 0.04);
+    this.squealBp.Q.setTargetAtTime(squealQ(slip), t, 0.06);
   }
 }

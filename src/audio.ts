@@ -1,11 +1,12 @@
 /* Pixel Drift's audio numbers, as data.
  *
- * Everything the synth plays is described here first: the gear/RPM curve the
- * engine follows, the harmonic stack that gives the note its body, and the
- * note sequences the power stingers play. The mix is two voices — a quiet
- * engine and the powers — and nothing else. sound.ts does nothing but wire
- * nodes and push these numbers into them, which means the tuning can be read,
- * reviewed and tested without a speaker.
+ * Everything the synth plays is described here first: the per-car engine
+ * voices (each car's idle, stop and harmonic stack), the low wide tyre scrub,
+ * the layered impacts, and the note sequences the power stingers play. The
+ * mix is the engine under the powers, with the scrub and the hits as the
+ * physics the driver feels. sound.ts does nothing but wire nodes and push
+ * these numbers into them, which means the tuning can be read, reviewed and
+ * tested without a speaker.
  *
  * Pure: no AudioContext, no window, no side effects. scripts/audio.check.mjs
  * holds that line.
@@ -19,8 +20,6 @@ export type Wave = 'sine' | 'square' | 'sawtooth' | 'triangle';
 export const GEAR_KMH = 22;
 /** the top gear the HUD will show */
 export const TOP_GEAR = 6;
-export const IDLE_RPM = 900;
-export const REDLINE_RPM = 7000;
 /** at or past this fraction of a gearband the engine is on the limiter */
 export const LIMITER_FRAC = 0.94;
 
@@ -49,9 +48,10 @@ export function gearOf(speed: number): GearState {
   return { gear, reverse, frac, kmh };
 }
 
-/** crank revolutions for a position inside a gear: idle at the bottom, redline at the top */
-export const revsOf = (frac: number) =>
-  IDLE_RPM + Math.max(0, Math.min(1, frac)) * (REDLINE_RPM - IDLE_RPM);
+/** crank revolutions for a position inside a gear: this car's idle at the
+ *  bottom, this car's redline at the top — the range is the voice's own */
+export const revsOf = (frac: number, v: EngineVoice) =>
+  v.idle + Math.max(0, Math.min(1, frac)) * (v.redline - v.idle);
 
 /** a four-stroke crank, in hertz: revolutions per minute over sixty */
 export const crankHz = (revs: number) => revs / 60;
@@ -69,20 +69,67 @@ export interface OrderSpec {
   readonly withRevs: number;
 }
 
-/** the harmonic stack: low orders carry the note, high orders carry the snarl.
- *  Eight of them, because a real engine's spectrum reaches well past the firing
- *  order — and because a laptop speaker drops everything under ~150 Hz, so the
- *  upper orders are what makes the car audible at all on a small machine. */
-export const ENGINE_ORDERS: readonly OrderSpec[] = [
-  { order: 0.5, type: 'sine', gain: 0.16, load: 0.0, withRevs: 0 },
-  { order: 1, type: 'sine', gain: 0.20, load: 0.0, withRevs: 0 },
-  { order: 2, type: 'sawtooth', gain: 0.30, load: 0.25, withRevs: 0 },
-  { order: 3, type: 'square', gain: 0.14, load: 0.7, withRevs: 0.6 },
-  { order: 4, type: 'sawtooth', gain: 0.16, load: 0.5, withRevs: 0.55 },
-  { order: 6, type: 'triangle', gain: 0.09, load: 0.45, withRevs: 0.7 },
-  { order: 8, type: 'sawtooth', gain: 0.06, load: 0.6, withRevs: 0.85 },
-  { order: 10, type: 'square', gain: 0.035, load: 0.7, withRevs: 0.9 },
-];
+/** one car's engine: its idle, its stop, and the harmonic stack that gives it a
+ *  voice. The gear bands are shared (the HUD owns them), so what differs per
+ *  car is the character: where the note starts, where it stops, and which
+ *  partials shout. */
+export interface EngineVoice {
+  readonly idle: number;
+  readonly redline: number;
+  readonly orders: readonly OrderSpec[];
+}
+
+/* PEARL GT — the smooth screamer: evens forward, sine and triangle, so the
+   note climbs without a snarl and sings at the top of the box. */
+const PEARL_ENGINE: EngineVoice = {
+  idle: 1000, redline: 7800,
+  orders: [
+    { order: 0.5, type: 'sine', gain: 0.07, load: 0.0, withRevs: 0 },
+    { order: 1, type: 'sine', gain: 0.10, load: 0.0, withRevs: 0 },
+    { order: 2, type: 'sine', gain: 0.22, load: 0.15, withRevs: 0 },
+    { order: 3, type: 'triangle', gain: 0.08, load: 0.5, withRevs: 0.5 },
+    { order: 4, type: 'sine', gain: 0.15, load: 0.45, withRevs: 0.5 },
+    { order: 6, type: 'triangle', gain: 0.10, load: 0.4, withRevs: 0.75 },
+    { order: 8, type: 'sine', gain: 0.05, load: 0.55, withRevs: 0.9 },
+  ],
+};
+
+/* GROUP B — the rally grumble: strong half-orders for the lope, sawtooth mid,
+   and it stops early because a Group B engine is all midrange. */
+const GROUPB_ENGINE: EngineVoice = {
+  idle: 850, redline: 6600,
+  orders: [
+    { order: 0.5, type: 'sawtooth', gain: 0.14, load: 0.0, withRevs: 0 },
+    { order: 1, type: 'sawtooth', gain: 0.17, load: 0.0, withRevs: 0 },
+    { order: 1.5, type: 'square', gain: 0.06, load: 0.6, withRevs: 0.3 },
+    { order: 2, type: 'sawtooth', gain: 0.22, load: 0.3, withRevs: 0 },
+    { order: 3, type: 'square', gain: 0.12, load: 0.7, withRevs: 0.6 },
+    { order: 4, type: 'sawtooth', gain: 0.14, load: 0.5, withRevs: 0.6 },
+    { order: 6, type: 'square', gain: 0.05, load: 0.5, withRevs: 0.8 },
+  ],
+};
+
+/* DUNE RUNNER — the torque truck: the low orders dominate, the note barely
+   bothers with the bright ones, and it stops lowest of the three. */
+const DUNE_ENGINE: EngineVoice = {
+  idle: 750, redline: 5800,
+  orders: [
+    { order: 0.5, type: 'triangle', gain: 0.18, load: 0.0, withRevs: 0 },
+    { order: 1, type: 'triangle', gain: 0.22, load: 0.0, withRevs: 0 },
+    { order: 2, type: 'triangle', gain: 0.20, load: 0.25, withRevs: 0 },
+    { order: 3, type: 'sawtooth', gain: 0.10, load: 0.55, withRevs: 0.5 },
+    { order: 4, type: 'triangle', gain: 0.08, load: 0.4, withRevs: 0.6 },
+    { order: 6, type: 'sawtooth', gain: 0.035, load: 0.5, withRevs: 0.85 },
+  ],
+};
+
+/** the three cars, in variant order (PEARL GT, GROUP B, DUNE RUNNER) */
+export const ENGINE_VOICES: readonly EngineVoice[] = [PEARL_ENGINE, GROUPB_ENGINE, DUNE_ENGINE];
+
+/** the voice for a car variant; an out-of-range variant still gets an engine */
+export function engineVoice(variant: number): EngineVoice {
+  return ENGINE_VOICES[Math.max(0, Math.min(ENGINE_VOICES.length - 1, Math.round(variant)))] ?? PEARL_ENGINE;
+}
 
 /**
  * Where the lowpass sits. Off the throttle the note is a dull rumble; on it,
@@ -105,6 +152,23 @@ export const engineLevel = (kmh: number, throttle: number) =>
 
 /** the hiss layer's own level, as a share of the engine's */
 export const hissLevel = (load: number) => 0.28 + Math.max(0, Math.min(1, load)) * 0.34;
+
+/* ----------------------------------------------------------------- tyre scrub */
+
+/**
+ * The squeal the owner asked back, rebuilt so it is not the old whistle: no
+ * sung partial at all (that was the shriek), and the band sits low and wide
+ * instead of high and narrow. Tyre scrub in the good arcade racers is a
+ * textured hiss that leans on you as the slide builds — rubber on road, not
+ * a kettle. Centre stays under ~1 kHz, the band never tightens past 2.2.
+ */
+export const squealCentre = (slip: number, kmh: number) => {
+  const s = Math.max(0, Math.min(1, slip / 6));
+  return 560 + s * 320 + Math.min(120, kmh * 0.7);
+};
+
+/** wide, always: a scrub, never a focused shriek */
+export const squealQ = (slip: number) => 1.1 + Math.max(0, Math.min(1, slip / 6)) * 1.1;
 
 /* --------------------------------------------------------- one-shot vocabulary
    One shape for every one-shot: a tone that may glide, or a burst of filtered
@@ -143,9 +207,27 @@ export const cueLength = (events: readonly Event[]) =>
   events.reduce((end, e) => Math.max(end, e.at + e.dur), 0);
 
 /* -------------------------------------------------------------------- impact */
-/* Removed with the rest of the cue layer: the mix is the engine and the
-   powers, nothing else. The one-shot shapes and the renderer remain below,
-   because the power stingers are built from them. */
+
+/**
+ * A hit is layered, and the layers switch on with the hit: a low thud that
+ * carries the weight, a body knock for the sheet metal, a short crack for the
+ * transient, and — past a quarter strength — a spray of debris on top.
+ * The owner kept these when the rest of the cue layer went.
+ */
+export function impactEvents(strength: number): Event[] {
+  const s = Math.max(0, Math.min(1, strength));
+  const out: Event[] = [
+    tone(0, 130, 0.22, 'triangle', Math.min(0.34, 0.10 + s * 0.26), 40),
+    noise(0, 620 + s * 420, 0.9, 0.10, 0.06 + s * 0.10),
+    noise(0, 3200, 0.7, 0.035, 0.035 + s * 0.045),
+  ];
+  if (s > 0.25) {
+    // debris: a spray that scatters, so a second, slower grain follows the first
+    out.push(noise(0.01, 2400, 0.6, 0.12 + s * 0.20, 0.10 * s, 1200));
+    out.push(noise(0.07, 1700, 0.7, 0.10 + s * 0.16, 0.06 * s, 900, 0.8));
+  }
+  return out;
+}
 
 /* ------------------------------------------------------------------ powers */
 

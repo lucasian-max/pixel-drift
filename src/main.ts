@@ -716,6 +716,7 @@ async function boot() {
   if (covered) { PixelUI.checkerField(uiCanvas); ui.startCovered(); window.clearTimeout(curtainTimer); }
   const sound = new Sound();   // two voices: the engine and the powers
   car.onImpact = (s: number) => {
+    sound.impact(s);
     recorder.noteEvent('impact', { strength: s, x: car.x, z: car.z });
   };
   let running = false;
