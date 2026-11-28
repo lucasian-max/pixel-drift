@@ -123,10 +123,13 @@ export function buildRallyCar(): THREE.Group {
   // ---------- Greenhouse: dark glass in a yellow frame ----------
   // The crown is painted by the hull itself rather than by a slab laid on top of it, so
   // there is no step between glass and roof, and the roof edge stays a clean line at
-  // 640×360. The rally identity up here is carried by the parts bolted to the roof — the
-  // lamp pod and the vent — not by painting the whole canopy out.
+  // 640×360. The crown is ink, not yellow: the roof is the one surface the garage's
+  // overhead camera sees of the canopy, and a yellow slab there reads as a yellow
+  // windscreen. The dark roof reads as one band from above and the glass as one dark
+  // band from the side; the rally identity up top is carried by the parts bolted to
+  // the roof — the lamp pod and the vent — not by painting the canopy out.
   const cabAt = (z: number) => bodyAt(CABIN, z);
-  const cabin = shell.hull(CABIN, [M.glass, M.yellow], new Set([4]));
+  const cabin = shell.hull(CABIN, [M.glass, M.ink], new Set([4]));
   cabin.name = 'cabin';
   shell.car.add(outline(cabin, 1.022));
 
