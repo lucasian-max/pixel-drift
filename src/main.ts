@@ -1686,7 +1686,7 @@ async function boot() {
   void sessionReady.then(() => { if (account.user) flushLaps(); });
 
   (window as unknown as { game: unknown }).game = {
-    car, world, camera, renderer, scene, account, recorder, ui,
+    car, world, camera, renderer, scene, account, recorder, ui, sound,
     get laps() { return laps; },
     get lapTime() { return lapTime; },
     get started() { return started; },
