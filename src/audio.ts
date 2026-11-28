@@ -1,10 +1,11 @@
 /* Pixel Drift's audio numbers, as data.
  *
  * Everything the synth plays is described here first: the gear/RPM curve the
- * engine follows, the harmonic stack that gives the note its body, the spectral
- * rules for tyre squeal, and the little note sequences the stingers and chimes
- * play. sound.ts does nothing but wire nodes and push these numbers into them,
- * which means the tuning can be read, reviewed and tested without a speaker.
+ * engine follows, the harmonic stack that gives the note its body, and the
+ * note sequences the power stingers play. The mix is two voices — a quiet
+ * engine and the powers — and nothing else. sound.ts does nothing but wire
+ * nodes and push these numbers into them, which means the tuning can be read,
+ * reviewed and tested without a speaker.
  *
  * Pure: no AudioContext, no window, no side effects. scripts/audio.check.mjs
  * holds that line.
@@ -96,30 +97,14 @@ export const engineCutoff = (frac: number, load: number) =>
 export const hissCentre = (frac: number, load: number) =>
   460 + Math.max(0, Math.min(1, frac)) * 900 + Math.max(0, Math.min(1, load)) * 260;
 
-/** engine level 0..1 of the master: idle is quiet, flat out and loaded is not */
+/** engine level 0..1 of the master: idle is quiet, flat out and loaded is not.
+ *  Held low on purpose: the mix is a quiet engine under the power stingers,
+ *  and the car should never drown the game out. */
 export const engineLevel = (kmh: number, throttle: number) =>
-  0.056 + Math.abs(throttle) * 0.050 + Math.min(1, kmh / 130) * 0.024;
+  0.034 + Math.abs(throttle) * 0.030 + Math.min(1, kmh / 130) * 0.014;
 
 /** the hiss layer's own level, as a share of the engine's */
 export const hissLevel = (load: number) => 0.28 + Math.max(0, Math.min(1, load)) * 0.34;
-
-/* ----------------------------------------------------------------- tyre drift */
-
-/**
- * Squeal centre frequency. Stick-slip squeal in measured road tests lands in
- * the 0.9–1.2 kHz band and climbs as the friction coefficient climbs, so the
- * pitch follows the slide: idle lock-up groans low, a hard slide shrieks.
- */
-export const squealCentre = (slip: number, kmh: number) => {
-  const s = Math.max(0, Math.min(1, slip / 6));
-  return 900 + s * 900 + Math.min(260, kmh * 1.4);
-};
-
-/** the sung partial riding on the noise band (a squeal is not just hiss) */
-export const squealTone = (centre: number) => centre * 1.45;
-
-/** how narrow the band gets: a hard slide is a tighter, more focused shriek */
-export const squealQ = (slip: number) => 4.2 + Math.max(0, Math.min(1, slip / 6)) * 4.2;
 
 /* --------------------------------------------------------- one-shot vocabulary
    One shape for every one-shot: a tone that may glide, or a burst of filtered
@@ -158,26 +143,9 @@ export const cueLength = (events: readonly Event[]) =>
   events.reduce((end, e) => Math.max(end, e.at + e.dur), 0);
 
 /* -------------------------------------------------------------------- impact */
-
-/**
- * A hit is layered, and the layers switch on with the hit: a low thud that
- * carries the weight, a body knock for the sheet metal, a short crack for the
- * transient, and — past a quarter strength — a spray of debris on top.
- */
-export function impactEvents(strength: number): Event[] {
-  const s = Math.max(0, Math.min(1, strength));
-  const out: Event[] = [
-    tone(0, 130, 0.22, 'triangle', Math.min(0.34, 0.10 + s * 0.26), 40),
-    noise(0, 620 + s * 420, 0.9, 0.10, 0.06 + s * 0.10),
-    noise(0, 3200, 0.7, 0.035, 0.035 + s * 0.045),
-  ];
-  if (s > 0.25) {
-    // debris: a spray that scatters, so a second, slower grain follows the first
-    out.push(noise(0.01, 2400, 0.6, 0.12 + s * 0.20, 0.10 * s, 1200));
-    out.push(noise(0.07, 1700, 0.7, 0.10 + s * 0.16, 0.06 * s, 900, 0.8));
-  }
-  return out;
-}
+/* Removed with the rest of the cue layer: the mix is the engine and the
+   powers, nothing else. The one-shot shapes and the renderer remain below,
+   because the power stingers are built from them. */
 
 /* ------------------------------------------------------------------ powers */
 
@@ -241,36 +209,7 @@ export function stingerFor(name: string): Stinger {
   };
 }
 
-/* ---------------------------------------------------------------- game feel */
-
-/** crossing the line: a dry two-note lift, no fanfare — but loud enough to be
- *  heard over the engine that is still running underneath it */
-export const LAP_EVENTS: readonly Event[] = [
-  tone(0, 880, 0.09, 'square', 0.11),
-  tone(0.09, 1174.7, 0.16, 'square', 0.09),
-];
-
-/** ...and when it is the best lap you have ever driven on this circuit */
-export const LAP_BEST_EVENTS: readonly Event[] = [
-  tone(0, 880, 0.08, 'square', 0.11),
-  tone(0.08, 1108.7, 0.08, 'square', 0.11),
-  tone(0.16, 1318.5, 0.10, 'square', 0.11),
-  tone(0.26, 1760, 0.34, 'square', 0.10),
-  tone(0.26, 880, 0.34, 'triangle', 0.07),
-];
-
-/** leaving the line: the run has started */
-export const START_EVENTS: readonly Event[] = [
-  tone(0, 660, 0.08, 'square', 0.05),
-  tone(0.09, 990, 0.20, 'square', 0.045),
-];
-
-/** a menu press: one dry click, no tail */
-export const CLICK_EVENTS: readonly Event[] = [tone(0, 720, 0.035, 'square', 0.04, 640)];
-
-/** dropping a wheel onto gravel: a low scuff and a spray, pitched where a
- *  laptop speaker can still render it */
-export const GRAVEL_EVENTS: readonly Event[] = [
-  tone(0, 140, 0.13, 'triangle', 0.15, 70),
-  noise(0.005, 1600, 0.8, 0.18, 0.075, 700),
-];
+/* ------------------------------------------------------------- game feel ----
+   The lap chimes, the start lift, the UI clicks and the gravel scuffs are gone:
+   the owner listened and kept exactly one voice of the cue layer — the powers.
+   The engine above is the other voice, and it is the whole soundtrack. */

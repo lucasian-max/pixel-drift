@@ -689,9 +689,8 @@ async function boot() {
   addEventListener('resize', () => { resize(); ui.resize(); });
   resize();
   const ui = new PixelUI(uiCanvas, world.minimapPath, world.start);
-  const sound = new Sound();   // engine + tyres only: there is no music
+  const sound = new Sound();   // two voices: the engine and the powers
   car.onImpact = (s: number) => {
-    sound.impact(s);
     recorder.noteEvent('impact', { strength: s, x: car.x, z: car.z });
   };
   let running = false;
@@ -916,7 +915,6 @@ async function boot() {
   };
 
   ui.onAction = (a) => {
-    sound.click();   // every press sounds the same: tiny, dry, in the pixel voice
     if (a === 'solo') { begin(); fullBoardOpen = false; }
     // the title's corner menu is the UI's own state: nothing here to switch
     else if (a === 'menu') ui.toggleMenu();
@@ -1443,7 +1441,6 @@ async function boot() {
     car.trackIndex = idx;
     if (!started && Math.hypot(car.x - world.start.x, car.z - world.start.z) > 5) {
       started = true;
-      sound.go();   // the run is live: one short lift, not a countdown
       resetTrace();
       lapTrace.push({ x: car.x, z: car.z, t: 0, h: car.heading });
     }
@@ -1473,7 +1470,6 @@ async function boot() {
         delta: prevBest > 0 ? Math.round((lapTime - prevBest) * 1000) : null,
       };
       lapBarUntil = performance.now() / 1000 + 4;
-      sound.lap(lapBar.pb);   // a lift for the line, a bigger one for a best
       if (bestTime === 0 || lapTime < bestTime) {
         bestTime = lapTime;
         try { localStorage.setItem(bestKey, String(bestTime)); } catch { /* private mode */ }

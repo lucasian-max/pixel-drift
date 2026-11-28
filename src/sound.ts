@@ -1,22 +1,17 @@
 import type { Car } from './car';
 import {
-  CLICK_EVENTS, ENGINE_ORDERS, GRAVEL_EVENTS, LAP_BEST_EVENTS, LAP_EVENTS, LIMITER_FRAC,
-  POWER_LAND_EVENTS, START_EVENTS, crankHz, engineCutoff, engineLevel, gearOf, hissCentre,
-  hissLevel, impactEvents, revsOf, squealCentre, squealQ, squealTone, stingerFor,
+  ENGINE_ORDERS, LIMITER_FRAC, POWER_LAND_EVENTS, crankHz, engineCutoff, engineLevel,
+  gearOf, hissCentre, hissLevel, revsOf, stingerFor,
 } from './audio';
 import type { Event, OrderSpec } from './audio';
 
 /**
- * Pixel Drift's soundtrack: the car, and nothing else. No assets, no music —
- * every voice here is oscillators and one shared noise buffer, built on the
- * first input and then only ever retuned. The numbers it plays live in
- * src/audio.ts; this file is the wiring.
- *
- * Layout: engine (a harmonic stack through one lowpass, with a limiter chop on
- * top) and the surfaces (squeal, gravel, kerb) run continuously off the car's
- * state; impacts, power stingers, lap chimes and UI clicks are one-shots
- * rendered from the event tables. Master sits low and a compressor catches the
- * frames where a stinger and an impact land together.
+ * Pixel Drift's soundtrack: two voices, and nothing else. No assets, no music —
+ * the engine (a harmonic stack through one lowpass, with a limiter chop on
+ * top) runs continuously off the car's state, and the power stingers are
+ * one-shots rendered from the event tables. That is the whole mix: a quiet
+ * engine and the powers. The numbers live in src/audio.ts; this file is the
+ * wiring.
  */
 export class Sound {
   private ctx: AudioContext | null = null;
@@ -30,20 +25,10 @@ export class Sound {
   private limiterLfo!: OscillatorNode;
   private limiterDepth!: GainNode;
 
-  // surfaces
-  private squeal!: GainNode;
-  private squealBp!: BiquadFilterNode;
-  private squealToneOsc!: OscillatorNode;
-  private squealToneGain!: GainNode;
-  private rumble!: GainNode;
-  private rattle!: GainNode;
-  private kerb!: GainNode;
-
   private hiss!: GainNode;
   private hissBp!: BiquadFilterNode;
 
   private noiseBuf: AudioBuffer | null = null;
-  private wasGravel = false;
   private lastGear = 1;
   private lastFrac = 0;
 
@@ -59,7 +44,7 @@ export class Sound {
     this.ctx = ctx;
 
     // master → compressor → speakers: the compressor exists so a power stinger
-    // landing on the same frame as an impact has somewhere to go but up
+    // has somewhere to go but up
     this.master = ctx.createGain();
     this.master.gain.value = this.muted ? 0 : 0.55;
     this.pump = ctx.createDynamicsCompressor();
@@ -111,47 +96,6 @@ export class Sound {
     const noise = ctx.createBufferSource();
     noise.buffer = buf;
     noise.loop = true;
-
-    // tyre squeal: a narrow noise band for the hiss plus a sung partial on top,
-    // both pitched from the slide so the shriek rises with the slip
-    this.squealBp = ctx.createBiquadFilter();
-    this.squealBp.type = 'bandpass';
-    this.squealBp.frequency.value = squealCentre(0, 0);
-    this.squealBp.Q.value = squealQ(0);
-    this.squeal = ctx.createGain();
-    this.squeal.gain.value = 0;
-    noise.connect(this.squealBp).connect(this.squeal).connect(this.master);
-    this.squealToneOsc = ctx.createOscillator();
-    this.squealToneOsc.type = 'triangle';
-    this.squealToneOsc.frequency.value = squealTone(squealCentre(0, 0));
-    this.squealToneGain = ctx.createGain();
-    this.squealToneGain.gain.value = 0.35;
-    this.squealToneOsc.connect(this.squealToneGain).connect(this.squeal);
-    this.squealToneOsc.start();
-
-    // gravel: a low scuff with a dry rattle over it
-    const lp = ctx.createBiquadFilter();
-    lp.type = 'lowpass';
-    lp.frequency.value = 420;
-    this.rumble = ctx.createGain();
-    this.rumble.gain.value = 0;
-    noise.connect(lp).connect(this.rumble).connect(this.master);
-    const rattle = ctx.createBiquadFilter();
-    rattle.type = 'bandpass';
-    rattle.frequency.value = 1250;
-    rattle.Q.value = 0.8;
-    this.rattle = ctx.createGain();
-    this.rattle.gain.value = 0;
-    noise.connect(rattle).connect(this.rattle).connect(this.master);
-
-    // kerb: low, hollow rattle — the painted strip under two wheels
-    const kp = ctx.createBiquadFilter();
-    kp.type = 'bandpass';
-    kp.frequency.value = 150;
-    kp.Q.value = 0.7;
-    this.kerb = ctx.createGain();
-    this.kerb.gain.value = 0;
-    noise.connect(kp).connect(this.kerb).connect(this.master);
 
     // exhaust and induction: a band of noise riding the engine's load. This is
     // the layer a laptop speaker can actually reproduce when the note sits at 40 Hz
@@ -221,11 +165,6 @@ export class Sound {
     }
   }
 
-  /** a hit: thud, knock, crack, and debris once it is hard enough */
-  impact(strength: number) {
-    this.play(impactEvents(strength));
-  }
-
   /** a power firing, by the name on the car: TUNNEL, THUNDERCLAP, PEARL DRIFT */
   power(name: string) {
     this.play(stingerFor(name).events);
@@ -236,28 +175,12 @@ export class Sound {
     this.play(POWER_LAND_EVENTS);
   }
 
-  /** crossing the line; `best` when it is a new personal best */
-  lap(best: boolean) {
-    this.play(best ? LAP_BEST_EVENTS : LAP_EVENTS);
-  }
-
-  /** the run has started: the car has left the line */
-  go() {
-    this.play(START_EVENTS);
-  }
-
-  /** a menu press */
-  click() {
-    this.play(CLICK_EVENTS);
-  }
-
-  /** current gain targets, read-only: master, engine, hiss, squeal */
+  /** current gain targets, read-only: master, engine, hiss */
   get levels() {
     return {
       master: this.master ? this.master.gain.value : 0,
       engine: this.engGain ? this.engGain.gain.value : 0,
       hiss: this.hiss ? this.hiss.gain.value : 0,
-      squeal: this.squeal ? this.squeal.gain.value : 0,
     };
   }
 
@@ -269,16 +192,6 @@ export class Sound {
       base: crankHz(revsOf(this.lastFrac)),
       cutoff: this.filter ? this.filter.frequency.value : 0,
       limiter: this.limiterDepth ? this.limiterDepth.gain.value : 0,
-    };
-  }
-
-  /** what the tyres are doing right now, read-only — for probes and tests */
-  get drift() {
-    return {
-      level: this.squeal ? this.squeal.gain.value : 0,
-      centre: this.squealBp ? this.squealBp.frequency.value : 0,
-      q: this.squealBp ? this.squealBp.Q.value : 0,
-      tone: this.squealToneOsc ? this.squealToneOsc.frequency.value : 0,
     };
   }
 
@@ -313,32 +226,5 @@ export class Sound {
     this.hiss.gain.setTargetAtTime(paused ? 0 : level * hissLevel(load), t, 0.08);
     const onLimit = !paused && !reverse && frac > LIMITER_FRAC && load > 0.55;
     this.limiterDepth.gain.setTargetAtTime(onLimit ? level * 0.45 : 0, t, 0.02);
-
-    /* squeal: the signature sound of a drifting game. Pitch, width and level
-       all follow the slide, and it lets go slower than it grabs */
-    const slip = Math.max(0, car.slip);
-    const squealLevel = paused || !car.onRoad ? 0 : Math.min(0.10, Math.pow(Math.min(1, slip / 6), 1.1) * Math.min(1, kmh / 25) * 0.10);
-    const centre = squealCentre(slip, kmh);
-    this.squeal.gain.setTargetAtTime(squealLevel, t, squealLevel > 0 ? 0.05 : 0.12);
-    this.squealBp.frequency.setTargetAtTime(centre, t, 0.04);
-    this.squealBp.Q.setTargetAtTime(squealQ(slip), t, 0.06);
-    this.squealToneOsc.frequency.setTargetAtTime(squealTone(centre), t, 0.04);
-
-    /* off the road: a low scuff plus a rattle, and a one-shot the first frame
-       the wheel drops onto it, so the surface change is heard and not just felt */
-    const gravel = !car.onRoad && !car.onKerb;
-    if (gravel && !this.wasGravel && !paused) this.play(GRAVEL_EVENTS);
-    this.wasGravel = gravel;
-    this.rumble.gain.setTargetAtTime(
-      paused || !gravel ? 0 : Math.min(0.09, kmh * 0.0009), t, 0.1,
-    );
-    this.rattle.gain.setTargetAtTime(
-      paused || !gravel ? 0 : Math.min(0.032, kmh * 0.00032), t, 0.1,
-    );
-    const kerbPulse = 0.55 + 0.45 * Math.sin(t * 150);
-    const kerb = Math.min(1, Math.abs(car.speed) / 9);
-    this.kerb.gain.setTargetAtTime(
-      paused || !car.onKerb ? 0 : kerbPulse * kerb * 0.07, t, 0.02,
-    );
   }
 }

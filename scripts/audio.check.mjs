@@ -2,13 +2,17 @@
 // scripts/audio.check.mjs — the car's sound, proven without a speaker.
 //
 // Two halves, because the sound is two halves:
-//   1. src/audio.ts — the numbers: gear curve, harmonic stack, squeal spectrum,
-//      and the event tables every cue is built from. Pure, so they can be read.
+//   1. src/audio.ts — the numbers: gear curve, harmonic stack, and the event
+//      tables the power stingers are built from. Pure, so they can be read.
 //   2. src/sound.ts — the wiring, driven against a fake AudioContext that
 //      records every node and every automation call. That lets us assert what a
 //      listener would hear: pitch rising through a gear and dropping on the
-//      shift, squeal tracking slip, impacts layering with strength, stingers
-//      per power, silence when muted or paused, and no ramp the spec rejects.
+//      shift, stingers per power, silence when muted or paused, and no ramp the
+//      spec rejects.
+//
+// The mix is two voices — a quiet engine and the powers — and the suite pins
+// that: the cue layer (squeal, surfaces, impacts, chimes, clicks) is gone and
+// must stay gone.
 //
 // Run by `npm test`. `node --test scripts/audio.check.mjs` also works.
 import assert from 'node:assert/strict';
@@ -29,9 +33,8 @@ registerHooks({
 
 const audio = await import('../src/audio.ts');
 const {
-  CLICK_EVENTS, ENGINE_ORDERS, GRAVEL_EVENTS, LAP_BEST_EVENTS, LAP_EVENTS, LIMITER_FRAC,
-  STINGERS, crankHz, cueLength, engineCutoff, engineLevel, gearOf, impactEvents, revsOf,
-  squealCentre, squealQ, squealTone, stingerFor,
+  ENGINE_ORDERS, LIMITER_FRAC,
+  STINGERS, crankHz, cueLength, engineCutoff, engineLevel, gearOf, revsOf, stingerFor,
 } = audio;
 
 /* --------------------------------------------------------------- pure numbers */
@@ -93,32 +96,16 @@ test('load opens the filter; a closed throttle dulls the note', () => {
   assert.ok(engineLevel(200, 1) <= 0.14, 'conservative: the engine never dominates');
 });
 
-test('squeal pitch and width follow the slide, in the measured band', () => {
-  const centres = [0, 1.5, 3, 4.5, 6, 9].map((slip) => squealCentre(slip, 60));
-  for (let i = 1; i < centres.length; i++) {
-    assert.ok(centres[i] >= centres[i - 1], 'monotonic in slip');
+test('the cue layer is gone: two voices, and only two', () => {
+  // the owner listened: powers stay, everything else goes. Pin it, so the
+  // chimes/squeal/impact/click layer cannot creep back in unnoticed.
+  for (const gone of ['LAP_EVENTS', 'LAP_BEST_EVENTS', 'START_EVENTS', 'CLICK_EVENTS', 'GRAVEL_EVENTS', 'impactEvents', 'squealCentre', 'squealQ', 'squealTone']) {
+    assert.equal(audio[gone], undefined, `${gone} must stay deleted`);
   }
-  assert.ok(centres[0] >= 850, 'a crawling lock-up still squeaks');
-  assert.ok(centres[centres.length - 1] <= 2100, 'a hard slide is bright, not a whistle');
-  assert.ok(squealCentre(4, 100) > squealCentre(4, 10), 'faster slide, higher shriek');
-  assert.ok(squealQ(6) > squealQ(0), 'a hard slide is a tighter band');
-  assert.ok(squealTone(1000) > 1000 && squealTone(1000) < 2000, 'sing rides above the hiss');
-});
-
-test('an impact is layered, and the layers switch on with strength', () => {
-  const light = impactEvents(0.1);
-  const hard = impactEvents(0.9);
-  assert.ok(hard.length > light.length, 'a hard hit has more layers than a nudge');
-  assert.ok(light.length >= 3, 'even a nudge is a thud + knock + crack');
-  for (const e of [...light, ...hard]) {
-    assert.ok(e.dur > 0 && e.dur < 0.6, `${e.k} length`);
-    assert.ok(e.gain > 0 && e.gain <= 0.36, `${e.k} peak ${e.gain}`);
-    if (e.k === 'noise') assert.ok(e.centre > 200 && e.q > 0);
-    if (e.k === 'tone') assert.ok(e.f > 20 && (e.to == null || e.to > 20));
+  // the two voices that remain both start at or after zero
+  for (const cue of [...STINGERS.map((s) => s.events), audio.POWER_LAND_EVENTS]) {
+    assert.ok(cue.every((e) => e.at >= 0), 'a cue must not start before it is played');
   }
-  // the debris spray only exists once the hit is worth it
-  assert.equal(light.filter((e) => e.k === 'noise').length, 2);
-  assert.ok(hard.filter((e) => e.k === 'noise').length >= 4);
 });
 
 test('each power has its own voice, and the fallback is not silence', () => {
@@ -134,19 +121,6 @@ test('each power has its own voice, and the fallback is not silence', () => {
   const fallback = stingerFor('NOT A POWER');
   assert.ok(fallback.events.length > 0);
   assert.equal(stingerFor('TUNNEL').name, 'TUNNEL');
-});
-
-test('the chimes stay short and the best lap is the louder gesture', () => {
-  assert.ok(cueLength(LAP_EVENTS) < 0.4, 'a lap is a lift, not a fanfare');
-  assert.ok(cueLength(LAP_BEST_EVENTS) < 0.8);
-  assert.ok(LAP_BEST_EVENTS.length > LAP_EVENTS.length, 'a best says more');
-  assert.ok(cueLength(CLICK_EVENTS) <= 0.06, 'a click has no tail');
-  assert.ok(CLICK_EVENTS.every((e) => e.gain <= 0.05), 'a click is tiny');
-  assert.ok(cueLength(GRAVEL_EVENTS) < 0.25);
-  // every one-shot starts at or after zero: no cue schedules into the past
-  for (const cue of [LAP_EVENTS, LAP_BEST_EVENTS, CLICK_EVENTS, GRAVEL_EVENTS, audio.START_EVENTS, audio.POWER_LAND_EVENTS]) {
-    assert.ok(cue.every((e) => e.at >= 0), 'a cue must not start before it is played');
-  }
 });
 
 /* ------------------------------------------------------------------ fake graph */
@@ -274,9 +248,9 @@ function drive(sound, audio, state, frames = 60, dt = 1 / 120, throttle = 0.8, p
 
 /* ---------------------------------------------------------------- the graph */
 
-test('start builds the car once: a stack, a limiter, a squeal, a compressor', () => {
+test('start builds the car once: a stack, a limiter, a compressor', () => {
   const { sound, audio } = boot();
-  assert.equal(audio.log.osc.length, 8 + 1 + 1, 'eight orders, the limiter lfo, the squeal tone');
+  assert.equal(audio.log.osc.length, 8 + 1, 'eight orders and the limiter lfo, and nothing else');
   assert.equal(audio.log.comp, 1, 'one compressor on the master');
   assert.equal(sound.levels.master, 0.55);
   // a second start (a new run on the same page) must not add a second car
@@ -304,7 +278,6 @@ test('engine pitch stays inside the speakers at every speed', () => {
   const { sound, audio } = boot();
   drive(sound, audio, (i) => ({ speed: -6 + i * 0.06 }), 720);
   for (const o of audio.log.osc) {
-    if (o.started == null) continue;   // the squeal tone is an order too, check it below
     assert.ok(Number.isFinite(o.frequency.value));
     assert.ok(o.frequency.value >= 10 && o.frequency.value <= 12000, `${o.frequency.value} Hz`);
   }
@@ -335,60 +308,6 @@ test('the limiter only chops with the needle on the stop', () => {
   assert.equal(sound.engineState.limiter, 0, 'off the throttle it stops');
 });
 
-test('squeal tracks the slide in level and pitch, and only on tarmac', () => {
-  const { sound, audio } = boot();
-  drive(sound, audio, { speed: 12, slip: 0 }, 40);
-  const quiet = sound.drift;
-  drive(sound, audio, { speed: 12, slip: 7 }, 40);
-  const loud = sound.drift;
-  assert.equal(quiet.level, 0, 'a car being driven straight does not squeal');
-  assert.ok(loud.level > 0, 'a slide does');
-  assert.ok(loud.level <= 0.11, 'and stays under the game');
-  assert.ok(loud.centre > quiet.centre + 400, `centre ${quiet.centre} → ${loud.centre}`);
-  assert.ok(loud.q > quiet.q, 'the band tightens as the slide gets harder');
-  assert.ok(loud.tone > loud.centre, 'the sing sits above the band');
-  // a slide that is only a slip of the tyre stays a whisper, not a shriek
-  drive(sound, audio, { speed: 12, slip: 0.3 }, 40);
-  assert.ok(sound.drift.level < 0.005, 'a small slip is a murmur');
-  // off the road there is no rubber on tarmac to squeal
-  drive(sound, audio, { speed: 12, slip: 7, onRoad: false }, 40);
-  assert.equal(sound.drift.level, 0, 'gravel does not squeal');
-  // paused: everything continuous goes quiet
-  drive(sound, audio, { speed: 12, slip: 7 }, 40, 1 / 120, 0.8, true);
-  assert.equal(sound.drift.level, 0);
-  assert.equal(sound.levels.engine, 0);
-});
-
-test('dropping off the road is heard once, not every frame', () => {
-  const { sound, audio } = boot();
-  drive(sound, audio, { speed: 10, slip: 0 }, 30);
-  const before = audio.log.sourceCount;
-  drive(sound, audio, { speed: 10, slip: 0, onRoad: false }, 60);
-  const onGravel = audio.log.sourceCount;
-  assert.equal(onGravel - before, 1, 'one scuff on the transition');
-  drive(sound, audio, { speed: 10, slip: 0, onRoad: false }, 60);
-  assert.equal(audio.log.sourceCount, onGravel, 'and no repeats while it lasts');
-});
-
-test('an impact layers more the harder it is, and nothing illegal is scheduled', () => {
-  const { sound, audio } = boot();
-  const count = () => audio.log.osc.length + audio.log.sourceCount;
-  drive(sound, audio, { speed: 10, slip: 0 }, 10);
-  let n = count();
-  sound.impact(0.1);
-  const light = count() - n;
-  n = count();
-  sound.impact(0.9);
-  const hard = count() - n;
-  assert.ok(hard > light, `hard ${hard} vs light ${light}`);
-  assert.equal(light, 3, 'thud, knock, crack');
-  assert.equal(hard, 5, '...plus two grains of debris');
-  assert.deepEqual(audio.log.bad, [], 'no exponential ramp to or from zero');
-  // the peaks stay in the mix's pocket
-  const peaks = gainRamps(audio.log).map((r) => r.v);
-  assert.ok(Math.max(...peaks) <= 0.36, `loudest ramp ${Math.max(...peaks)}`);
-});
-
 test('every power makes a sound, and each one is its own', () => {
   const powers = CAR_POWERS;
   const { sound, audio } = boot();
@@ -408,53 +327,30 @@ test('every power makes a sound, and each one is its own', () => {
   assert.deepEqual(audio.log.bad, []);
 });
 
-test('the lap chime is quieter than a best, and both are dry', () => {
-  const { sound, audio } = boot();
-  let before = audio.log.osc.length;
-  sound.lap(false);
-  const normal = audio.log.osc.length - before;
-  before = audio.log.osc.length;
-  sound.lap(true);
-  const best = audio.log.osc.length - before;
-  assert.equal(normal, LAP_EVENTS.length);
-  assert.ok(best > normal, 'a personal best says more');
-  // no noise in either: the chime is a pure pixel-voice blip
-  assert.equal(audio.log.sourceCount, 1, 'only the gravel-free boot source');
-  before = audio.log.osc.length;
-  sound.click();
-  assert.equal(audio.log.osc.length - before, 1, 'a click is one blip');
-});
-
-test('mute silences the cues and the car, and is remembered', () => {
+test('mute silences the cue and the car, and is remembered', () => {
   const { sound, audio, store } = boot({ muted: '1' });
   assert.equal(sound.muted, true);
   assert.equal(sound.levels.master, 0);
   const osc = audio.log.osc.length;
   const src = audio.log.sourceCount;
-  sound.impact(1);
   sound.power('THUNDERCLAP');
-  sound.lap(true);
-  sound.click();
   assert.equal(audio.log.osc.length, osc, 'a muted tab schedules nothing');
   assert.equal(audio.log.sourceCount, src);
   assert.equal(sound.toggleMute(), false);
   assert.equal(store.get('sprite-drift:muted'), '0', 'unmuting is remembered too');
   assert.equal(sound.levels.master, 0.55);
-  sound.click();
-  assert.ok(audio.log.osc.length > osc, 'unmuted, a click is heard');
+  sound.power('THUNDERCLAP');
+  assert.ok(audio.log.osc.length > osc, 'unmuted, a power is heard');
 });
 
 test('the mix is conservative and the master is compressed', () => {
   const { sound, audio } = boot();
-  drive(sound, audio, (i) => ({ speed: 6 + (i % 240) / 20, slip: (i % 12) }), 480);
-  sound.impact(0.8);
+  drive(sound, audio, (i) => ({ speed: 6 + (i % 240) / 20 }), 480);
   sound.power('PEARL DRIFT');
-  sound.lap(true);
   assert.equal(sound.levels.master, 0.55);
   assert.equal(audio.log.comp, 1);
-  assert.ok(sound.levels.engine <= 0.14);
-  assert.ok(sound.levels.squeal <= 0.11);
-  assert.ok(gainRamps(audio.log).length > 0, 'the cues were rendered');
+  assert.ok(sound.levels.engine <= 0.10, `engine level ${sound.levels.engine}`);
+  assert.ok(gainRamps(audio.log).length > 0, 'the cue was rendered');
   for (const r of gainRamps(audio.log)) assert.ok(r.v > 0 && r.v <= 0.36, `gain ${r.v}`);
   assert.deepEqual(audio.log.bad, [], 'nothing illegal was scheduled all drive');
   // every continuing voice is wired into the master, which is wired into the pump
@@ -464,11 +360,10 @@ test('the mix is conservative and the master is compressed', () => {
 
 test('paused is silence, not a torn-out graph', () => {
   const { sound, audio } = boot();
-  drive(sound, audio, { speed: 14, slip: 4 }, 30, 1 / 120, 0.9, false);
+  drive(sound, audio, { speed: 14 }, 30, 1 / 120, 0.9, false);
   const osc = audio.log.osc.length;
-  drive(sound, audio, { speed: 14, slip: 4 }, 30, 1 / 120, 0.9, true);
+  drive(sound, audio, { speed: 14 }, 30, 1 / 120, 0.9, true);
   assert.equal(sound.levels.engine, 0);
-  assert.equal(sound.levels.squeal, 0);
   assert.equal(sound.engineState.limiter, 0);
   assert.equal(audio.log.osc.length, osc, 'no nodes were built for a paused frame');
   assert.ok(audio.log.targets.some((x) => x.v === 0), 'the voices were turned down, not cut out');
