@@ -4,7 +4,8 @@ A 2D pixel sprite art racer with powers.
 
 Play it live at **[drift.lucasian.tech](https://drift.lucasian.tech)**
 
-![Pixel Drift](docs/title.png)
+<img width="3183" height="1845" alt="image" src="https://github.com/user-attachments/assets/fe420314-a03b-4d9b-aa2b-67863f6c7495" />
+
 
 | | |
 | --- | --- |
@@ -23,6 +24,7 @@ cool idea that I wanted to pursue.
 - The leaderboard for each map creates competitiveness
 - Anti-cheat mechanisms keep the game honest
 - A camera lock feature which trails directly behind the car
+- A ghost car that traces the best player's route on the map
 
 ## Future Features
 
@@ -30,7 +32,6 @@ cool idea that I wanted to pursue.
 - More maps
 - Multiplayer shouldn't be too far of a stretch, since accounts already exist
 - A progression system where you unlock cars and maps based on achievements
-- A ghost car that traces the best player's route on the map
 
 ## THE CARS AND THEIR POWERS
 
@@ -40,11 +41,11 @@ cool idea that I wanted to pursue.
 | **Group B** | Thunderclap | 3s of ×1.38 top speed and ×2.2 acceleration; 8s cooldown |
 | **Dune Runner** | Tunnel | Place the car anywhere within a 22 m radius; 7.2s cooldown |
 
-<img width="3120" height="1769" alt="image" src="https://github.com/user-attachments/assets/24b8b4e6-839e-420b-81cd-1ff0e6dd635d" />
+<img width="3177" height="1827" alt="image" src="https://github.com/user-attachments/assets/65841190-4f96-472b-a8be-0e73fd09bf3b" />
 
-<img width="3105" height="1761" alt="image" src="https://github.com/user-attachments/assets/4eebba8d-e5df-4826-a42b-6125c8f0cc58" />
+<img width="3179" height="1829" alt="image" src="https://github.com/user-attachments/assets/6b7602d5-fe68-407f-ad28-03ff7f607623" />
 
-<img width="3094" height="1752" alt="image" src="https://github.com/user-attachments/assets/6d6c2ab2-b3ef-48c1-a26e-934ed9148bf1" />
+<img width="3177" height="1840" alt="image" src="https://github.com/user-attachments/assets/f83f2b8f-0e79-469a-b9ca-c752e94b21ea" />
 
 
 ## THREE CIRCUITS
@@ -56,8 +57,7 @@ cool idea that I wanted to pursue.
 | **Sakura Circuit** - a Japanese-themed figure-eight with sakura trees, torii and an overpass | |
 | ![sakura](docs/sakura.png) | |
 
-Pick a circuit on the title screen, or link straight to one:
-`?map=coast|alpine|sakura`. Same trick for cars: `?car=0|1|2`.
+
 
 ## PROBLEMS I HAD TO FIX
 
