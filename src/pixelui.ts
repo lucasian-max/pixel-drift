@@ -1345,6 +1345,32 @@ export class PixelUI {
         }
       }
     }
+    /* card icons are small: a survey-grade centreline (interlagos carries 160
+       control points) overdraws into a noisy blob at tile size, so the shape
+       is resampled by arc length to one fixed budget — every circuit strokes
+       at the same fidelity, and the silhouette reads instead of the density */
+    const BUDGET = 128;
+    if (raw.length > BUDGET) {
+      let total = 0;
+      for (let i = 1; i < raw.length; i++) total += Math.hypot(raw[i][0] - raw[i - 1][0], raw[i][1] - raw[i - 1][1]);
+      const step = total / (BUDGET - 1);
+      const even: [number, number][] = [raw[0]];
+      let carry = 0;
+      for (let i = 1; i < raw.length && even.length < BUDGET - 1; i++) {
+        const ax = raw[i - 1][0], az = raw[i - 1][1];
+        const dx = raw[i][0] - ax, dz = raw[i][1] - az;
+        const d = Math.hypot(dx, dz);
+        while (carry + d >= step && even.length < BUDGET - 1) {
+          const t = (step - carry) / d;
+          even.push([ax + dx * t, az + dz * t]);
+          carry -= step;
+        }
+        carry += d;
+      }
+      even.push(raw[raw.length - 1]);
+      raw.length = 0;
+      raw.push(...even);
+    }
     let minX = Infinity, maxX = -Infinity, minZ = Infinity, maxZ = -Infinity;
     for (const [x, z] of raw) {
       if (x < minX) minX = x; if (x > maxX) maxX = x;

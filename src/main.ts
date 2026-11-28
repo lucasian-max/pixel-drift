@@ -563,9 +563,19 @@ async function boot() {
     clean.searchParams.delete('cover');
     history.replaceState(null, '', clean);
   }
-  /* the curtain goes up BEFORE the world starts building, so the new circuit
-     is never seen half-made — only chequers, then the reveal */
-  if (covered) PixelUI.checkerField(uiCanvas);
+  /* the curtain must never outlive the boot: a thrown build, a hang in the
+     dressing bake, a half-saved live reload — the chequers come down and the
+     failure is shown, not hidden behind the flag */
+  const curtainDown = (why: string) => {
+    uiCanvas.getContext('2d')?.clearRect(0, 0, uiCanvas.width, uiCanvas.height);
+    bootError.textContent = `${why} — REFRESH`;
+    bootError.style.display = 'block';
+  };
+  let curtainTimer = -1;
+  if (covered) {
+    PixelUI.checkerField(uiCanvas);
+    curtainTimer = window.setTimeout(() => curtainDown('THE CIRCUIT DID NOT COME UP'), 15000);
+  }
   const renderer = new THREE.WebGLRenderer({ canvas: gameCanvas, antialias: false, powerPreference: 'high-performance' });
   renderer.setPixelRatio(1);
   renderer.outputColorSpace = THREE.SRGBColorSpace;
@@ -703,7 +713,7 @@ async function boot() {
   /* the constructor's resize cleared the boot curtain: repaint the field at its
      new size and arm the reveal — the first frame opens the chequers off the
      finished world */
-  if (covered) { PixelUI.checkerField(uiCanvas); ui.startCovered(); }
+  if (covered) { PixelUI.checkerField(uiCanvas); ui.startCovered(); window.clearTimeout(curtainTimer); }
   const sound = new Sound();   // two voices: the engine and the powers
   car.onImpact = (s: number) => {
     recorder.noteEvent('impact', { strength: s, x: car.x, z: car.z });
@@ -1718,6 +1728,9 @@ async function boot() {
 
 boot().catch((e) => {
   console.error(e);
+  /* a failed boot under the curtain: the chequers come down with it, so the
+     error is read, not buried behind a flag that never opens */
+  uiCanvas.getContext('2d')?.clearRect(0, 0, uiCanvas.width, uiCanvas.height);
   bootError.textContent = e instanceof Error ? (e.stack ?? String(e)) : String(e);
   bootError.style.display = 'block';
 });
