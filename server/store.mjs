@@ -18,13 +18,19 @@ export const ROLE_ADMIN = 'admin';
 export const ROLE_PLAYER = 'player';
 /** Gated features: public availability lives in db.features, one flag each.
  *  Add a name here to gate another one. */
-export const FEATURES = ['ghost', 'lapbar', 'botguard'];
+export const FEATURES = ['ghost', 'lapbar', 'botguard', 'requests'];
 
 /** Features that ship OFF and stay OFF until an admin turns one on. A gate
  *  that rejects laps cannot default to public like a cosmetic flag can: the
  *  first lap it refuses is refused for good, and every client tab opened
- *  before the gate shipped carries no proof to judge. */
-export const FEATURES_DEFAULT_OFF = ['botguard'];
+ *  before the gate shipped carries no proof to judge. `requests` is the
+ *  temporary wishlist board: off until the owner opens it, and off again the
+ *  moment he closes it, without a redeploy. */
+export const FEATURES_DEFAULT_OFF = ['botguard', 'requests'];
+
+/** The wishlist board: one player's ask, short enough to read in a row. */
+export const REQUEST_TEXT_MIN = 2;
+export const REQUEST_TEXT_MAX = 80;
 
 /** Admin names come from SPRITE_ADMINS and/or server/data/admins.json,
  *  never from the client. The data folder is gitignored. */
@@ -88,7 +94,10 @@ function readFeatures(raw) {
 }
 
 export function emptyDb() {
-  return { users: [], sessions: {}, times: [], laps: [], features: readFeatures(null) };
+  return {
+    users: [], sessions: {}, times: [], laps: [], requests: [],
+    features: readFeatures(null),
+  };
 }
 
 export class Store {
@@ -129,6 +138,7 @@ export class Store {
       sessions: {},
       times: Array.isArray(parsed.times) ? parsed.times : [],
       laps: Array.isArray(parsed.laps) ? parsed.laps : [],
+      requests: Array.isArray(parsed.requests) ? parsed.requests : [],
       features: readFeatures(parsed.features),
     };
     // seed the lap history once from pre-history best times
@@ -539,5 +549,59 @@ export class Store {
       if (t.userId === userId && !(t.map in bests)) bests[t.map] = t.ms;
     }
     return bests;
+  }
+
+  /* ---- the wishlist board (`requests`) ------------------------------------
+     Temporary: the owner asked for a place where his players, online right
+     now, can write down what they want and vote on each other's asks. Votes
+     are account ids, so one account is one vote per request and the same
+     click takes it back — no counter to drift, no way to stuff the ballot
+     from a second tab. */
+
+  /** The board in display order: most votes first, newest first inside a tie.
+   *  Two wishes written in the same millisecond fall back to write order, so
+   *  the sort is total: `at` alone would leave those two in whatever order
+   *  the comparison happened to produce. */
+  listRequests() {
+    return this.db.requests
+      .map((r, i) => ({ r, i }))
+      .sort((a, b) =>
+        b.r.votes.length - a.r.votes.length
+        || String(b.r.at).localeCompare(String(a.r.at))
+        || b.i - a.i)
+      .map(({ r }) => ({
+        id: r.id, userId: r.userId, username: r.username, text: r.text, at: r.at,
+        votes: [...r.votes],
+      }));
+  }
+
+  /** One player's ask. The text is normalised here, so every client renders
+   *  the same string and the db never holds a stray newline or tab. */
+  addRequest(user, text) {
+    const clean = typeof text === 'string' ? text.replace(/\s+/g, ' ').trim() : '';
+    if (clean.length < REQUEST_TEXT_MIN || clean.length > REQUEST_TEXT_MAX) {
+      throw new StoreError(
+        400, 'invalid_text',
+        `text must be ${REQUEST_TEXT_MIN}-${REQUEST_TEXT_MAX} characters`,
+      );
+    }
+    const request = {
+      id: crypto.randomUUID(), userId: user.id, username: user.username,
+      text: clean, at: new Date().toISOString(), votes: [],
+    };
+    this.db.requests.push(request);
+    this._scheduleSave();
+    return { ...request, votes: [] };
+  }
+
+  /** Toggle this player's vote on one ask: in -> out, out -> in. */
+  voteRequest(user, id) {
+    const request = this.db.requests.find((r) => r.id === id);
+    if (!request) throw new StoreError(404, 'not_found', 'no such request');
+    const at = request.votes.indexOf(user.id);
+    if (at === -1) request.votes.push(user.id);
+    else request.votes.splice(at, 1);
+    this._scheduleSave();
+    return { id: request.id, votes: request.votes.length, voted: at === -1 };
   }
 }

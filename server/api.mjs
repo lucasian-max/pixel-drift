@@ -57,6 +57,8 @@ async function verifyTurnstile(token) {
 const BODY_LIMIT_BYTES = 32768; // lap traces (kept for replays) need the headroom
 const AUTH_WINDOW_MS = 60_000; // 10 signup/login attempts per IP per 60s
 const AUTH_MAX = 10;
+const REQUEST_WINDOW_MS = 60 * 60 * 1000; // 5 wishes per account per hour
+const REQUEST_MAX = 5;
 const MAP_RE = /^[a-z0-9_-]{1,32}$/; // must match Store's map validation
 const KNOWN_PATHS = new Set([
   '/api/signup',
@@ -64,6 +66,8 @@ const KNOWN_PATHS = new Set([
   '/api/logout',
   '/api/me',
   '/api/times',
+  '/api/requests',
+  '/api/requests/vote',
   '/api/admin/delete-time',
   '/api/admin/clear-map',
   '/api/admin/feature',
@@ -127,6 +131,40 @@ function authRateLimited(req) {
     }
   }
   return hits.length > AUTH_MAX;
+}
+
+/* Wishlist spam stop: a signed-in account may write REQUEST_MAX wishes an
+ * hour. In memory on purpose — a restart clearing the window costs nothing,
+ * and the point is to stop a bored player, not a determined one. */
+const requestHits = new Map(); // userId -> recent wish timestamps
+
+function requestRateLimited(userId) {
+  const now = Date.now();
+  const hits = (requestHits.get(userId) ?? []).filter((t) => now - t < REQUEST_WINDOW_MS);
+  requestHits.set(userId, hits);
+  if (hits.length >= REQUEST_MAX) return true;
+  hits.push(now);
+  if (requestHits.size > 10_000) {
+    for (const [key, list] of requestHits) {
+      if (list.every((t) => now - t >= REQUEST_WINDOW_MS)) requestHits.delete(key);
+    }
+  }
+  return false;
+}
+
+/** The wishlist as one caller sees it: a vote count instead of voter ids, and
+ *  whether this caller is one of them, so the board can light the vote it
+ *  already carries. Off means off: an empty board and `enabled:false`. */
+function requestBoard(user) {
+  const enabled = store.features().requests === true;
+  if (!enabled) return { enabled: false, requests: [] };
+  return {
+    enabled: true,
+    requests: store.listRequests().map((r) => ({
+      id: r.id, username: r.username, text: r.text, at: r.at,
+      votes: r.votes.length, voted: user ? r.votes.includes(user.id) : false,
+    })),
+  };
 }
 
 function readRawBody(req, limit) {
@@ -280,6 +318,30 @@ async function handle(req, res, pathname) {
     const body = await readRawBody(req, RUN_UPLOAD_LIMIT);
     const meta = saveRun(user, body, req.headers['content-type']);
     return send(res, 200, { ok: true, ...meta });
+  }
+
+  if (pathname === '/api/requests') {
+    // the board is public to read: a guest sees what the room is asking for
+    if (req.method === 'GET') return send(res, 200, requestBoard(user));
+    if (req.method !== 'POST') return send(res, 405, { error: 'method_not_allowed' });
+    // off means off, and it is read per request, so the admin switch lands on
+    // the next click without a restart
+    if (store.features().requests !== true) return send(res, 403, { error: 'feature_disabled' });
+    if (!user) return send(res, 401, { error: 'unauthorized' });
+    const body = await readJsonBody(req);
+    // only a wish that would actually be stored spends a slot of the hour
+    if (requestRateLimited(user.id)) return send(res, 429, { error: 'too_many_requests' });
+    const created = store.addRequest(user, body.text); // 400 invalid_text
+    console.log(`[requests] ${user.username}: ${created.text}`);
+    return send(res, 200, { ok: true, id: created.id });
+  }
+
+  if (pathname === '/api/requests/vote') {
+    if (req.method !== 'POST') return send(res, 405, { error: 'method_not_allowed' });
+    if (store.features().requests !== true) return send(res, 403, { error: 'feature_disabled' });
+    if (!user) return send(res, 401, { error: 'unauthorized' });
+    const body = await readJsonBody(req);
+    return send(res, 200, store.voteRequest(user, body.id)); // 404 unknown id
   }
 
   if (pathname === '/api/admin/runs') {

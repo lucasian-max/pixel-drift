@@ -55,6 +55,33 @@ With this in place, pages on `https://drift.lucasian.tech` can call
 | GET    | `/api/admin/stats` | admin | — | `200` aggregate laps/players/maps/recent, `403`, `401` |
 | POST   | `/api/runs` | cookie | gzip or plain JSONL recorder export (≤8 MB) | `200 {ok, episodes, bytes}`, `401`, `400`, `413` |
 | GET    | `/api/admin/runs` | admin | — | `200` upload totals/users/recent, `403`, `401` |
+| GET    | `/api/requests` | — | — | `200 {enabled, requests:[{id,username,text,at,votes,voted}]}`, `enabled:false` + no rows while the `requests` flag is off |
+| POST   | `/api/requests` | cookie | `{text}` (2–80 chars) | `200 {ok, id}`, `400 invalid_text`, `401`, `403 feature_disabled`, `429 too_many_requests` |
+| POST   | `/api/requests/vote` | cookie | `{id}` | `200 {id, votes, voted}`, `404 not_found`, `401`, `403 feature_disabled` |
+
+### Wishlist (`requests`)
+
+A temporary board: players write down the features they want and vote on each
+other's asks. It ships **off** (`FEATURES_DEFAULT_OFF`) and is switched on with
+the same admin endpoint as every other flag:
+
+```sh
+curl -X POST http://127.0.0.1:8790/api/admin/feature \
+  -H 'cookie: sd_session=<admin token>' -H 'content-type: application/json' \
+  -d '{"feature":"requests","enabled":true}'
+```
+
+- Rows live in `db.json` under `requests`:
+  `{id, userId, username, text, at, votes:[userId...]}`. Votes are account ids,
+  so one account is one vote per ask and the same click takes it back.
+- Sorted most-voted first, newest first inside a tie; `voted` in the response is
+  whether the *caller* already voted.
+- Reading is public (a guest sees the board); posting and voting need a session
+  and are refused with `403` while the flag is off. Five wishes per account per
+  hour, counted in memory and only for wishes that were stored.
+- The text is trimmed and its whitespace collapsed on the way in, and the flag
+  is read per request: flipping it needs no restart. The endpoints themselves
+  do need one restart to exist.
 
 ## Lap submission and anti-cheat
 
@@ -227,7 +254,8 @@ per-episode stats (off-track seconds, impacts, power uses).
 {
   "users": [{ "id", "username", "salt", "hash", "createdAt" }],
   "sessions": { "<token>": { "userId", "expires" } },
-  "times": [{ "userId", "username", "ms", "at", "map" }]
+  "times": [{ "userId", "username", "ms", "at", "map" }],
+  "requests": [{ "id", "userId", "username", "text", "at", "votes": ["<userId>"] }]
 }
 ```
 
