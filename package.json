@@ -10,7 +10,7 @@
     "preview": "vite preview --host 127.0.0.1 --port 5181",
     "assets": "node scripts/gen-assets.mjs",
     "api": "node server/api.mjs",
-    "test": "node --test server/anticheat.test.mjs server/botguard.test.mjs scripts/music.check.mjs server/requests.test.mjs && node scripts/car-stats.check.mjs"
+    "test": "node --test server/anticheat.test.mjs server/botguard.test.mjs scripts/music.check.mjs scripts/audio.check.mjs server/requests.test.mjs && node scripts/car-stats.check.mjs"
   },
   "dependencies": {
     "three": "^0.187.0"
