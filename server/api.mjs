@@ -68,6 +68,7 @@ const KNOWN_PATHS = new Set([
   '/api/times',
   '/api/requests',
   '/api/requests/vote',
+  '/api/requests/delete',
   '/api/admin/delete-time',
   '/api/admin/clear-map',
   '/api/admin/feature',
@@ -342,6 +343,19 @@ async function handle(req, res, pathname) {
     if (!user) return send(res, 401, { error: 'unauthorized' });
     const body = await readJsonBody(req);
     return send(res, 200, store.voteRequest(user, body.id)); // 404 unknown id
+  }
+
+  // /api/requests/delete — the owner's broom: only an admin can take a wish
+  // off the board, and it needs no flag (closing the wishlist keeps it cleanable)
+  if (pathname === '/api/requests/delete') {
+    if (req.method !== 'POST') return send(res, 405, { error: 'method_not_allowed' });
+    if (!user) return send(res, 401, { error: 'unauthorized' });
+    if (!store.isAdmin(user)) return send(res, 403, { error: 'forbidden' });
+    const body = await readJsonBody(req);
+    if (typeof body.id !== 'string' || !body.id) return send(res, 400, { error: 'invalid_id' });
+    if (!store.removeRequest(body.id)) return send(res, 404, { error: 'not_found' });
+    console.log(`[requests] ${user.username} removed wish ${body.id}`);
+    return send(res, 200, { ok: true });
   }
 
   if (pathname === '/api/admin/runs') {

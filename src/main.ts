@@ -258,6 +258,10 @@ const wishlist = (() => {
 .wish-user { display: block; font-size: 0.72em; color: rgba(242,238,225,0.45); }
 .wish-text { display: block; font-size: 0.8em; line-height: 1.35; word-break: break-word; }
 .wish-note { margin: 0.7em 0 0; font-size: 0.75em; color: rgba(242,238,225,0.55); }
+.wish-del { flex: 0 0 auto; font: inherit; font-size: 0.8em; line-height: 1;
+  width: 1.6em; height: 1.6em; padding: 0; cursor: pointer; color: #e0513f;
+  background: #0e1013; border: 2px solid rgba(224,81,63,0.55); }
+.wish-del:hover, .wish-del:focus-visible { border-color: #e0513f; color: #f2eee1; }
 #wish-form { display: flex; gap: 0.5em; margin-top: 0.7em; }
 #wish-input { flex: 1; min-width: 0; padding: 0.55em; font: inherit; font-size: 0.8em;
   color: #f2eee1; background: #0e1013; border: 2px solid rgba(242,238,225,0.35);
@@ -343,6 +347,17 @@ const wishlist = (() => {
     what.textContent = item.text;
     body.append(who, what);
     li.append(vote, body);
+    // the owner's broom: admins can strike a wish off the board in place
+    if (account.user?.role === 'admin') {
+      const del = document.createElement('button');
+      del.type = 'button';
+      del.className = 'wish-del';
+      del.title = 'remove this request';
+      del.setAttribute('aria-label', `remove request by ${item.username}`);
+      del.textContent = 'X';
+      del.addEventListener('click', () => { void remove(item.id); });
+      li.append(del);
+    }
     return li;
   }
 
@@ -380,6 +395,14 @@ const wishlist = (() => {
     button.setAttribute('aria-pressed', r.voted ? 'true' : 'false');
     const count = button.querySelector('.count');
     if (count) count.textContent = String(r.votes ?? 0);
+  }
+
+  /** admin only: strike a wish, then pull the board fresh */
+  async function remove(id: string) {
+    const r = await account.adminRemoveRequest(id);
+    if (!r.ok) { say(r.error ?? 'remove failed'); return; }
+    say('');
+    await load();
   }
 
   async function submit() {
@@ -893,6 +916,7 @@ async function boot() {
   };
 
   ui.onAction = (a) => {
+    sound.click();   // every press sounds the same: tiny, dry, in the pixel voice
     if (a === 'solo') { begin(); fullBoardOpen = false; }
     // the title's corner menu is the UI's own state: nothing here to switch
     else if (a === 'menu') ui.toggleMenu();
@@ -1070,6 +1094,7 @@ async function boot() {
     if (!car.aiming) return;
     const a = clampedAim();
     if (car.confirmAim(world, a.x, a.z)) {
+      sound.powerLand();   // the snap, once the placement is committed
       recorder.markPower();
       recorder.noteEvent('power');
       lapTrace.push({
@@ -1359,6 +1384,7 @@ async function boot() {
         }
         if (input.consumeKey('KeyF') && running) {
           const fired = car.activatePower(world);
+          if (fired) sound.power(car.power.name);   // every power has a voice
           if (fired && !car.power.aim) {
             recorder.markPower();
             recorder.noteEvent('power');
@@ -1417,6 +1443,7 @@ async function boot() {
     car.trackIndex = idx;
     if (!started && Math.hypot(car.x - world.start.x, car.z - world.start.z) > 5) {
       started = true;
+      sound.go();   // the run is live: one short lift, not a countdown
       resetTrace();
       lapTrace.push({ x: car.x, z: car.z, t: 0, h: car.heading });
     }
@@ -1446,6 +1473,7 @@ async function boot() {
         delta: prevBest > 0 ? Math.round((lapTime - prevBest) * 1000) : null,
       };
       lapBarUntil = performance.now() / 1000 + 4;
+      sound.lap(lapBar.pb);   // a lift for the line, a bigger one for a best
       if (bestTime === 0 || lapTime < bestTime) {
         bestTime = lapTime;
         try { localStorage.setItem(bestKey, String(bestTime)); } catch { /* private mode */ }

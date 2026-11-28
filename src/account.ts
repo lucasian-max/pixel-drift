@@ -123,8 +123,18 @@ function wishError(status: number, code?: string): string {
 
 interface Read<T> { ok: boolean; status: number; body?: T }
 
+/* A host with nothing behind /api — the itch.io zip, a plain static mirror —
+   answers every endpoint with a plain 404 page. That is not a rejection, it is
+   a server that is not there, so the first one is read as unreachability and
+   remembered: every later call short-circuits instead of hammering the host,
+   and the boards say OFFLINE instead of pretending the times never happened.
+   An API 404 always carries a JSON error envelope, which is what keeps a
+   deleted wish a real answer rather than a dead network. */
+let noApi = false;
+
 /** fetch wrapper: resolves for every outcome, rejects nothing. status 0 = network. */
 async function request<T>(path: string, method: 'GET' | 'POST', body?: unknown): Promise<Read<T>> {
+  if (noApi) return { ok: false, status: 0 };
   try {
     const r = await fetch(path, {
       method,
@@ -135,6 +145,10 @@ async function request<T>(path: string, method: 'GET' | 'POST', body?: unknown):
     if (r.status === 204) return { ok: true, status: 204 };
     let parsed: T | undefined;
     try { parsed = (await r.json()) as T; } catch { /* empty or non-JSON body */ }
+    if (r.status === 404 && parsed === undefined && path.startsWith('/api/')) {
+      noApi = true;
+      return { ok: false, status: 0 };
+    }
     return { ok: r.ok, status: r.status, body: parsed };
   } catch {
     return { ok: false, status: 0 };
@@ -262,6 +276,11 @@ export const account = {
   /** Admin only: wipe one map's board. */
   async adminClearMap(map: string): Promise<AdminResult> {
     return this.adminPost('/api/admin/clear-map', { map });
+  },
+
+  /** Admin only: take a wish off the feature-request board. */
+  async adminRemoveRequest(id: string): Promise<AdminResult> {
+    return this.adminPost('/api/requests/delete', { id });
   },
 
   async adminPost(path: string, body: Record<string, string>): Promise<AdminResult> {

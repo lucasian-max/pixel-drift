@@ -604,4 +604,13 @@ export class Store {
     this._scheduleSave();
     return { id: request.id, votes: request.votes.length, voted: at === -1 };
   }
+
+  /** Admin only: take a wish off the board entirely. */
+  removeRequest(id) {
+    const at = this.db.requests.findIndex((r) => r.id === id);
+    if (at === -1) return false;
+    this.db.requests.splice(at, 1);
+    this._scheduleSave();
+    return true;
+  }
 }
