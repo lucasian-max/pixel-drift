@@ -118,6 +118,9 @@ export interface MapDef {
   mesas?: { x: number; z: number; r: number; h: number; rot: number }[];
   /** saguaro cactus families */
   cacti?: { x: number; z: number; rot: number; scale: number }[];
+  /** saltmarsh: a working quay of creosote mooring posts with cream caps
+   *  marching through the shallows of the lake shore the circuit runs beside */
+  pylonWall?: boolean;
   /** tyre-wall lines that close a gap between two branches of the circuit, as
    *  centreline points (x1, z1, x2, z2); the wall stops short of both roads */
   fences?: [number, number, number, number][];
@@ -149,7 +152,7 @@ export const MAPS: MapDef[] = [
       shoulder: '#6b6350', asphalt: '#43434b', grainA: '#6a6a76', grainB: '#2b2b33',
       line: 'rgba(232,226,206,0.85)', kerbA: '#d8d2bc', kerbB: '#c8463c',
     },
-    lake: { x: 34, z: -37, rx: 11, rz: 8 },
+    lake: { x: 34, z: -38.5, rx: 14, rz: 8 },
     trees: 'mixed', density: 1,
     props: { trees: 280, rocks: 58, buildings: 15, lampStride: 58, rockScale: 1 },
     /* The coast is a fishing hamlet on the water and a pine ridge behind it, and
@@ -159,14 +162,22 @@ export const MAPS: MapDef[] = [
     town: [
       [18, -49], [27, -47], [36, -49], [45, -46],
       [21, -57], [30, -58], [39, -56], [46, -55],
+      [24, -64], [33, -65], [42, -63],
     ],
     dressing: {
       rows: [
         // a pine line down the outside of the pit straight, the only grandstand
         // the circuit has: it frames the run to the line
         { near: [60, 6], metres: 96, side: 1, offset: 10, step: 7.5 },
+        // and a deeper rank behind it, so the straight reads as an avenue
+        { near: [60, 8], metres: 96, side: 1, offset: 16.5, step: 11 },
         // palms along the beach where the top corner meets the water
         { near: [46, -22], metres: 34, side: -1, offset: 8, step: 6, palm: true },
+        // the pine wall on the outside of the carousel, behind the tyres: the
+        // bowl the pylon quay closes
+        { near: [31, -26], metres: 46, side: 1, offset: 9.5, step: 7 },
+        // palms up the sandy rise on the exit of the carousel, pines behind them
+        { near: [19, -12], metres: 22, side: -1, offset: 8, step: 6.5, palm: true },
         // a windbreak behind the far side of the bottom straight
         { near: [-6, 58], metres: 110, side: -1, offset: 12, step: 9 },
       ],
@@ -181,7 +192,8 @@ export const MAPS: MapDef[] = [
         { x: -74, z: -46, r: 9, n: 9 },                        // and its north end
         { x: -8, z: -34, r: 9, n: 8 },                         // west of the lake
         { x: 12, z: -44, r: 8, n: 6, palm: true, scale: 1.05 },  // west beach palms
-        { x: 52, z: -30, r: 6, n: 5, palm: true },              // the east beach
+        { x: 57, z: -31, r: 5, n: 5, palm: true },              // the east beach
+        { x: 4, z: -18, r: 6, n: 6 },                          // pines behind the exit palms
       ],
       beds: [
         { x: 20, z: -30, r: 7, n: 6, scale: 1.4 },   // the boulders the shore is made of
@@ -201,6 +213,7 @@ export const MAPS: MapDef[] = [
     jetty: { x: 38, z: -44.5, rot: -0.52, len: 9 },
     shoreReeds: true,
     marsh: true,
+    pylonWall: true,
   },
   {
     id: 'alpine', name: 'Frostbite Pass', roadHalf: 4.2, smooth: true,
@@ -233,17 +246,35 @@ export const MAPS: MapDef[] = [
     ],
     town: [],
     sky: '#cfe4f2',
-    /* Frostbite is a pass between two walls of pine: the tree lines follow the
-       outside of the corners, the boulders drift into the pockets between the
-       switchbacks, and the high ground stays open snow, because an open
-       snowfield is what the map is. */
+    /* Frostbite is a pass between two walls of pine. The trees answer the
+       corners, not the tarmac: a dense cluster stands at every bend entry and
+       on the outside of every wall, the straights are left open so the road
+       reads, and the frozen lake gets a pine crescent on its far rim so the
+       ice is framed like a picture instead of sitting in dead ground. The
+       high ground stays open snow, because an open snowfield is what the map
+       is. */
     dressing: {
       rows: [
-        { near: [4, 42], metres: 70, side: -1, offset: 9, step: 6.5 },     // the north sweep
-        { near: [58, 0], metres: 66, side: -1, offset: 10, step: 6.5 },    // the east wall
-        { near: [-40, 22], metres: 44, side: -1, offset: 8, step: 6 },     // run down to the west
-        { near: [34, -44], metres: 48, side: -1, offset: 9, step: 6.5 },   // the top hairpin
-        { near: [-24, -46], metres: 54, side: -1, offset: 8.5, step: 6 },  // the switchback wall
+        // the north sweep, clustered at the two bend entries, gap on the straight
+        { near: [-14, 39], metres: 26, side: -1, offset: 8.5, step: 5 },
+        { near: [38, 34], metres: 26, side: -1, offset: 8.5, step: 5 },
+        // the east wall: two overlapping lines so it reads as a wall, not a dotted row
+        { near: [57, 6], metres: 54, side: -1, offset: 9, step: 5.5 },
+        { near: [55, 2], metres: 44, side: -1, offset: 12.5, step: 6.5 },
+        // the west corner and the run down to it
+        { near: [-49, 3], metres: 22, side: -1, offset: 8, step: 5 },
+        { near: [-40, 22], metres: 44, side: -1, offset: 8, step: 6 },
+        // the top hairpin, both ends of it
+        { near: [34, -44], metres: 48, side: -1, offset: 9, step: 6.5 },
+        { near: [46, -34], metres: 20, side: -1, offset: 8.5, step: 5 },
+        // the switchback wall with its entry
+        { near: [-24, -46], metres: 54, side: -1, offset: 8.5, step: 6 },
+        { near: [-6, -49], metres: 18, side: -1, offset: 8.5, step: 5 },
+        // the inner chicane, trees on the outside of each flick
+        { near: [10, -32], metres: 20, side: -1, offset: 8, step: 5 },
+        { near: [32, -21], metres: 18, side: -1, offset: 8, step: 5 },
+        // the lake straight runs open: the pines are on the far rim of the
+        // lake, in the crescent below, not marching along the road
       ],
       groves: [
         { x: 6, z: -62, r: 16, n: 22 },      // the wood in the south bowl
@@ -252,12 +283,27 @@ export const MAPS: MapDef[] = [
         { x: 14, z: 62, r: 14, n: 16 },      // the run-out
         { x: 24, z: 20, r: 7, n: 8 },        // the pocket inside the last switchback
         { x: -6, z: -24, r: 6, n: 6 },       // a stand between the folds
+        { x: 34, z: 24, r: 8, n: 11 },       // the north-east pocket
+        { x: -20, z: -32, r: 8, n: 9 },      // the fold west of the switchbacks
+        { x: -58, z: -30, r: 9, n: 12 },     // the wood behind the last corner
+        { x: 26, z: -6, r: 7, n: 9 },        // the mid-field pocket east of the lake
+        { x: -32, z: 12, r: 8, n: 8 },       // the open ground west of the lake
+        { x: -24, z: 34, r: 7, n: 8 },       // the stand between the west and north sweeps
+        { x: -38, z: 38, r: 7, n: 8 },       // closes the north-west quarter
+        // the pine crescent on the lake's far rim: dense at the flanks, a thin
+        // line of tall ones behind the middle so the ice keeps its sightline
+        { x: -17, z: 16, r: 5.5, n: 9 },      // west flank of the crescent, behind the ice camp
+        { x: 16, z: 13, r: 6.5, n: 10 },
+        { x: -3, z: 18, r: 5, n: 4, scale: 1.15 },
+        { x: 18, z: 4, r: 5, n: 6 },
+        { x: -15, z: 5, r: 4.5, n: 5 },
       ],
       beds: [
         { x: -2, z: -20, r: 7, n: 5, scale: 1.5 },   // boulders at the switchback
         { x: 20, z: 2, r: 8, n: 6, scale: 1.3 },
         { x: -50, z: 2, r: 6, n: 4, scale: 1.4 },
         { x: 52, z: -34, r: 7, n: 5, scale: 1.6 },
+        { x: -34, z: -24, r: 6, n: 4, scale: 1.3 },  // rocks in the west fold
       ],
       open: [
         { x: -38, z: -66, r: 18 },    // the high snowfield, nothing on it
@@ -916,29 +962,151 @@ function paintGround(track: P2[], map: MapDef): HTMLCanvasElement {
         g.fillRect(p.x | 0, p.y | 0, 1, 1);
       }
     }
+
+    /* The quay's surf: where the pylon wall stands the waterline carries a
+       broad cream band inside it — surf breaking on a working shore — and only
+       along the arc the circuit runs beside. */
+    if (map.pylonWall) {
+      const ca2 = Math.cos(0.35), sa2 = Math.sin(0.35);
+      const nearRoad = (x: number, z: number, r: number) =>
+        track.some((p) => (p.x - x) ** 2 + (p.z - z) ** 2 < r * r);
+      const surf = (f: number, w: number, color: string) => {
+        g.strokeStyle = color;
+        g.lineWidth = w;
+        g.beginPath();
+        let pen = false;
+        for (let s = 0; s <= 64; s++) {
+          const t = (s / 64) * Math.PI * 2;
+          const wx = lake.x + Math.cos(t) * (lake.rx - 2) * f * ca2
+            - Math.sin(t) * (lake.rz - 1.8) * f * sa2;
+          const wz = lake.z + Math.cos(t) * (lake.rx - 2) * f * sa2
+            + Math.sin(t) * (lake.rz - 1.8) * f * ca2;
+          if (!nearRoad(wx, wz, ROAD_HALF + 17)) { pen = false; continue; }
+          const px = (wx + HALF_G) * PPU, py = (wz + HALF_G) * PPU;
+          pen ? g.lineTo(px, py) : g.moveTo(px, py);
+          pen = true;
+        }
+        g.stroke();
+      };
+      surf(0.965, 3.6, 'rgba(238,247,243,0.30)');
+      surf(0.925, 2.2, 'rgba(244,250,246,0.34)');
+      surf(0.885, 1.6, 'rgba(226,246,244,0.30)');
+    }
   }
 
+  /* The frozen lake is the map's destination, so its ice is authored, not a
+     blue disc: pale ice freezing from the rim in, a crack web from a few
+     impact points, wind-scoured streaks off the pass, skate trails, two
+     fishing holes that match the tip-ups standing on the ice, and drifts
+     blown over the shore. */
   if (map.snow && map.lake) {
-    const lx = (map.lake.x + HALF_G) * PPU, ly = (map.lake.z + HALF_G) * PPU;
+    const lk = map.lake;
+    const lx = (lk.x + HALF_G) * PPU, ly = (lk.z + HALF_G) * PPU;
+    const ca = Math.cos(0.35), sa = Math.sin(0.35);
+    const at = (u: number, v: number) => ({
+      x: lx + (u * ca - v * sa) * PPU,
+      y: ly + (u * sa + v * ca) * PPU,
+    });
+    const rimU = lk.rx - 2, rimV = lk.rz - 1.8;
+    // the ice sheet: pale at the rim where it froze first, blue toward the middle
     g.save();
     g.beginPath();
-    g.ellipse(lx, ly, (map.lake.rx - 2) * PPU, (map.lake.rz - 1.8) * PPU, 0.35, 0, Math.PI * 2);
+    g.ellipse(lx, ly, rimU * PPU, rimV * PPU, 0.35, 0, Math.PI * 2);
     g.clip();
-    g.strokeStyle = 'rgba(230,250,255,0.55)';
-    g.lineWidth = 2;
-    for (let i = 0; i < 18; i++) {
-      const sx = lx + (rnd() - 0.5) * map.lake.rx * 2 * PPU;
-      const sy = ly + (rnd() - 0.5) * map.lake.rz * 2 * PPU;
+    g.fillStyle = '#d4ecf5';
+    g.fillRect(lx - rimU * PPU, ly - rimV * PPU, rimU * 2 * PPU, rimV * 2 * PPU);
+    g.fillStyle = 'rgba(111,161,197,0.5)';
+    g.beginPath();
+    g.ellipse(lx, ly, rimU * 0.62 * PPU, rimV * 0.62 * PPU, 0.35, 0, Math.PI * 2);
+    g.fill();
+    g.fillStyle = 'rgba(63,111,176,0.35)';
+    g.beginPath();
+    g.ellipse(lx, ly, rimU * 0.34 * PPU, rimV * 0.34 * PPU, 0.35, 0, Math.PI * 2);
+    g.fill();
+    // wind scours streaks across the ice, off the pass toward the south-east
+    for (let i = 0; i < 26; i++) {
+      const u = -rimU + rnd() * rimU * 2, v = -rimV + rnd() * rimV * 2;
+      const p = at(u, v), q = at(u + 5 + rnd() * 4, v + 2.4 + rnd() * 1.6);
+      g.strokeStyle = rnd() > 0.5 ? 'rgba(255,255,255,0.30)' : 'rgba(150,196,222,0.35)';
+      g.lineWidth = 1 + rnd() * 2;
       g.beginPath();
-      g.moveTo(sx, sy);
-      let px = sx, py = sy;
-      for (let k = 0; k < 3; k++) {
-        px += (rnd() - 0.5) * 28; py += (rnd() - 0.5) * 28;
-        g.lineTo(px, py);
+      g.moveTo(p.x, p.y);
+      g.lineTo(q.x, q.y);
+      g.stroke();
+    }
+    // trapped air bubbles under the surface
+    for (let i = 0; i < 130; i++) {
+      const t = rnd() * Math.PI * 2, r = Math.sqrt(rnd());
+      const p = at(Math.cos(t) * rimU * 0.9 * r, Math.sin(t) * rimV * 0.9 * r);
+      g.fillStyle = rnd() > 0.4 ? 'rgba(255,255,255,0.5)' : 'rgba(214,236,246,0.6)';
+      g.fillRect(p.x | 0, p.y | 0, 1, 1);
+    }
+    // the crack web: long radiating splits from three impact points
+    for (const [hu, hv] of [[-3, 1.5], [3.5, -2], [0.5, 3]] as [number, number][]) {
+      for (let k = 0; k < 5; k++) {
+        const a = (k / 5) * Math.PI * 2 + rnd() * 0.5;
+        let u = hu, v = hv;
+        g.beginPath();
+        for (let s = 0; s < 6; s++) {
+          const step = 1.2 + rnd() * 1.4;
+          u += Math.cos(a + (rnd() - 0.5) * 0.35) * step;
+          v += Math.sin(a + (rnd() - 0.5) * 0.35) * step * (rimV / rimU);
+          const p = at(u, v);
+          s ? g.lineTo(p.x, p.y) : g.moveTo(p.x, p.y);
+        }
+        g.strokeStyle = 'rgba(43,84,120,0.5)';
+        g.lineWidth = 1.4;
+        g.stroke();
+        // the white refraction line a hand-width off the crack
+        g.save();
+        g.translate(PPU * 0.12, PPU * 0.12);
+        g.strokeStyle = 'rgba(255,255,255,0.4)';
+        g.lineWidth = 1;
+        g.stroke();
+        g.restore();
+      }
+    }
+    // skate trails: two loops somebody cut on the way to the holes
+    g.strokeStyle = 'rgba(255,255,255,0.55)';
+    g.lineWidth = 1.4;
+    for (const [tu, tv, tr] of [[-2, 5, 3.2], [4, 2, 2.6]] as [number, number, number][]) {
+      g.beginPath();
+      for (let s = 0; s <= 22; s++) {
+        const a = (s / 22) * Math.PI * 2;
+        const p = at(tu + Math.cos(a) * tr * (1 + 0.18 * Math.sin(a * 2)),
+          tv + Math.sin(a) * tr * 0.62 * (1 + 0.18 * Math.cos(a * 3)));
+        s ? g.lineTo(p.x, p.y) : g.moveTo(p.x, p.y);
       }
       g.stroke();
     }
+    // the fishing holes, dark water showing through, with a pale lip
+    for (const [hu, hv] of [[-4.5, 10.5], [-1.5, 12.5]] as [number, number][]) {
+      const p = at(hu, hv);
+      g.fillStyle = 'rgba(21,42,64,0.9)';
+      g.beginPath();
+      g.ellipse(p.x, p.y, 0.55 * PPU, 0.4 * PPU, 0.35, 0, Math.PI * 2);
+      g.fill();
+      g.strokeStyle = 'rgba(233,247,252,0.8)';
+      g.lineWidth = 1.2;
+      g.beginPath();
+      g.ellipse(p.x, p.y, 0.7 * PPU, 0.52 * PPU, 0.35, 0, Math.PI * 2);
+      g.stroke();
+    }
     g.restore();
+    // drifts blown over the shore ring, arcs of snow across the icy sand
+    for (let i = 0; i < 12; i++) {
+      const t = rnd() * Math.PI * 2;
+      const u = Math.cos(t) * lk.rx * (0.98 + rnd() * 0.06);
+      const v = Math.sin(t) * lk.rz * (0.98 + rnd() * 0.06);
+      const p = at(u, v);
+      g.strokeStyle = 'rgba(250,253,255,0.85)';
+      g.lineWidth = 2 + rnd() * 3;
+      g.beginPath();
+      g.moveTo(p.x, p.y);
+      const q = at(u + 2.5 + rnd() * 2, v + 1.2 + rnd() * 1.2);
+      g.quadraticCurveTo(p.x + (q.x - p.x) * 0.4, p.y - 3, q.x, q.y);
+      g.stroke();
+    }
   }
 
   strokePath(g, track, map.palette.shoulder, (ROAD_HALF * 2 + 1.6) * PPU);
@@ -1859,6 +2027,37 @@ export async function buildWorld(scene: THREE.Scene, mapId?: string): Promise<Wo
     group.add(g);
   }
 
+  /* The quay. Where the circuit runs beside its lake, the shore is a working
+     edge: tall creosote posts with cream caps march through the shallows along
+     the waterline, close enough to the racing line to be read at speed and to
+     be hit by a drift that runs wide. That line of posts is the wall the lake
+     is read against, and the map's signature. */
+  if (map.pylonWall && map.lake) {
+    const lk = map.lake;
+    const ca = Math.cos(0.35), sa = Math.sin(0.35);
+    // one post every ~3.9 m of waterline, standing just inside it
+    const stepT = 3.9 / Math.max(lk.rx - 2, lk.rz - 1.8);
+    for (let t = 0; t < Math.PI * 2 - stepT * 0.5; t += stepT) {
+      const wx = lk.x + Math.cos(t) * (lk.rx - 2) * 0.965 * ca
+        - Math.sin(t) * (lk.rz - 1.8) * 0.965 * sa;
+      const wz = lk.z + Math.cos(t) * (lk.rx - 2) * 0.965 * sa
+        + Math.sin(t) * (lk.rz - 1.8) * 0.965 * ca;
+      // only the stretch the racing line can see, and never on the verge
+      if (!nearbyRoad(wx, wz, ROAD_HALF + 17)) continue;
+      if (nearbyRoad(wx, wz, ROAD_HALF + 0.7)) continue;
+      const g = new THREE.Group();
+      const h = 3.1 + rnd() * 1.2;
+      g.position.set(wx, 0, wz);
+      g.rotation.y = rnd() * 6.28;
+      const post = 0x2c2620, cream = 0xe9e4cf;
+      addBox(g, 0.36, h, 0.36, post, 0, h / 2, 0);
+      addBox(g, 0.46, 0.34, 0.46, cream, 0, h - 0.5, 0);
+      group.add(g);
+      colliders.push({ x: wx, z: wz, r: 0.45 });
+      shadows.push({ x: wx, z: wz, rot: 0, scale: 0.5 });
+    }
+  }
+
   /* Cacti: a saguaro has a trunk and two arms that turn up, which is four boxes
      for the silhouette that says desert faster than any palm. */
   if (map.cacti) {
@@ -2221,11 +2420,91 @@ export async function buildWorld(scene: THREE.Scene, mapId?: string): Promise<Wo
         colliders.push({ x, z, r: 1.7 });
       }
     }
+
+    if (map.lake) {
+      /* The banked kerb on the lake straight: the one stretch where the flat
+         painted kerb gives way to raised blue-and-white blocks in two
+         climbing tiers, so the frozen lake behind them is announced by the
+         road itself. Every block is baked into the shared instanced mesh. */
+      const kerbWhite = 0xf2f6f8, kerbBlue = 0x3f6fb0;
+      const from = 612, to = 700;
+      for (let i = from; i <= to; i += 4) {
+        const p = track[i % track.length], q = track[(i + 4) % track.length];
+        const dx = q.x - p.x, dz = q.z - p.z;
+        const len = Math.hypot(dx, dz) || 1;
+        const nx = dz / len, nz = -dx / len;
+        const g = new THREE.Group();
+        g.position.set(p.x, 0, p.z);
+        g.rotation.y = Math.atan2(dx, dz);
+        const col = (((i - from) / 4) | 0) % 2 === 0 ? kerbWhite : kerbBlue;
+        // group-local x is the road normal; the lake is on the -x side here
+        const d = Math.hypot(dx, dz) * 1.08;
+        addBox(g, 0.50, 0.13, d, col, -(ROAD_HALF + 0.42), 0.065, 0);
+        addBox(g, 0.60, 0.30, d, col, -(ROAD_HALF + 0.95), 0.15, 0);
+        addBox(g, 0.62, 0.05, d, white, -(ROAD_HALF + 0.95), 0.325, 0);
+        group.add(g);
+        if (((i - from) / 4) % 2 === 0) {
+          colliders.push({ x: p.x + nx * -(ROAD_HALF + 0.95), z: p.z + nz * -(ROAD_HALF + 0.95), r: 0.5 });
+        }
+      }
+
+      /* The ice camp on the lake's north-west rim: two huts, a sled and a
+         wood pile on the shore, and tip-ups standing over the two fishing
+         holes painted in the ice. This is what makes the lake a destination
+         instead of a blue patch. */
+      const camp: [number, number, number][] = [[-8, 15.5, 0.5], [-11.2, 12.8, -0.2]];
+      for (const [x, z, rot] of camp) {
+        const g = new THREE.Group();
+        g.position.set(x, 0, z);
+        g.rotation.y = rot;
+        addBox(g, 2.2, 1.7, 2.2, white, 0, 0.85, 0);
+        addBox(g, 2.5, 0.22, 2.5, blue, 0, 1.8, 0);
+        addBox(g, 0.55, 1.0, 0.08, ink, 0, 0.8, 1.12);
+        addBox(g, 0.22, 0.9, 0.22, ink, 0.6, 2.2, -0.4);
+        group.add(g);
+        colliders.push({ x, z, r: 1.7 });
+      }
+      // the sled, parked by the hut, runner-side to the lake
+      {
+        const g = new THREE.Group();
+        g.position.set(-5.6, 0, 14.6);
+        g.rotation.y = 0.9;
+        addBox(g, 1.5, 0.10, 0.9, red, 0, 0.14, 0);
+        addBox(g, 0.12, 0.12, 0.9, ink, -0.66, 0.07, 0);
+        addBox(g, 0.12, 0.12, 0.9, ink, 0.66, 0.07, 0);
+        addBox(g, 1.5, 0.28, 0.10, red, 0.66, 0.32, 0);
+        group.add(g);
+      }
+      // the wood pile, snow-capped
+      {
+        const g = new THREE.Group();
+        g.position.set(-9.5, 0, 18);
+        g.rotation.y = 0.25;
+        for (let k = 0; k < 3; k++) {
+          addBox(g, 0.34, 0.34, 1.7, ink, (k - 1) * 0.36, 0.17, 0);
+          addBox(g, 0.36, 0.10, 1.6, white, (k - 1) * 0.36, 0.39, 0);
+        }
+        group.add(g);
+      }
+      // tip-ups over the painted holes: a pole, a spool and a blue flag
+      for (const [x, z] of [[-4.5, 10.5], [-1.5, 12.5]] as [number, number][]) {
+        const g = new THREE.Group();
+        g.position.set(x, 0, z);
+        g.rotation.y = x;
+        addBox(g, 0.5, 0.1, 0.5, white, 0, 0.05, 0);
+        addBox(g, 0.07, 1.0, 0.07, ink, 0, 0.5, 0);
+        addBox(g, 0.24, 0.18, 0.04, blue, 0.15, 1.0, 0);
+        group.add(g);
+        colliders.push({ x, z, r: 0.3 });
+      }
+    }
   }
 
   let snowfall: { points: THREE.Points; pos: Float32Array; speed: Float32Array } | null = null;
   if (map.snow) {
-    const N = 1400;
+    // 2400 flakes at 2 px: the fall reads as weather from the chase camera
+    // without the whiteout that hides the road ahead
+    const N = 2400;
     const pos = new Float32Array(N * 3);
     const speed = new Float32Array(N);
     for (let i = 0; i < N; i++) {
@@ -2237,8 +2516,8 @@ export async function buildWorld(scene: THREE.Scene, mapId?: string): Promise<Wo
     const geo = new THREE.BufferGeometry();
     geo.setAttribute('position', new THREE.BufferAttribute(pos, 3));
     const mat = new THREE.PointsMaterial({
-      color: 0xffffff, size: 1.7, sizeAttenuation: false,
-      transparent: true, opacity: 0.8, depthWrite: false, toneMapped: false,
+      color: 0xffffff, size: 2, sizeAttenuation: false,
+      transparent: true, opacity: 0.85, depthWrite: false, toneMapped: false,
     });
     const points = new THREE.Points(geo, mat);
     points.frustumCulled = false;
@@ -2357,12 +2636,19 @@ export async function buildWorld(scene: THREE.Scene, mapId?: string): Promise<Wo
     };
 
     const brMap = map.id === 'interlagos';
+    const alpineMap = map.id === 'alpine';
     const straightLabels = map.id === 'sakura'
       ? ['桜', '鈴鹿', '日本', '富士', '速度', '東京']
       : brMap
         ? ['INTERLAGOS', 'SENNA', 'BRASIL', 'SÃO PAULO', 'OLEO', 'PIXEL']
-        : ['PIXEL', 'TURBO', 'DRIFT', '8-BIT', 'NITRO', 'OIL'];
-    const accents = ['#e0513f', '#2b6d7a', '#b5432f'];
+        : alpineMap
+          ? ['FROSTBITE', 'GLACIER', 'ICEWORKS', 'NORTH PASS', 'SNOWLINE', 'PIXEL']
+          : ['PIXEL', 'TURBO', 'DRIFT', '8-BIT', 'NITRO', 'OIL'];
+    /* Frostbite's boards stay in its own accent family — ice blue and ink on
+       cream — where the other maps speak in red and teal. */
+    const accents = alpineMap
+      ? ['#3f6fb0', '#22262c', '#7fb3d0']
+      : ['#e0513f', '#2b6d7a', '#b5432f'];
 
     let bi = 0;
     const brSpots: number[] = [];
