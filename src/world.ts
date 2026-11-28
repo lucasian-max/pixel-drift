@@ -99,6 +99,8 @@ export interface MapDef {
   /** rust-red laterite blotches through the infield grass */
   redEarth?: boolean;
   ferris?: { x: number; z: number; rot: number; scale: number };
+  /** a fairground carousel standing in the middle of the corner named for it */
+  carousel?: { x: number; z: number; rot: number; scale: number };
   torii?: { x: number; z: number; rot: number; scale: number };
   pagoda?: { x: number; z: number; rot: number; scale: number };
   pondBridge?: boolean;
@@ -112,6 +114,9 @@ export interface MapDef {
   marsh?: boolean;
   /** desert wind ripples combed through the sand, all one way */
   windRipples?: boolean;
+  /** desert: a broad dark verge of compacted dirt flanks the road, so the dust
+   *  the cars kick up reads against the sand instead of vanishing into it */
+  dustVerge?: boolean;
   /** a timber jetty out over the lake */
   jetty?: { x: number; z: number; rot: number; len: number };
   /** flat-topped rock plateaus standing out in the desert */
@@ -401,21 +406,28 @@ export const MAPS: MapDef[] = [
       shoulder: '#8d7448', asphalt: '#4a4640', grainA: '#6f6759', grainB: '#2f2b26',
       line: 'rgba(240,232,206,0.85)', kerbA: '#e8d7ab', kerbB: '#b4553a',
     },
-    trees: 'palm', density: 0.9, windRipples: true,
+    trees: 'palm', density: 0.9, windRipples: true, dustVerge: true,
     props: { trees: 170, rocks: 76, buildings: 0, lampStride: 52, rockScale: 1.4 },
     town: [],
     sky: '#e8c49a',
-    /* Mirage Mesa is read from the carousel and the two hairpins, so that is
-       where the dressing is: a cactus garden on the outside of the carousel, a
-       rock garden in the pocket between the hairpins, a palm oasis in the
-       middle of the infield, and bare desert everywhere else. The buttes stand
-       on the horizon the circuit turns around, never on the racing surface. */
+    /* Mirage Mesa is composed as three theatres. The grand carousel: the
+       fairground carousel turns on the grass at the centre of the corner named
+       for it, a hoarding arc and two ranks of palms wrap the outside, and the
+       kerb climbs terracotta through the entry. The start straight is a palm
+       allee, two ranks on the desert side and one in the corridor it shares
+       with the back lane, so the run to the line is shaded the whole way. The
+       lane-2 flick is fenced with oil drums, a slalom the drift reads against.
+       The buttes stand on the horizon the circuit turns around, never on the
+       racing surface, and the desert beyond the theatre stays bare. */
     mesas: [
       { x: -72, z: -34, r: 17, h: 7, rot: 0.3 },
       { x: 62, z: -56, r: 12, h: 5.5, rot: 0.9 },
       { x: -46, z: 58, r: 11, h: 4.5, rot: -0.4 },
       { x: 66, z: 34, r: 9, h: 4, rot: 0.2 },
     ],
+    // the fair at the centre of the carousel corner: the corner the map is
+    // read from, and the landmark the corner is named for
+    carousel: { x: -34.3, z: 15.1, rot: 0.3, scale: 1.15 },
     cacti: [
       { x: -62, z: 6, rot: 0.4, scale: 1.15 },
       { x: -60, z: -2, rot: 2.1, scale: 0.9 },
@@ -434,23 +446,36 @@ export const MAPS: MapDef[] = [
     ],
     dressing: {
       rows: [
-        // palms down the outside of the main straight, the only shade in sight
+        // the allee on the start straight: two ranks marching down the desert
+        // side, the deeper one taller so the avenue reads in depth
+        { near: [-4, -32], metres: 52, side: 1, offset: 9, step: 8, palm: true, scale: 1.05 },
+        { near: [-4, -32], metres: 52, side: 1, offset: 15, step: 12, palm: true, scale: 1.2 },
+        // and a single rank in the corridor behind it, shared with lane 2
+        { near: [-4, -32], metres: 46, side: -1, offset: 9, step: 11, palm: true, scale: 0.95 },
+        // palms through the corridor the top lane shares with lane 3, the
+        // approach to the carousel, ending before the corner so the theatre
+        // reads as its own event
         { near: [4, 32], metres: 76, side: -1, offset: 10, step: 9, palm: true },
+        // the theatre: a knot at the carousel entry, then the crescent that
+        // wraps the outside of the corner in two ranks behind the hoardings
+        { near: [-24, 33.5], metres: 18, side: 1, offset: 8.5, step: 6, palm: true, scale: 1.15 },
+        { near: [-50.5, 17], metres: 40, side: 1, offset: 7.5, step: 6.5, palm: true, scale: 1.1 },
+        { near: [-49, 19], metres: 46, side: 1, offset: 13, step: 9, palm: true, scale: 1.25 },
       ],
       groves: [
-        { x: -14, z: -52, r: 8, n: 9, palm: true },    // the oasis in the infield
+        { x: -14, z: -52, r: 8, n: 9, palm: true },    // the oasis the allee runs at
         { x: 16, z: -46, r: 5, n: 5, palm: true },
         { x: 44, z: -20, r: 6, n: 6, palm: true },     // and shade on the east hairpin
-        { x: -34, z: 48, r: 7, n: 7, palm: true },
+        { x: -44, z: 50, r: 7, n: 7, palm: true },     // the grove behind the theatre
       ],
       beds: [
-        { x: -20, z: -30, r: 9, n: 9, scale: 1.7 },    // the rock garden in the carousel
+        { x: -20, z: -30, r: 9, n: 9, scale: 1.7 },    // the rock garden in the allee corridor
         { x: 44, z: -8, r: 10, n: 8, scale: 1.5 },
         { x: -54, z: 22, r: 8, n: 6, scale: 1.9 },     // the big slabs at the carousel exit
         { x: 12, z: 52, r: 9, n: 6, scale: 1.4 },
       ],
       open: [
-        { x: -70, z: 40, r: 20 },     // bare desert, the mesa's own floor
+        { x: -78, z: 46, r: 14 },     // bare desert beyond the theatre, the mesa's own floor
         { x: 24, z: -66, r: 16 },
         { x: 0, z: 6, r: 14 },        // the middle of the loop stays clean
       ],
@@ -1109,6 +1134,52 @@ function paintGround(track: P2[], map: MapDef): HTMLCanvasElement {
     }
   }
 
+  /* The dust verge. On a desert map the whole world is the colour of the dust
+     the cars kick up, so a plume vanishes into the ground it lands on. A broad
+     band of compacted dirt — darker than the sand, the track's own working
+     apron — flanks the road on both sides, and the pale plume reads against
+     it. Corners also blow a tail of fine dust off their exits, downwind the
+     same way the ripples comb, so the map says "dust lives here" before a
+     wheel turns. */
+  if (map.dustVerge) {
+    const margin = ROAD_HALF + 5.5;
+    strokePath(g, track, 'rgba(94, 70, 42, 0.42)', (margin * 2) * PPU);
+    // mottle the band: packed dirt is not one flat tone
+    for (let i = 0; i < 9000; i++) {
+      const p = track[(rnd() * track.length) | 0];
+      const a = rnd() * Math.PI * 2;
+      const r = Math.sqrt(rnd()) * margin;
+      if (r < ROAD_HALF) continue;
+      const x = (p.x + Math.cos(a) * r + HALF_G) * PPU;
+      const y = (p.z + Math.sin(a) * r + HALF_G) * PPU;
+      g.fillStyle = rnd() > 0.5 ? 'rgba(74, 54, 32, 0.5)' : 'rgba(120, 94, 62, 0.5)';
+      g.fillRect(x | 0, y | 0, rnd() > 0.7 ? 2 : 1, 1);
+    }
+    // the dust tails: pale streaks blown off the outside of each corner exit,
+    // laid the same way the wind combs the ripples
+    const nD = track.length;
+    let lastTail = -999;
+    for (let k = 0; k < nD; k++) {
+      const c = Math.abs(curvature(track, k));
+      if (c < 0.22) continue;
+      if (c < Math.abs(curvature(track, (k - 1 + nD) % nD))) continue;
+      if (k - lastTail < 60) continue;
+      lastTail = k;
+      const side = curvature(track, k) > 0 ? 1 : -1;
+      for (let s = 0; s < 4; s++) {
+        const at = (k + 14 + ((rnd() * 22) | 0)) % nD;
+        const p = edgeAt(track, at, side * (ROAD_HALF + 1.5 + rnd() * 3.5));
+        const x = (p.x + HALF_G) * PPU, y = (p.z + HALF_G) * PPU;
+        g.strokeStyle = 'rgba(240, 222, 178, 0.30)';
+        g.lineWidth = 1.4 + rnd() * 2.2;
+        g.beginPath();
+        g.moveTo(x, y);
+        g.lineTo(x + (4 + rnd() * 9) * PPU, y + (2 + rnd() * 4.5) * PPU);
+        g.stroke();
+      }
+    }
+  }
+
   strokePath(g, track, map.palette.shoulder, (ROAD_HALF * 2 + 1.6) * PPU);
   strokePath(g, track, map.palette.asphalt, ROAD_HALF * 2 * PPU);
 
@@ -1365,6 +1436,42 @@ function brBannerTexture(label: string, yellow: boolean): THREE.Texture {
   g.textBaseline = 'middle';
   g.fillStyle = yellow ? '#0b3a20' : '#ffe97a';
   chars.forEach((ch, i) => g.fillText(ch, 32, 11 + step * 0.5 + i * step));
+  const tex = new THREE.CanvasTexture(cv);
+  tex.magFilter = THREE.NearestFilter;
+  tex.minFilter = THREE.NearestFilter;
+  tex.colorSpace = THREE.SRGBColorSpace;
+  return tex;
+}
+
+/** Mesa's standing banner: the fair's sign, one tall cream band with a dust
+ *  orange sun and the letters stacked down it, amber and ink on cream so it
+ *  survives the tan the way a red banner would not. */
+function mesaBannerTexture(label: string, accent: string): THREE.Texture {
+  const cv = document.createElement('canvas');
+  cv.width = 64; cv.height = 192;
+  const g = cv.getContext('2d')!;
+  g.fillStyle = '#f2eee1';
+  g.fillRect(0, 0, 64, 192);
+  g.fillStyle = accent;
+  g.fillRect(0, 0, 64, 9);
+  g.fillRect(0, 183, 64, 9);
+  g.fillStyle = '#22252a';
+  g.fillRect(4, 13, 56, 2);
+  g.fillRect(4, 177, 56, 2);
+  // the desert sun: a dust-orange disc banded in amber, over the word
+  g.fillStyle = accent;
+  g.beginPath(); g.arc(32, 40, 15, 0, Math.PI * 2); g.fill();
+  g.fillStyle = '#f0a828';
+  g.fillRect(20, 38, 24, 4);
+  g.fillStyle = '#f2eee1';
+  g.beginPath(); g.arc(32, 40, 8, 0, Math.PI * 2); g.fill();
+  g.fillStyle = '#1d1f24';
+  g.font = 'bold 34px monospace';
+  g.textAlign = 'center';
+  g.textBaseline = 'middle';
+  const chars = [...label];
+  const step = Math.min(34, (192 - 92) / Math.max(1, chars.length));
+  chars.forEach((ch, i) => g.fillText(ch, 32, 78 + step * 0.5 + i * step));
   const tex = new THREE.CanvasTexture(cv);
   tex.magFilter = THREE.NearestFilter;
   tex.minFilter = THREE.NearestFilter;
@@ -2080,6 +2187,94 @@ export async function buildWorld(scene: THREE.Scene, mapId?: string): Promise<Wo
     }
   }
 
+  /* Mirage Mesa's authored furniture: the oil drums and the carousel's banked
+     kerb. The drums fence the outside of the lane-2 flick as a slalom line —
+     seven of them, two on their sides where somebody went through — and stack
+     in the fair's yard beside the carousel, rust and amber against the sand.
+     The kerb is the theatre's stage lip: two climbing terracotta tiers with a
+     cream cap through the carousel entry, the one stretch where the flat
+     painted kerb gives way to a raised edge, so the corner is announced by the
+     road itself. Every box lands in the shared instanced bake at the end. */
+  if (map.id === 'mesa') {
+    const rust = 0xb4553a, orange = 0xc66a2e, inkD = 0x2a2320, amber = 0xf0a828,
+      cream = 0xe8d7ab, wood = 0x8a5f3a;
+    const drum = (x: number, z: number, rot: number, col: number, tipped = false, y = 0) => {
+      const g = new THREE.Group();
+      g.position.set(x, 0, z);
+      g.rotation.y = rot;
+      const h = 0.95, w = 0.62;
+      if (tipped) {
+        addBox(g, h, w, w, col, 0, y + w / 2, 0);
+        addBox(g, 0.09, w * 1.05, w * 1.05, inkD, -0.22, y + w / 2, 0);
+        addBox(g, 0.09, w * 1.05, w * 1.05, inkD, 0.22, y + w / 2, 0);
+      } else {
+        addBox(g, w, h, w, col, 0, y + h / 2, 0);
+        addBox(g, w * 1.05, 0.07, w * 1.05, inkD, 0, y + h * 0.32, 0);
+        addBox(g, w * 1.05, 0.07, w * 1.05, inkD, 0, y + h * 0.68, 0);
+        addBox(g, w * 0.9, 0.05, w * 0.9, amber, 0, y + h + 0.025, 0);
+      }
+      group.add(g);
+      if (y === 0) {
+        colliders.push({ x, z, r: 0.5 });
+        shadows.push({ x, z, rot: 0, scale: 0.55 });
+      }
+    };
+    // the barrel chicane: drums down the outside of the lane-2 flick
+    const chicane: [number, number, number][] = [
+      [21.3, -16.8, 0.9], [19.0, -17.7, 1.4], [12.8, -19.8, 1.2], [6.0, -19.3, 1.1],
+      [2.3, -17.1, 1.5], [-0.7, -14.6, 1.0], [-2.6, -13.0, 1.3],
+    ];
+    chicane.forEach(([x, z, rot], k) => {
+      drum(x, z, rot, k % 3 === 1 ? orange : k % 3 === 2 ? inkD : rust, k === 2 || k === 5);
+    });
+    // the fair's yard beside the carousel: a stack of drums and crates, the
+    // working end of the fairground the corner is named for
+    drum(-40.5, 8.0, 0.4, rust);
+    drum(-40.5, 8.0, 0.4, orange, false, 0.95);     // stacked on the first
+    drum(-39.6, 8.6, 0.9, inkD, true);
+    drum(-42.2, 10.0, 0.2, orange, true);
+    drum(-41.4, 6.9, 0.55, rust);
+    for (const [cx, cz, cr] of [[-41.8, 6.6, 0.5], [-40.4, 11.2, 0.9]] as [number, number, number][]) {
+      const g = new THREE.Group();
+      g.position.set(cx, 0, cz);
+      g.rotation.y = cr;
+      addBox(g, 1.15, 0.7, 1.15, wood, 0, 0.35, 0);
+      addBox(g, 1.2, 0.08, 0.18, cream, 0, 0.35, 0);
+      addBox(g, 0.18, 0.08, 1.2, cream, 0, 0.35, 0);
+      addBox(g, 0.95, 0.5, 0.95, wood, 0.15, 0.9, -0.1);
+      group.add(g);
+      colliders.push({ x: cx, z: cz, r: 0.9 });
+      shadows.push({ x: cx, z: cz, rot: 0, scale: 0.9 });
+    }
+
+    /* The banked kerb through the carousel entry, in the map's own terracotta
+       and cream: blocks in two climbing tiers on the outside of the corner,
+       from the entry board down to the tyre stack at the apex. */
+    const kFrom = 600, kTo = 648;
+    for (let i = kFrom; i <= kTo; i += 4) {
+      const p = track[i % track.length], q = track[(i + 4) % track.length];
+      const dx = q.x - p.x, dz = q.z - p.z;
+      const len = Math.hypot(dx, dz) || 1;
+      const nx = dz / len, nz = -dx / len;
+      const g = new THREE.Group();
+      g.position.set(p.x, 0, p.z);
+      g.rotation.y = Math.atan2(dx, dz);
+      const col = (((i - kFrom) / 4) | 0) % 2 === 0 ? rust : cream;
+      // group-local +x is the road normal, and the outside of this corner is
+      // the +x side
+      const d = Math.hypot(dx, dz) * 1.08;
+      addBox(g, 0.50, 0.13, d, col, ROAD_HALF + 0.42, 0.065, 0);
+      addBox(g, 0.60, 0.30, d, col, ROAD_HALF + 0.95, 0.15, 0);
+      addBox(g, 0.62, 0.05, d, cream, ROAD_HALF + 0.95, 0.325, 0);
+      group.add(g);
+      if (((i - kFrom) / 4) % 2 === 0) {
+        colliders.push({
+          x: p.x + nx * (ROAD_HALF + 0.95), z: p.z + nz * (ROAD_HALF + 0.95), r: 0.5,
+        });
+      }
+    }
+  }
+
   /* Buttes: stepped strata with a talus skirt, standing out in the desert. The
      map is named for them and until now it had none. */
   if (map.mesas) {
@@ -2148,6 +2343,53 @@ export async function buildWorld(scene: THREE.Scene, mapId?: string): Promise<Wo
     addBox(g, 8.0, 0.3, 2.0, 0x2b2d33, 0, 0.15, 0);
     group.add(g);
     colliders.push({ x: f.x, z: f.z, r: 4.0 });
+  }
+
+  /* The fairground carousel. Mesa's grand corner is named for one, so one
+     turns on the grass at the centre of the sweep: a plinth, a striped canopy
+     climbing in three tiers, a king pole, and a ring of rider poles with
+     mounts between them. Every piece is a box baked into the shared instanced
+     mesh, and the whole thing sits inside the corner's radius, clear of the
+     racing line on every side. It is the landmark the corner turns around. */
+  if (map.carousel) {
+    const c = map.carousel;
+    const g = new THREE.Group();
+    g.position.set(c.x, 0, c.z);
+    g.rotation.y = c.rot;
+    g.scale.setScalar(c.scale);
+    const amber = 0xf0a828, terracotta = 0xb4553a, cream = 0xe8d7ab,
+      ink = 0x2a2320, wood = 0x8a5f3a;
+    // the plinth the whole fair stands on
+    addBox(g, 7.4, 0.3, 7.4, cream, 0, 0.15, 0);
+    addBox(g, 7.8, 0.14, 7.8, terracotta, 0, 0.02, 0);
+    // the king pole
+    addBox(g, 0.5, 4.8, 0.5, wood, 0, 2.4, 0);
+    addBox(g, 0.56, 0.5, 0.56, cream, 0, 2.5, 0);
+    // the canopy: three tiers, each smaller, striped by alternating the tier
+    // colour; the scallop board under the rim is the giveaway silhouette
+    const tiers: [number, number][] = [[7.2, 4.4], [6.0, 5.05], [4.7, 5.65]];
+    for (const [w, y] of tiers) {
+      addBox(g, w, 0.5, w, amber, 0, y, 0);
+      addBox(g, w * 0.78, 0.5, w * 0.78, terracotta, 0, y + 0.5, 0);
+    }
+    addBox(g, 7.5, 0.34, 0.6, cream, 0, 4.1, 3.45);
+    addBox(g, 7.5, 0.34, 0.6, cream, 0, 4.1, -3.45);
+    addBox(g, 0.6, 0.34, 7.5, cream, 3.45, 4.1, 0);
+    addBox(g, 0.6, 0.34, 7.5, cream, -3.45, 4.1, 0);
+    // the finial
+    addBox(g, 0.3, 1.2, 0.3, ink, 0, 6.4, 0);
+    addBox(g, 0.6, 0.4, 0.6, amber, 0, 7.1, 0);
+    // the rider ring: poles at the rim, mounts hung between them
+    for (let i = 0; i < 8; i++) {
+      const a = (i / 8) * Math.PI * 2;
+      const px = Math.cos(a) * 2.9, pz = Math.sin(a) * 2.9;
+      addBox(g, 0.14, 3.9, 0.14, cream, px, 2.05, pz);
+      addBox(g, 0.85, 0.62, 1.15, i % 2 ? terracotta : ink, px, 1.15, pz);
+      addBox(g, 0.5, 0.5, 0.5, i % 2 ? amber : cream, px, 0.62, pz);
+    }
+    group.add(g);
+    colliders.push({ x: c.x, z: c.z, r: 4.2 });
+    shadows.push({ x: c.x, z: c.z, rot: 0, scale: 3.7 });
   }
 
   if (bridge) {
@@ -2571,6 +2813,9 @@ export async function buildWorld(scene: THREE.Scene, mapId?: string): Promise<Wo
       c2.fillStyle = '#ffce00';
       c2.font = 'bold 21px monospace';
       c2.fillText('INTERLAGOS', 128, 35);
+    } else if (map.id === 'mesa') {
+      c2.font = 'bold 16px monospace';
+      c2.fillText('MIRAGE MESA', 128, 34);
     } else {
       c2.font = 'bold 16px monospace';
       c2.fillText('PIXEL DRIFT', 128, 34);
@@ -2637,18 +2882,24 @@ export async function buildWorld(scene: THREE.Scene, mapId?: string): Promise<Wo
 
     const brMap = map.id === 'interlagos';
     const alpineMap = map.id === 'alpine';
+    const mesaMap = map.id === 'mesa';
     const straightLabels = map.id === 'sakura'
       ? ['桜', '鈴鹿', '日本', '富士', '速度', '東京']
       : brMap
         ? ['INTERLAGOS', 'SENNA', 'BRASIL', 'SÃO PAULO', 'OLEO', 'PIXEL']
         : alpineMap
           ? ['FROSTBITE', 'GLACIER', 'ICEWORKS', 'NORTH PASS', 'SNOWLINE', 'PIXEL']
-          : ['PIXEL', 'TURBO', 'DRIFT', '8-BIT', 'NITRO', 'OIL'];
+          : mesaMap
+            ? ['MIRAGE', 'OASIS', 'MESA', 'DRY LAKE', 'DUST DEVIL', 'PIXEL']
+            : ['PIXEL', 'TURBO', 'DRIFT', '8-BIT', 'NITRO', 'OIL'];
     /* Frostbite's boards stay in its own accent family — ice blue and ink on
-       cream — where the other maps speak in red and teal. */
+       cream — and Mirage Mesa's speak in dust orange, amber and ink, so a
+       board never reads as another map's furniture in the tan. */
     const accents = alpineMap
       ? ['#3f6fb0', '#22262c', '#7fb3d0']
-      : ['#e0513f', '#2b6d7a', '#b5432f'];
+      : mesaMap
+        ? ['#c66a2e', '#1d1f24', '#f0a828']
+        : ['#e0513f', '#2b6d7a', '#b5432f'];
 
     let bi = 0;
     const brSpots: number[] = [];
@@ -2732,6 +2983,64 @@ export async function buildWorld(scene: THREE.Scene, mapId?: string): Promise<Wo
       spot(348, true, 'SÃO PAULO', false, 4.4, 1.4);
       spot(398, true, 'OLEO', true, 3.9, 1.18);
       spot(-26, true, 'INTERLAGOS', true, 4.4, 1.4);    // the last corner
+    }
+
+    /* The carousel theatre. The grand carousel is the corner the map is read
+       from, so its hoardings are composed as one backdrop: six boards down
+       the outside of the sweep, each angled back up the road so the whole arc
+       faces the car as it arrives, with a standing banner at the entry gate
+       and two boards fencing the barrel chicane on the far side of the lap. */
+    if (mesaMap) {
+      // absolute track indices: the entry gate, then the sweep to the apex
+      const theatreBoards: [number, string, boolean][] = [
+        [606, 'MIRAGE', true],
+        [618, 'MESA', false],
+        [630, 'OASIS', true],
+        [642, 'MESA', false],
+        [654, 'DUST DEVIL', true],
+        [666, 'MIRAGE', false],
+      ];
+      for (const [k, label, big] of theatreBoards) {
+        const i = ((k % n) + n) % n;
+        const p = track[i], q = track[(i + 4) % n];
+        const dx = q.x - p.x, dz = q.z - p.z;
+        const len = Math.hypot(dx, dz) || 1;
+        const nx = dz / len, nz = -dx / len;
+        // the outside of this left-hand sweep is the +normal side
+        const x = p.x + nx * (ROAD_HALF + 2.6);
+        const z = p.z + nz * (ROAD_HALF + 2.6);
+        if (nearbyRoad(x, z, ROAD_HALF + 1.0)) continue;
+        const rot = Math.atan2(-dx, -dz) + 0.5;
+        placeBoard(x, z, rot, boardTexture(label, big ? '#c66a2e' : '#1d1f24'),
+          big ? 5.0 : 3.9, big ? 1.6 : 1.18, 1.2);
+      }
+      // the standing banner at the entry gate, the fair's sign
+      {
+        const i = 602 % n;
+        const p = track[i], q = track[(i + 4) % n];
+        const dx = q.x - p.x, dz = q.z - p.z;
+        const len = Math.hypot(dx, dz) || 1;
+        const nx = dz / len, nz = -dx / len;
+        const x = p.x + nx * (ROAD_HALF + 2.4);
+        const z = p.z + nz * (ROAD_HALF + 2.4);
+        const rot = Math.atan2(-dx, -dz) + 0.4;
+        placeBoard(x, z, rot, mesaBannerTexture('MIRAGE', '#c66a2e'), 1.6, 3.6, 1.1);
+      }
+      // and the chicane's boards, on the drift side of the lane-2 flick
+      const chicaneBoards: [number, string][] = [[136, 'OIL'], [172, 'DUST']];
+      for (const [k, label] of chicaneBoards) {
+        const i = ((k % n) + n) % n;
+        const p = track[i], q = track[(i + 4) % n];
+        const dx = q.x - p.x, dz = q.z - p.z;
+        const len = Math.hypot(dx, dz) || 1;
+        const nx = dz / len, nz = -dx / len;
+        // the drums fence the -normal side; the boards stand behind them
+        const x = p.x - nx * (ROAD_HALF + 3.6);
+        const z = p.z - nz * (ROAD_HALF + 3.6);
+        if (nearbyRoad(x, z, ROAD_HALF + 1.0)) continue;
+        const rot = Math.atan2(-dx, -dz) - 0.45;
+        placeBoard(x, z, rot, boardTexture(label, '#f0a828'), 3.9, 1.18, 1.05);
+      }
     }
 
     const curvAt = (i: number) => {
