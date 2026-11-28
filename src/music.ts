@@ -1,17 +1,22 @@
-/* Pixel Drift's circuits, as music.
+/* Pixel Drift's circuits, as music — KEPT AS DATA, NOT PLAYED.
+ *
+ * The owner listened to this and rejected it: the game runs silent apart from
+ * the car. These tables stay because they are good, tested descriptions of what
+ * each circuit sounds like, and a future decision to try again should not start
+ * from a blank page. Nothing in src/ imports this file — see scripts/music.check.mjs,
+ * which holds that line with a test.
  *
  * Everything here is data plus two pure helpers: a table per circuit (notes,
  * drums, tempo, key) and `stepEvents(track, step)` which turns one eighth-note
- * step of that table into the hits the synth should play. No samples, no
- * files, no licensing: `sound.ts` renders these hits with oscillators.
+ * step of that table into the hits a synth would play. No samples, no files,
+ * no licensing.
  *
  * The grid is eight eighth-notes per bar — one row entry per step. A bar of
  * 4/4 is steps 0..7 (beats on 0, 2, 4, 6). Tracks loop after `bars` bars.
  *
- * The title screen reuses the Saltmarsh Coast loop on purpose: the music bus
- * is muted while the game is on the title/pause screen, and the first clean
+ * The title screen reuses the Saltmarsh Coast loop on purpose: the first clean
  * user gesture (the one that starts a run) is the first moment an AudioContext
- * is allowed to make sound — a separate title theme could never be heard.
+ * is allowed to make sound, so a separate title theme could never be heard.
  */
 
 export type MapId = 'coast' | 'alpine' | 'sakura' | 'mesa' | 'interlagos';

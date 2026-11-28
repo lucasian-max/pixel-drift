@@ -1,32 +1,46 @@
 #!/usr/bin/env node
-// scripts/music.check.mjs — the music, proven without a speaker.
+// scripts/music.check.mjs — the circuit music tables, proven without a speaker.
 //
-// Two halves, because the music is two halves:
-//   1. the pattern tables in src/music.ts — well formed, in key, seamless loop
-//   2. the synth in src/sound.ts — driven against a fake AudioContext that
-//      records every node and every gain/frequency ramp, so we can assert the
-//      graph the way a listener would hear it: music under the engine, drums
-//      firing, nothing scheduled at an illegal value, mute honest across reloads.
+// The music is NOT played: the owner listened to it and had it taken out of the
+// game, and src/sound.ts no longer imports anything from src/music.ts. What
+// survives here is the part that is still true and still worth keeping honest —
+// the tables themselves. They are a written record of what each circuit sounds
+// like, they are in key, they loop seamlessly, and a future attempt at music
+// should start from them rather than from a blank page.
+//
+// The synth's own proof (graph shape, ramps, pitch ranges) lives next door in
+// scripts/audio.check.mjs, against a fake AudioContext.
 //
 // Run by `npm test`. `node --test scripts/music.check.mjs` also works.
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
-import { registerHooks } from 'node:module';
 import test from 'node:test';
-
-/* src/sound.ts imports './music' the way Vite resolves it; node needs the
-   extension, so teach the loader that one trick before importing the synth. */
-registerHooks({
-  resolve(specifier, context, next) {
-    if (specifier.startsWith('.') && !/\.[cm]?[jt]s$/.test(specifier)) {
-      try { return next(`${specifier}.ts`, context); } catch { /* fall through */ }
-    }
-    return next(specifier, context);
-  },
-});
 
 const music = await import('../src/music.ts');
 const { TRACKS, MAP_IDS, loopSteps, loopSeconds, stepEvents, stepSeconds, midiToName, trackFor } = music;
+const SRC = new URL('../src/', import.meta.url);
+
+/* ------------------------------------------------------- kept, not played */
+
+test('nothing in src/ plays the music tables', () => {
+  const offenders = [];
+  for (const name of fs.readdirSync(SRC)) {
+    if (!name.endsWith('.ts') || name === 'music.ts') continue;
+    const text = fs.readFileSync(new URL(name, SRC), 'utf8');
+    // an import, a re-export, or a dynamic import of the music module
+    if (/from\s+['"]\.\/music['"]/.test(text) || /import\(\s*['"]\.\/music['"]\s*\)/.test(text)) {
+      offenders.push(name);
+    }
+  }
+  assert.deepEqual(offenders, [], 'music.ts is data now: no module may import it');
+});
+
+test('the tables stay pure data: no audio nodes, no window, no side effects', () => {
+  const text = fs.readFileSync(new URL('music.ts', SRC), 'utf8')
+    .replace(/\/\*[\s\S]*?\*\//g, '')   // the prose may say "AudioContext"; the code may not
+    .replace(/^\s*\/\/.*$/gm, '');
+  assert.doesNotMatch(text, /AudioContext|createOscillator|createGain|window\.|localStorage/);
+});
 
 /* ------------------------------------------------------------ pattern tables */
 
@@ -136,196 +150,6 @@ test('unknown map ids fall back to a real loop', () => {
   assert.equal(trackFor('coast').id, 'coast');
   assert.equal(trackFor('nope').id, 'coast');
   assert.equal(trackFor('').id, 'coast');
-});
-
-/* ---------------------------------------------------------------- fake graph */
-
-function fakeAudio(rate = 48000) {
-  const log = {
-    osc: [], gain: 0, filter: 0, source: 0, ramps: [], bad: [], targets: [], connected: [],
-  };
-  const param = (name, value = 0) => {
-    const p = {
-      name, value,
-      setValueAtTime(v) { p.value = v; return p; },
-      linearRampToValueAtTime(v) { p.value = v; return p; },
-      exponentialRampToValueAtTime(v, at) {
-        log.ramps.push({ name, v, at });
-        // real WebAudio throws on <= 0 and on a ramp from an unset value
-        if (!(v > 0)) log.bad.push({ name, v, at });
-        p.value = v;
-        return p;
-      },
-      setTargetAtTime(v) { p.value = v; log.targets.push({ name, v }); return p; },
-    };
-    return p;
-  };
-  const wired = (node) => ({
-    ...node,
-    connect(dst) {
-      log.connected.push({ from: node.kind, to: dst && dst.kind });
-      return dst;
-    },
-  });
-  const ctx = {
-    currentTime: 0,
-    sampleRate: rate,
-    destination: { kind: 'destination', connect: () => ctx.destination },
-    resume() {},
-    createGain: () => { log.gain++; return wired({ kind: 'gain', gain: param('gain', 1) }); },
-    createBiquadFilter: () => {
-      log.filter++;
-      return wired({ kind: 'filter', type: 'lowpass', frequency: param('frequency', 350), Q: param('Q', 1) });
-    },
-    createOscillator: () => {
-      log.osc.push({ type: 'sine', frequency: param('frequency', 440), detune: param('detune', 0) });
-      return wired({
-        kind: 'osc',
-        get frequency() { return log.osc[log.osc.length - 1].frequency; },
-        get detune() { return log.osc[log.osc.length - 1].detune; },
-        start(at) { log.osc[log.osc.length - 1].started = at; },
-        stop() {},
-      });
-    },
-    createBuffer: (_ch, len) => ({ length: len, getChannelData: () => new Float32Array(len) }),
-    createBufferSource: () => {
-      log.source++;
-      return wired({
-        kind: 'source', buffer: null, loop: false,
-        playbackRate: param('playbackRate', 1),
-        start() {}, stop() {},
-      });
-    },
-  };
-  return { ctx, log, advance: (dt) => { ctx.currentTime += dt; } };
-}
-
-function installGlobals({ AudioContext: AC, muted = null }) {
-  const store = new Map();
-  if (muted != null) store.set('sprite-drift:muted', muted);
-  globalThis.localStorage = {
-    getItem: (k) => (store.has(k) ? store.get(k) : null),
-    setItem: (k, v) => store.set(k, String(v)),
-    removeItem: (k) => store.delete(k),
-  };
-  globalThis.addEventListener = () => {};
-  globalThis.window = globalThis;
-  globalThis.AudioContext = AC;
-  return store;
-}
-
-const { Sound } = await import('../src/sound.ts');
-
-const DRIVING = { speed: 9, slip: 0.2, onRoad: true, onKerb: false };
-
-/** boot one Sound against a fresh fake context and let `seconds` of game pass */
-function play(mapId, seconds, { muted = null, paused = false, speed = () => 9 } = {}) {
-  const audio = fakeAudio();
-  const store = installGlobals({ AudioContext: function FakeAudioContext() { return audio.ctx; }, muted });
-  const sound = new Sound(mapId);
-  sound.start();
-  const engineOsc = audio.log.osc.length;   // the engine's own oscillators, before any music
-  const car = { ...DRIVING };
-  const t0 = audio.ctx.currentTime;
-  for (let i = 0; i < Math.round(seconds * 120); i++) {
-    car.speed = speed(i);
-    sound.update(car, 0.7, paused);
-    audio.advance(1 / 120);
-  }
-  return { sound, audio, car, store, engineOsc, elapsed: audio.ctx.currentTime - t0 };
-}
-
-/* ------------------------------------------------------------------- the graph */
-
-test('a muted tab stays muted across reloads', () => {
-  const { sound, audio, store } = play('coast', 2, { muted: '1' });
-  assert.equal(sound.muted, true);
-  assert.equal(sound.levels.master, 0, 'muted tab must not make a sound');
-  assert.ok(audio.log.osc.length > 0, 'the sequencer still steps while muted');
-  assert.equal(sound.toggleMute(), false);
-  assert.equal(store.get('sprite-drift:muted'), '0', 'unmuting is remembered too');
-  assert.equal(sound.levels.master, 0.55);
-  assert.equal(sound.toggleMute(), true);
-  assert.equal(store.get('sprite-drift:muted'), '1');
-  assert.equal(sound.levels.master, 0);
-});
-
-test('the music bus sits under the engine and under the master', () => {
-  const { sound } = play('coast', 3, { speed: () => 0 });
-  const { master, music } = sound.levels;
-  assert.equal(master, 0.55);
-  assert.ok(music > 0.08 && music <= 0.12, `music bus at ${music}`);
-  assert.ok(music < master / 4, 'music is a carpet, not the feature');
-  // the engine is louder than the carpet at rest and still louder at speed
-  const { sound: fast } = play('coast', 3, { speed: () => 26 });
-  assert.ok(fast.levels.engine > sound.levels.engine, 'engine rises with speed');
-  assert.ok(fast.levels.music < sound.levels.music, 'high engine pitch ducks the music further');
-  assert.ok(fast.levels.music >= 0.07, 'never ducks to silence while driving');
-});
-
-test('the pause and title screens go quiet without unplugging the bus', () => {
-  const { sound, audio, engineOsc } = play('alpine', 3, { paused: true });
-  assert.equal(sound.levels.music, 0, 'paused tab: music silent');
-  assert.equal(audio.log.osc.length, engineOsc, 'paused tab: no music notes scheduled at all');
-  // the bus target reached zero, rather than being torn out of the graph
-  assert.ok(audio.log.targets.some((x) => x.name === 'gain' && x.v === 0), 'bus ducked to zero');
-});
-
-test('each circuit builds a graph, fires its notes, and never schedules garbage', (t) => {
-  for (const id of MAP_IDS) {
-    const track = TRACKS[id];
-    const { sound, audio } = play(id, 8, { speed: (i) => 6 + (i % 240) / 24 });
-    const seq = sound.sequencer;
-    t.diagnostic(`${id}: ${audio.log.osc.length} osc, ${audio.log.source} noise, step ${seq.step}/${seq.steps}`);
-    assert.equal(seq.track, id);
-    assert.ok(seq.step >= 0 && seq.step < loopSteps(track), `${id}: step out of the loop`);
-    assert.ok(audio.log.osc.length >= 20, `${id}: only ${audio.log.osc.length} oscillators`);
-    assert.ok(audio.log.source > 0, `${id}: percussion never fired`);
-    assert.deepEqual(audio.log.bad, [], `${id}: scheduled an exponential ramp to <= 0`);
-    for (const o of audio.log.osc) {
-      assert.ok(Number.isFinite(o.frequency.value), `${id}: non-finite pitch`);
-      assert.ok(o.frequency.value >= 20 && o.frequency.value <= 16000, `${id}: ${o.frequency.value}Hz`);
-    }
-    // every note plays through the music bus, which plays into the master
-    assert.ok(audio.log.connected.some((c) => c.from === 'gain' && c.to === 'gain'), 'notes reach a bus');
-  }
-});
-
-test('the sequencer walks each loop, wrapping exactly on the loop length', () => {
-  for (const id of MAP_IDS) {
-    const span = loopSteps(TRACKS[id]);
-    // a hair over one full loop at this tempo
-    const secs = loopSeconds(TRACKS[id]) + stepSeconds(TRACKS[id]) * 0.5;
-    const { sound } = play(id, secs, { speed: () => 0 });
-    const seq = sound.sequencer;
-    assert.equal(seq.steps, span);
-    assert.ok(seq.step < span, `${id}: wrapped`);
-    const played = Math.floor((loopSeconds(TRACKS[id]) + 0.1) / stepSeconds(TRACKS[id]));
-    assert.ok(played >= span, `${id}: window is shorter than the loop`);
-  }
-});
-
-test('swapping the loop under a running bus keeps the pulse', () => {
-  const audio = fakeAudio();
-  installGlobals({ AudioContext: function FakeAudioContext() { return audio.ctx; } });
-  const sound = new Sound('coast');
-  sound.start();
-  const car = { ...DRIVING };
-  for (let i = 0; i < 400; i++) { sound.update(car, 0.5, false); audio.advance(1 / 120); }
-  const before = sound.sequencer.step;
-  const cursor = audio.ctx.currentTime;
-  sound.setTrack('mesa');
-  assert.equal(sound.sequencer.track, 'mesa');
-  assert.equal(sound.sequencer.step, 0, 'the new loop starts at its top');
-  assert.equal(sound.sequencer.steps, loopSteps(TRACKS.mesa));
-  const count = audio.log.osc.length;
-  for (let i = 0; i < 240; i++) { sound.update(car, 0.5, false); audio.advance(1 / 120); }
-  assert.ok(audio.log.osc.length > count, 'the mesa pattern is playing');
-  assert.ok(audio.ctx.currentTime > cursor, 'the clock never restarted');
-  assert.equal(sound.levels.master, 0.55, 'no gain change on the swap');
-  sound.setTrack('coast');
-  sound.setTrack('coast');
-  assert.equal(sound.sequencer.step, 0);
 });
 
 function midiName(midi) {

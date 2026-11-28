@@ -666,7 +666,7 @@ async function boot() {
   addEventListener('resize', () => { resize(); ui.resize(); });
   resize();
   const ui = new PixelUI(uiCanvas, world.minimapPath, world.start);
-  const sound = new Sound(mapId);   // each circuit brings its own loop
+  const sound = new Sound();   // engine + tyres only: there is no music
   car.onImpact = (s: number) => {
     sound.impact(s);
     recorder.noteEvent('impact', { strength: s, x: car.x, z: car.z });

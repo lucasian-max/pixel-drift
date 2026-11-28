@@ -1,6 +1,4 @@
 import type { Car } from './car';
-import { loopSteps, midiToFreq, stepEvents, stepSeconds, trackFor } from './music';
-import type { Drum, Hit, TrackSpec } from './music';
 
 /** Tiny synthesised engine + tyre squeal. No assets, starts on first input. */
 export class Sound {
@@ -17,16 +15,7 @@ export class Sound {
     // remembered between visits: a muted tab should not blast on relaunch
     try { return localStorage.getItem('sprite-drift:muted') === '1'; } catch { return false; }
   })();
-  private musicGain!: GainNode;
-  private musicNext = 0;
-  private musicStep = 0;
-  private track: TrackSpec;
   private noiseBuf: AudioBuffer | null = null;
-
-  /** the circuit's loop is chosen here; a map switch is a fresh Sound */
-  constructor(track: string = 'coast') {
-    this.track = trackFor(track);
-  }
 
   start() {
     if (this.ctx) { this.ctx.resume(); return; }
@@ -94,12 +83,6 @@ export class Sound {
     noise.start();
     this.noiseBuf = buf;
 
-    // music bus, a carpet under the engine rather than a feature of its own
-    this.musicGain = ctx.createGain();
-    this.musicGain.gain.value = 0.11;
-    this.musicGain.connect(this.master);
-    this.musicNext = ctx.currentTime + 0.2;
-
     // N mutes (M returns to the menu); a held key would toggle it back and forth
     addEventListener('keydown', (e) => {
       if (e.code === 'KeyN' && !e.repeat) this.toggleMute();
@@ -143,106 +126,12 @@ export class Sound {
     }
   }
 
-  /* ---- music -------------------------------------------------------------
-     One sequencer, five pattern tables (see music.ts). It schedules a quarter
-     second ahead of the clock so a busy frame cannot leave a hole in the loop,
-     and it never touches the graph's shape: only notes and the bus gain move.
-     Swapping the loop under a running bus keeps musicNext, so the pulse does
-     not restart when the track changes. */
-
-  /** which loop is playing, and where in it — for probes and the HUD-free tests */
-  get sequencer() {
-    return { track: this.track.id, step: this.musicStep, steps: loopSteps(this.track) };
-  }
-
-  /** current gain targets, read-only: master, music bus, engine */
+  /** current gain targets, read-only: master and engine */
   get levels() {
     return {
       master: this.master ? this.master.gain.value : 0,
-      music: this.musicGain ? this.musicGain.gain.value : 0,
       engine: this.engGain ? this.engGain.gain.value : 0,
     };
-  }
-
-  /** the map switch: next step plays the new circuit, the bus keeps running */
-  setTrack(id: string) {
-    const next = trackFor(id);
-    if (next.id === this.track.id) return;
-    this.track = next;
-    this.musicStep = 0;
-  }
-
-  private pump(t: number) {
-    if (!this.ctx) return;
-    const track = this.track;
-    const span = loopSteps(track);
-    const dur = stepSeconds(track);
-    // a pause leaves the cursor in the past; never schedule a burst of catch-up
-    if (this.musicNext < t) this.musicNext = t + 0.05;
-    while (this.musicNext < t + 0.25) {
-      const at = this.musicNext;
-      for (const hit of stepEvents(track, this.musicStep)) this.voice(hit, at);
-      this.musicStep = (this.musicStep + 1) % span;
-      this.musicNext += dur;
-    }
-  }
-
-  private voice(hit: Hit, at: number) {
-    if (hit.kind === 'drum') { this.drum(hit.drum, at, hit.dur, hit.level); return; }
-    for (const midi of hit.midi) {
-      const g = this.ctx!.createGain();
-      g.gain.setValueAtTime(0, at);
-      g.gain.linearRampToValueAtTime(hit.level, at + hit.attack);
-      g.gain.exponentialRampToValueAtTime(0.0005, at + hit.dur);
-      g.connect(this.musicGain);
-      const freq = midiToFreq(midi);
-      const o = this.ctx!.createOscillator();
-      o.type = hit.wave;
-      o.frequency.value = freq;
-      o.connect(g);
-      o.start(at);
-      o.stop(at + hit.dur + 0.02);
-      // the pad is a chord, so it gets one detuned twin to sound wide, cheap
-      if (hit.voice === 'pad') {
-        const twin = this.ctx!.createOscillator();
-        twin.type = hit.wave;
-        twin.frequency.value = freq;
-        twin.detune.value = -8;
-        twin.connect(g);
-        twin.start(at);
-        twin.stop(at + hit.dur + 0.02);
-      }
-    }
-  }
-
-  /** percussion: a pitched body for the kick, filtered noise for the rest */
-  private drum(kind: Drum, at: number, dur: number, level: number) {
-    const ctx = this.ctx!;
-    const g = ctx.createGain();
-    g.gain.setValueAtTime(level, at);
-    g.gain.exponentialRampToValueAtTime(0.0005, at + dur);
-    g.connect(this.musicGain);
-    if (kind === 'kick') {
-      const o = ctx.createOscillator();
-      o.type = 'sine';
-      o.frequency.setValueAtTime(160, at);
-      o.frequency.exponentialRampToValueAtTime(46, at + dur * 0.8);
-      o.connect(g);
-      o.start(at);
-      o.stop(at + dur + 0.02);
-      return;
-    }
-    if (!this.noiseBuf) return;
-    const src = ctx.createBufferSource();
-    src.buffer = this.noiseBuf;
-    src.playbackRate.value = kind === 'hat' || kind === 'shaker' ? 1.6 : 1;
-    const f = ctx.createBiquadFilter();
-    if (kind === 'snare') { f.type = 'bandpass'; f.frequency.value = 1900; f.Q.value = 1.1; }
-    else if (kind === 'hat') { f.type = 'highpass'; f.frequency.value = 7200; f.Q.value = 0.9; }
-    else { f.type = 'bandpass'; f.frequency.value = 5200; f.Q.value = 1.6; }
-    src.connect(f).connect(g);
-    src.start(at);
-    src.stop(at + Math.max(dur, 0.08) + 0.02);
   }
 
   update(car: Car, throttle: number, paused: boolean) {
@@ -277,11 +166,5 @@ export class Sound {
     this.kerb.gain.setTargetAtTime(
       paused || !car.onKerb ? 0 : kerbPulse * kerb * 0.05, t, 0.02,
     );
-
-    /* music: the carpet. Silence on the title/pause screens, and the faster the
-       engine turns the further it sits back, so the note stays the loudest thing */
-    const pitch = Math.min(1, sp / 26);
-    this.musicGain.gain.setTargetAtTime(paused ? 0 : 0.12 - pitch * 0.035, t, 0.2);
-    if (!paused) this.pump(t);
   }
 }
