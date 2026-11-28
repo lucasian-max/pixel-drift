@@ -187,15 +187,16 @@ export interface Stinger {
 }
 
 /* PEARL DRIFT — the orb shimmer. A struck bell: inharmonic partials, long
-   decay, and one soft gliss underneath as the rear lets go. */
+   decay, and one soft gliss underneath as the rear lets go. Loud enough to be
+   heard over the engine it fires on top of, which is the whole point. */
 const pearl: Stinger = {
   name: 'PEARL DRIFT',
   events: [
-    tone(0, 1318.5, 0.9, 'sine', 0.045),
-    tone(0, 2637, 0.55, 'sine', 0.018),
-    tone(0, 3730, 0.35, 'sine', 0.012),
-    tone(0, 660, 0.28, 'sine', 0.030, 990),
-    noise(0, 6000, 0.8, 0.45, 0.012, 9000),
+    tone(0, 1318.5, 0.9, 'sine', 0.10),
+    tone(0, 2637, 0.55, 'sine', 0.038),
+    tone(0, 3730, 0.35, 'sine', 0.026),
+    tone(0, 660, 0.28, 'sine', 0.062, 990),
+    noise(0, 6000, 0.8, 0.45, 0.026, 9000),
   ],
 };
 
@@ -217,9 +218,9 @@ const thunder: Stinger = {
 const tunnel: Stinger = {
   name: 'TUNNEL',
   events: [
-    tone(0, 400, 0.35, 'sine', 0.06, 1500),
-    tone(0.002, 404, 0.35, 'sine', 0.035, 1516),
-    noise(0, 600, 1.2, 0.38, 0.045, 2400),
+    tone(0, 400, 0.35, 'sine', 0.11, 1500),
+    tone(0.002, 404, 0.35, 'sine', 0.062, 1516),
+    noise(0, 600, 1.2, 0.38, 0.082, 2400),
   ],
 };
 
@@ -242,19 +243,20 @@ export function stingerFor(name: string): Stinger {
 
 /* ---------------------------------------------------------------- game feel */
 
-/** crossing the line: a dry two-note lift, no fanfare */
+/** crossing the line: a dry two-note lift, no fanfare — but loud enough to be
+ *  heard over the engine that is still running underneath it */
 export const LAP_EVENTS: readonly Event[] = [
-  tone(0, 880, 0.09, 'square', 0.05),
-  tone(0.09, 1174.7, 0.16, 'square', 0.04),
+  tone(0, 880, 0.09, 'square', 0.11),
+  tone(0.09, 1174.7, 0.16, 'square', 0.09),
 ];
 
 /** ...and when it is the best lap you have ever driven on this circuit */
 export const LAP_BEST_EVENTS: readonly Event[] = [
-  tone(0, 880, 0.08, 'square', 0.05),
-  tone(0.08, 1108.7, 0.08, 'square', 0.05),
-  tone(0.16, 1318.5, 0.10, 'square', 0.05),
-  tone(0.26, 1760, 0.34, 'square', 0.045),
-  tone(0.26, 880, 0.34, 'triangle', 0.030),
+  tone(0, 880, 0.08, 'square', 0.11),
+  tone(0.08, 1108.7, 0.08, 'square', 0.11),
+  tone(0.16, 1318.5, 0.10, 'square', 0.11),
+  tone(0.26, 1760, 0.34, 'square', 0.10),
+  tone(0.26, 880, 0.34, 'triangle', 0.07),
 ];
 
 /** leaving the line: the run has started */
@@ -266,8 +268,9 @@ export const START_EVENTS: readonly Event[] = [
 /** a menu press: one dry click, no tail */
 export const CLICK_EVENTS: readonly Event[] = [tone(0, 720, 0.035, 'square', 0.04, 640)];
 
-/** dropping a wheel onto gravel: a low scuff and a spray */
+/** dropping a wheel onto gravel: a low scuff and a spray, pitched where a
+ *  laptop speaker can still render it */
 export const GRAVEL_EVENTS: readonly Event[] = [
-  tone(0, 96, 0.13, 'triangle', 0.09, 52),
-  noise(0.005, 1400, 0.8, 0.18, 0.045, 700),
+  tone(0, 140, 0.13, 'triangle', 0.15, 70),
+  noise(0.005, 1600, 0.8, 0.18, 0.075, 700),
 ];
