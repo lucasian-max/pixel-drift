@@ -12,7 +12,7 @@ import { CAR_NAMES } from './carModel';
 import { carStatRows } from './carStats';
 import { CAR_POWERS, powerColour } from './powers';
 import { Input } from './input';
-import { PixelUI } from './pixelui';
+import { PixelUI, mapAccent } from './pixelui';
 import { loadSheet, shadowPatch } from './stack';
 import { Sound } from './sound';
 import { account } from './account';
@@ -235,6 +235,10 @@ const wishlist = (() => {
 #wish-head::before { content: ''; width: 0.25em; height: 1em; background: #e0513f; }
 #wish-title { margin: 0; font-size: 1em; font-weight: 700; letter-spacing: 0.3em;
   color: #f2eee1; }
+#wish-weight { margin-left: auto; align-self: center; font-size: 0.72em;
+  font-weight: 700; letter-spacing: 0.1em; }
+#wish-hint { margin: 0 0 0.6em; font-size: 0.68em;
+  color: rgba(242,238,225,0.45); letter-spacing: 0.08em; }
 #wish-close { margin-left: auto; font: inherit; font-size: 0.75em; padding: 0.35em 0.6em;
   cursor: pointer; color: #f2eee1; background: #1c2026;
   border: 2px solid rgba(242,238,225,0.55); }
@@ -289,8 +293,10 @@ const wishlist = (() => {
     <div id="wish-board">
       <div id="wish-head">
         <h2 id="wish-title">WISHLIST</h2>
+        <span id="wish-weight" hidden></span>
         <button type="button" id="wish-close">CLOSE</button>
       </div>
+      <p id="wish-hint">RANK 1 ON A MAP DOUBLES YOUR VOTE</p>
       <ul id="wish-list"></ul>
       <p id="wish-empty" class="wish-note">NO WISHES YET — WRITE THE FIRST ONE</p>
       <form id="wish-form" novalidate>
@@ -305,6 +311,8 @@ const wishlist = (() => {
 
   const listEl = overlay.querySelector<HTMLElement>('#wish-list')!;
   const emptyEl = overlay.querySelector<HTMLElement>('#wish-empty')!;
+  const weightEl = overlay.querySelector<HTMLElement>('#wish-weight')!;
+  const hintEl = overlay.querySelector<HTMLElement>('#wish-hint')!;
   const formEl = overlay.querySelector<HTMLFormElement>('#wish-form')!;
   const inputEl = overlay.querySelector<HTMLInputElement>('#wish-input')!;
   const sendEl = overlay.querySelector<HTMLButtonElement>('#wish-send')!;
@@ -367,6 +375,13 @@ const wishlist = (() => {
     emptyEl.hidden = board.requests.length > 0 || !board.enabled;
     formEl.hidden = !posting;
     signinEl.hidden = signedIn || !board.enabled;
+    // the owner's rank system, said out loud: the hint for everyone, the
+    // caller's own multiplier for the ones the leaderboard already doubled
+    hintEl.hidden = !board.enabled;
+    const mult = board.weight ?? 1;
+    weightEl.hidden = !(signedIn && board.enabled && mult > 1);
+    weightEl.textContent = `YOUR VOTE: ${mult}X`;
+    weightEl.style.color = mapAccent(account.map);
     if (!board.enabled) {
       say('the wishlist is closed');
       listEl.replaceChildren();
@@ -742,6 +757,7 @@ async function boot() {
     camYaw = car.heading;
     setGantryBanner(true);
     adminPanel = false;
+    nudgeUp = false;   // the card is title furniture; it never rides into a race
     recorder.beginLap({ ...lapInfo(), launch: true });
     sound.start();
   };
@@ -768,6 +784,14 @@ async function boot() {
   let garage = false;
   let powerInfo = false;
   let settings = false;
+  /* the wishlist's one-time arrival card: raised once when the server says
+     this account has never seen the board, lowered by any way out. */
+  let nudgeUp = false;
+  const closeNudge = () => {
+    if (!nudgeUp) return;
+    nudgeUp = false;
+    void account.markRequestsSeen();   // once per account, never per visit
+  };
   /* the full-board modal: one circuit per page so names never truncate, with
      tabs (or A/D) flipping pages and the wheel scrolling the page's rows.
      Data is fetched fresh on open; a stale copy is fine until it lands. */
@@ -973,6 +997,15 @@ async function boot() {
       fullBoardOpen = false;
       wishlist.open();
     }
+    else if (a === 'nudge-write') {
+      // the one-time card's way in: straight to the board, pen in hand
+      closeNudge();
+      powerInfo = false;
+      settings = false;
+      fullBoardOpen = false;
+      wishlist.open();
+    }
+    else if (a === 'nudge-later') closeNudge();
     else if (a === 'setting-sound') sound.toggleMute();
     else if (a === 'setting-ghost') {
       playerGhost = !playerGhost;
@@ -1067,6 +1100,9 @@ async function boot() {
   addEventListener('pointerdown', (e) => {
     if (loginForm.isOpen() || wishlist.isOpen()) return;
     const hit = ui.hit(e.clientX, e.clientY);
+    // the one-time card is non-modal: a click anywhere that is not one of its
+    // own two buttons is a click-away dismissal
+    if (nudgeUp && hit !== 'nudge-write' && hit !== 'nudge-later') closeNudge();
     if (!hit) return;
     if (running) {                 // mid-race the only wired chip is the menu
       if (hit === 'menu') backToTitle();
@@ -1078,6 +1114,8 @@ async function boot() {
     if (loginForm.isOpen() || wishlist.isOpen()) return;   // the overlay owns its keys
     /* session keys are single-shot: key auto-repeat would storm them */
     const fresh = !e.repeat;
+    // the one-time card steps out of the way on Escape, title keys live on
+    if (fresh && e.code === 'Escape' && nudgeUp) { closeNudge(); return; }
     /* pause is handled here rather than in Input so a held key cannot toggle it on
        every repeat and the wrap is checked before the state flips: Esc closes the
        wrap, P pauses it, and a pause already on outranks the wrap either way */
@@ -1687,6 +1725,7 @@ async function boot() {
         };
       })(),
       board: boardOn,
+      nudge: nudgeUp,
       fullBoard: fullBoardOpen ? {
         maps: MAPS.map((m) => ({
           id: m.id,
@@ -1710,7 +1749,12 @@ async function boot() {
     sound.update(car, controls.throttle, input.paused);
   };
   frame();
-  void sessionReady.then(() => { if (account.user) flushLaps(); });
+  void sessionReady.then(() => {
+    if (account.user) flushLaps();
+    // arrival only: the server flags accounts that have never met the board,
+    // and the title shows them the way in exactly once (never mid-race)
+    if (account.user && account.requestNudge && !running) nudgeUp = true;
+  });
 
   (window as unknown as { game: unknown }).game = {
     car, world, camera, renderer, scene, account, recorder, ui, sound,

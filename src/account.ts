@@ -37,8 +37,14 @@ export interface WishRequest {
 }
 
 /** The board as the server allows it: `enabled:false` is the owner's switch
-    (temporary feature), not a failure, and it comes with no rows. */
-export interface WishBoard { enabled: boolean; requests: WishRequest[] }
+    (temporary feature), not a failure, and it comes with no rows. `weight`
+    is this account's own vote multiplier off the server's leaderboard
+    (1 for guests and rank-less accounts). */
+export interface WishBoard {
+  enabled: boolean;
+  requests: WishRequest[];
+  weight?: number;
+}
 
 export interface WishResult { ok: boolean; error?: string; votes?: number; voted?: boolean }
 
@@ -168,6 +174,9 @@ export const account = {
   ghost: null as GhostLap | null,
   offline: false,
   busy: false,
+  /** the server's one-time requests card: signed in, board on, and this
+      account has never seen it. Arrival-only furniture on the title */
+  requestNudge: false,
 
   /** Load session + the leaderboard for one map. A 401 just means signed
       out; only a network/5xx failure flips `offline`. */
@@ -180,14 +189,17 @@ export const account = {
     let user: User | null = null;
     let times: TimeEntry[] = sameMap ? this.times : [];
     let bests: Record<string, number> | null = null;
+    let requestNudge = false;
 
     const me = await request<{
       user?: User | null; features?: Features; bests?: Record<string, number>;
+      requestNudge?: boolean;
     }>('/api/me', 'GET');
     if (me.status === 0 || me.status >= 500) offline = true;
     else if (me.ok) {
       user = me.body?.user ?? null;
       bests = me.body?.bests ?? null;
+      requestNudge = me.body?.requestNudge === true;
     }
 
     const board = await request<{ times?: TimeEntry[]; features?: Features; ghost?: GhostLap }>(
@@ -207,6 +219,7 @@ export const account = {
     this.user = user;
     this.times = times;
     this.bests = user ? bests : null;
+    this.requestNudge = user ? requestNudge : false;
     this.offline = offline;
     this.busy = false;
   },
@@ -222,11 +235,16 @@ export const account = {
   /** The wishlist board: readable signed out, and empty while the owner's
       `requests` flag is off. Null only when the server cannot be reached. */
   async fetchRequests(): Promise<WishBoard | null> {
-    const r = await request<{ enabled?: boolean; requests?: WishRequest[] }>('/api/requests', 'GET');
+    const r = await request<{
+      enabled?: boolean; requests?: WishRequest[]; weight?: number;
+    }>('/api/requests', 'GET');
     if (!r.ok || !r.body) return null;
     return {
       enabled: r.body.enabled === true,
       requests: Array.isArray(r.body.requests) ? r.body.requests : [],
+      weight: typeof r.body.weight === 'number' && r.body.weight >= 1
+        ? Math.round(r.body.weight)
+        : 1,
     };
   },
 
@@ -248,6 +266,14 @@ export const account = {
       return { ok: false, error: wishError(r.status, r.body?.error) };
     }
     return { ok: true, votes: r.body?.votes ?? 0, voted: r.body?.voted === true };
+  },
+
+  /** The one-time requests card's bookkeeping: this account has now seen the
+      board, so the title never shows it again. Fire-and-forget by design —
+      a lost call just means the card gets one more chance. */
+  async markRequestsSeen(): Promise<void> {
+    const r = await request<unknown>('/api/requests/seen', 'POST');
+    if (r.status === 401) this.user = null;
   },
 
   async login(username: string, password: string): Promise<AccountResult> {

@@ -26,6 +26,7 @@ const MAP_ACCENTS: Record<string, string> = {
   interlagos: '#2f9e55',  // Interlagos: the flag green its kerbs and boards fly
 };
 const mapAccent = (id: string | undefined) => (id && MAP_ACCENTS[id]) || ACCENT;
+export { mapAccent };
 
 const DIM = 'rgba(242,238,225,0.55)';
 const INKD = 'rgba(20,22,26,0.55)';
@@ -98,6 +99,10 @@ export interface UiState {
   };
   /** the title leaderboard panel is a choice now: false hides it */
   board?: boolean;
+  /** the wishlist's one-time arrival card: the server flagged this account
+      as never having seen the board. Title-only furniture — no modal, no
+      key trapping; any click away, Escape, or starting a run dismisses it */
+  nudge?: boolean;
   powerBlurb?: string;
   powerEffect?: string;
   powerDuration?: number;
@@ -161,6 +166,7 @@ export type HitId = 'prev-car' | 'next-car' | 'solo' | 'login' | 'logout'
   | 'power-info' | 'garage' | 'garage-back' | 'menu'
   | 'admin' | 'admin-close' | 'admin-clear' | 'admin-dashboard' | 'admin-upload' | `admin-del-${number}`
   | 'settings' | `setting-${string}` | 'requests'
+  | 'nudge-write' | 'nudge-later'
   | 'board-all' | 'fullboard-close' | `fb-map-${string}` | `pick-map-${string}`;
 
 interface Button { id: HitId; x: number; y: number; w: number; h: number; label: string }
@@ -183,6 +189,9 @@ export class PixelUI {
   /** the temporary wishlist chip: canvas side is only the way in — the board
       itself is a DOM overlay in src/main.ts */
   private bRequests: Button = { id: 'requests', x: 0, y: 0, w: 66, h: 14, label: 'REQUESTS' };
+  /** the one-time wishlist card's two ways out: into the board, or not now */
+  private bNudgeWrite: Button = { id: 'nudge-write', x: 0, y: 0, w: 74, h: 14, label: 'WRITE ONE' };
+  private bNudgeLater: Button = { id: 'nudge-later', x: 0, y: 0, w: 58, h: 14, label: 'NOT NOW' };
   private bSolo: Button = { id: 'solo', x: 0, y: 0, w: 148, h: 28, label: 'SOLO' };
   private bMenu: Button = { id: 'menu', x: 0, y: 0, w: 66, h: 18, label: 'M MENU' };
   private bLogin: Button = { id: 'login', x: 0, y: 0, w: 72, h: 14, label: 'SIGN IN' };
@@ -220,6 +229,8 @@ export class PixelUI {
   private bootCover = false;
   /** each circuit's outline, normalised, built once for the map cards */
   private outlines = new Map<string, { pts: Float32Array; ext: number; dot: boolean }>();
+  /** when the one-time wishlist card dropped in; -1 when it is away */
+  private nudgeAt = -1;
 
   /** the garage's power-demo window, in canvas pixels, or null when no demo is
       on screen. src/main.ts parks the power clip over exactly this rect, so the
@@ -1746,6 +1757,58 @@ export class PixelUI {
     if (state.powerInfo) this.drawPowerInfo(state);
     if (state.settings) this.drawSettings(state);
     if (state.fullBoard) this.drawFullBoard(state);
+
+    /* ---- the wishlist's one-time arrival card, over the title's floor ----
+       Motivation, not a workflow: the server flags accounts that have never
+       met the board, and the title points the way exactly once. It is a
+       card, not a modal: the game's keys stay live, and it steps aside for
+       the title's own modals and the race itself. */
+    if (state.nudge && !state.powerInfo && !state.settings && !state.fullBoard) {
+      if (this.nudgeAt < 0) this.nudgeAt = time;
+      const a = this.stage(time - this.nudgeAt, 0.02, 0.22, 4);
+      const nw = 200;
+      const nh = 66;
+      const nx = 8;
+      const ny = Math.round(h - 16 - nh - 6 + (1 - a) * 8);
+      pxRect(c, nx + 3, ny + 3, nw, nh, SHADOW);
+      pxRect(c, nx, ny, nw, nh, SLAB);
+      pxBorder(c, nx, ny, nw, nh, 'rgba(242,238,225,0.75)');
+      c.fillStyle = ACCENT;
+      c.fillRect(nx + 1, ny + 4, 2, nh - 8);
+      this.text('WHAT SHOULD WE BUILD NEXT?', nx + 9, ny + 6, { size: 8, weight: 700 });
+      this.text('WRITE A FEATURE REQUEST,', nx + 9, ny + 18, { size: 8, color: DIM });
+      this.text("VOTE ON WHAT'S THERE", nx + 9, ny + 27, { size: 8, color: DIM });
+      const wl = 'WRITE ONE';
+      const ww = this.measure(wl, 8, 700) + 14;
+      const nl = 'NOT NOW';
+      const lw = this.measure(nl, 8, 700) + 14;
+      const writeHot = hot === 'nudge-write';
+      const pw2 = this.press('nudge-write');
+      this.bNudgeWrite.x = nx + 9;
+      this.bNudgeWrite.y = ny + 42 + pw2.dy;
+      this.bNudgeWrite.w = ww;
+      this.bNudgeWrite.h = 14 + pw2.dh;
+      pxRect(c, this.bNudgeWrite.x, this.bNudgeWrite.y, ww, this.bNudgeWrite.h, writeHot ? '#e6604e' : ACCENT);
+      pxBorder(c, this.bNudgeWrite.x, this.bNudgeWrite.y, ww, this.bNudgeWrite.h, CREAM);
+      this.text(wl, this.bNudgeWrite.x + ww / 2, this.bNudgeWrite.y + 3,
+        { size: 8, weight: 700, align: 'center' });
+      this.buttons.push({ ...this.bNudgeWrite });
+      const laterHot = hot === 'nudge-later';
+      const pl = this.press('nudge-later');
+      this.bNudgeLater.x = nx + 9 + ww + 6;
+      this.bNudgeLater.y = ny + 42 + pl.dy;
+      this.bNudgeLater.w = lw;
+      this.bNudgeLater.h = 14 + pl.dh;
+      pxRect(c, this.bNudgeLater.x, this.bNudgeLater.y, lw, this.bNudgeLater.h,
+        laterHot ? 'rgba(242,238,225,0.18)' : SLAB);
+      pxBorder(c, this.bNudgeLater.x, this.bNudgeLater.y, lw, this.bNudgeLater.h,
+        laterHot ? CREAM : 'rgba(242,238,225,0.55)');
+      this.text(nl, this.bNudgeLater.x + lw / 2, this.bNudgeLater.y + 3,
+        { size: 8, color: laterHot ? CREAM : DIM, align: 'center' });
+      this.buttons.push({ ...this.bNudgeLater });
+    } else {
+      this.nudgeAt = -1;
+    }
 
     this.hoverId = this.hitIdAt(this.hx, this.hy);
   }
