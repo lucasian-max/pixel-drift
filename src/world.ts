@@ -183,8 +183,10 @@ export const MAPS: MapDef[] = [
         { near: [31, -26], metres: 46, side: 1, offset: 9.5, step: 7 },
         // palms up the sandy rise on the exit of the carousel, pines behind them
         { near: [19, -12], metres: 22, side: -1, offset: 8, step: 6.5, palm: true },
-        // a windbreak behind the far side of the bottom straight
-        { near: [-6, 58], metres: 110, side: -1, offset: 12, step: 9 },
+        // a windbreak behind the far side of the bottom straight: two ranks of
+        // grown pines, thick enough to read as a wall from the racing line
+        { near: [-6, 58], metres: 110, side: -1, offset: 12, step: 6.5, scale: 1.2 },
+        { near: [-6, 58], metres: 110, side: -1, offset: 17.5, step: 9, scale: 1.1 },
       ],
       groves: [
         { x: 30, z: -63, r: 15, n: 20 },                       // the ridge behind the village
@@ -834,7 +836,7 @@ function paintGround(track: P2[], map: MapDef): HTMLCanvasElement {
       if (px < 40 || py < 40 || px > PX - 40 || py > PX - 40) return;
       const rx = (4.5 + rnd() * 9) * PPU, ry = (3 + rnd() * 6) * PPU;
       pans.push({ x: px, y: py, rx, ry });
-      g.fillStyle = rnd() > 0.5 ? 'rgba(122,148,96,0.30)' : 'rgba(186,192,146,0.26)';
+      g.fillStyle = rnd() > 0.5 ? 'rgba(122,148,96,0.42)' : 'rgba(196,198,150,0.40)';
       g.beginPath();
       g.ellipse(px, py, rx, ry, rnd() * Math.PI, 0, Math.PI * 2);
       g.fill();
@@ -845,10 +847,23 @@ function paintGround(track: P2[], map: MapDef): HTMLCanvasElement {
       panAt(lx + Math.cos(a) * d * PPU, ly + Math.sin(a) * d * 0.8 * PPU);
     }
     /* The ground the map keeps clear of trees is the salt flat, so the flat is
-       painted as pan and reed: an empty quarter that reads as a place. */
+       painted as pan and reed: one broad pale wash per zone carries the plain,
+       a scatter of bright salt speckle sits on it, and the pans and their reed
+       rings gather on top — an empty quarter that reads as a place, not as
+       scattered ovals. */
     if (map.marsh && map.dressing?.open) {
       for (const zone of map.dressing.open) {
-        const n = Math.max(3, Math.round(zone.r / 6));
+        const zx = (zone.x + HALF_G) * PPU, zy = (zone.z + HALF_G) * PPU;
+        g.fillStyle = 'rgba(214,212,172,0.42)';
+        g.beginPath();
+        g.ellipse(zx, zy, zone.r * 0.92 * PPU, zone.r * 0.6 * PPU, rnd() * Math.PI, 0, Math.PI * 2);
+        g.fill();
+        for (let i = 0; i < zone.r * 9; i++) {
+          g.fillStyle = rnd() > 0.5 ? 'rgba(238,236,220,0.5)' : 'rgba(210,208,180,0.42)';
+          g.fillRect((zx + (rnd() - 0.5) * zone.r * 1.6 * PPU) | 0,
+            (zy + (rnd() - 0.5) * zone.r * 1.05 * PPU) | 0, 1, 1);
+        }
+        const n = Math.max(6, Math.round(zone.r / 2.4));
         for (let i = 0; i < n; i++) {
           const a = rnd() * Math.PI * 2, r = zone.r * Math.sqrt(rnd()) * 0.85;
           panAt((zone.x + Math.cos(a) * r + HALF_G) * PPU,
