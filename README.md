@@ -48,15 +48,17 @@ cool idea that I wanted to pursue.
 <img width="3177" height="1840" alt="image" src="https://github.com/user-attachments/assets/f83f2b8f-0e79-469a-b9ca-c752e94b21ea" />
 
 
-## THREE CIRCUITS
+
+## FIVE CIRCUITS
 
 | | |
 | --- | --- |
 | **Saltmarsh Coast** - a technical circuit with a lake, pines and palms | **Frostbite Pass** - a big snow circuit with snow pines, a frozen lake and falling snow |
 | ![coast](docs/coast.png) | ![ice](docs/alpine.png) |
-| **Sakura Circuit** - a Japanese-themed figure-eight with sakura trees, torii and an overpass | |
-| ![sakura](docs/sakura.png) | |
-
+| **Sakura Circuit** - a Japanese-themed figure-eight with sakura trees, torii and an overpass | **Mirage Mesa** - a curvy and technical desert themed map |
+| ![sakura](docs/sakura.png) | ![mesa](docs/mesa.png) |
+| **Interlagos** - a São Paulo style circuit| |
+| ![interlagos](docs/interlagos.png) | |
 
 
 ## PROBLEMS I HAD TO FIX
