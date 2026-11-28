@@ -36,8 +36,9 @@ export class Input {
     if (k.has('KeyD') || k.has('ArrowRight')) { steer -= 1; usedKeys = true; }
     if (k.has('KeyW') || k.has('ArrowUp')) { throttle += 1; usedKeys = true; }
     if (k.has('KeyS') || k.has('ArrowDown')) { throttle -= 1; usedKeys = true; }
-    if (k.has('Space')) { hb = true; usedKeys = true; }
-    if (k.has('ShiftLeft') || k.has('ShiftRight')) { throttle = Math.min(1, throttle + 0.35); usedKeys = true; }
+    /* drift is SPACE or SHIFT: either Shift key is the same handbrake, so the
+       theme is under the player's left hand as well as their thumb */
+    if (k.has('Space') || k.has('ShiftLeft') || k.has('ShiftRight')) { hb = true; usedKeys = true; }
     this.look = 0;
     if (k.has('KeyQ')) this.look -= 1;
     if (k.has('KeyE')) this.look += 1;

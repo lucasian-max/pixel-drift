@@ -98,7 +98,7 @@ The game runs without the API however you just can't save lap times.
 | Action | Keys |
 | --- | --- |
 | Drive | WASD / arrows |
-| Handbrake drift | Space |
+| Handbrake drift | Space / Shift |
 | Superpower | F |
 | Look around | Q / E or drag |
 | Re-lock the chase camera | T |

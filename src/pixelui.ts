@@ -549,7 +549,7 @@ export class PixelUI {
       /* the strip has to clear the minimap on one side and the speedo on the
          other; at 4:3 the full line ran under the speedo, so drop keys from the
          end until it fits between them */
-      const parts = ['WASD DRIVE', 'SPACE DRIFT', 'F POWER', 'R RESET'];
+      const parts = ['WASD DRIVE', 'SPACE/SHIFT DRIFT', 'F POWER', 'R RESET'];
       this.font(8);
       let msg = parts.join('   ');
       while (parts.length > 1 && Math.ceil(c.measureText(msg).width) + 16 > this.w - 286) {
@@ -1214,7 +1214,7 @@ export class PixelUI {
        │      view car
        │    [  P L A Y  ]
        │      or press space
-       └ WASD DRIVE   SPACE DRIFT   F POWER   Q E LOOK   R RESET   N MUTE ┘
+       └ WASD DRIVE  SPACE/SHIFT DRIFT  F POWER  Q E LOOK  R RESET  N MUTE ┘
 
      The old title stacked nine things in that column and ran out of width at
      five maps: the tab row measured ~430px and broke at eight. The grid is
@@ -1587,7 +1587,7 @@ export class PixelUI {
     this.drawMenuButton(state, time, hot);
     if (this.menuOpen) this.drawMenuPanel(state, time, hot);
 
-    this.text('WASD DRIVE   SPACE DRIFT   F POWER   Q E LOOK   R RESET   N MUTE', cx, h - 26, {
+    this.text('WASD DRIVE   SPACE/SHIFT DRIFT   F POWER   Q E LOOK   R RESET   N MUTE', cx, h - 26, {
       size: 8, color: HINT, align: 'center',
     });
 
