@@ -32,6 +32,11 @@ export const FEATURES_DEFAULT_OFF = ['botguard', 'requests'];
 export const REQUEST_TEXT_MIN = 2;
 export const REQUEST_TEXT_MAX = 80;
 
+/** The owner's vote system: a vote weighs 2^(maps where you are rank 1),
+ *  capped at 32 for owning all five. The cap is a rule, not an observation —
+ *  a sixth circuit some day must not hand out 64. */
+export const VOTE_WEIGHT_CAP = 32;
+
 /** Admin names come from SPRITE_ADMINS and/or server/data/admins.json,
  *  never from the client. The data folder is gitignored. */
 function loadAdminNames(dataPath) {
@@ -141,6 +146,14 @@ export class Store {
       requests: Array.isArray(parsed.requests) ? parsed.requests : [],
       features: readFeatures(parsed.features),
     };
+    // Votes used to be bare account ids; they are entries with a weight now.
+    // A db from before the rank system keeps every old vote at weight 1 —
+    // exactly what it counted for all those years.
+    for (const r of this.db.requests) {
+      r.votes = (Array.isArray(r.votes) ? r.votes : [])
+        .map((v) => (typeof v === 'string' ? { userId: v, weight: 1 } : v))
+        .filter((v) => v && typeof v.userId === 'string');
+    }
     // seed the lap history once from pre-history best times
     if (!Array.isArray(parsed.laps) && this.db.times.length > 0) {
       this.db.laps = this.db.times.map((t) => ({
@@ -554,9 +567,40 @@ export class Store {
   /* ---- the wishlist board (`requests`) ------------------------------------
      Temporary: the owner asked for a place where his players, online right
      now, can write down what they want and vote on each other's asks. Votes
-     are account ids, so one account is one vote per request and the same
+     are account entries, so one account is one vote per request and the same
      click takes it back — no counter to drift, no way to stuff the ballot
-     from a second tab. */
+     from a second tab. Each entry carries the weight the server computed
+     the moment it landed: the owner's system doubles a vote per map the
+     voter holds rank 1 on, so the board speaks with the fast crowd's voice
+     without shutting anyone else up. */
+
+  /** A request's score: the sum of its votes' weights. */
+  _requestVotes(request) {
+    let n = 0;
+    for (const v of request.votes) n += Number.isInteger(v.weight) && v.weight > 0 ? v.weight : 1;
+    return n;
+  }
+
+  /** How many maps this player is rank 1 on, read straight off the
+      leaderboard at the moment someone asks. Rank lost later re-prices the
+      next vote; it never rewrites one already cast. */
+  mapsOwnedBy(userId) {
+    const best = new Map(); // map -> its rank-1 time
+    for (const t of this.db.times) {
+      const cur = best.get(t.map);
+      if (!cur || t.ms < cur.ms) best.set(t.map, t);
+    }
+    let owned = 0;
+    for (const t of best.values()) if (t.userId === userId) owned++;
+    return owned;
+  }
+
+  /** This account's vote weight: 2^rank-1-maps, capped at VOTE_WEIGHT_CAP.
+      No maps owned — or an unknown account — is 1, exactly the vote the
+      board always counted. */
+  voteWeight(userId) {
+    return Math.min(VOTE_WEIGHT_CAP, 2 ** this.mapsOwnedBy(userId));
+  }
 
   /** The board in display order: most votes first, newest first inside a tie.
    *  Two wishes written in the same millisecond fall back to write order, so
@@ -566,12 +610,12 @@ export class Store {
     return this.db.requests
       .map((r, i) => ({ r, i }))
       .sort((a, b) =>
-        b.r.votes.length - a.r.votes.length
+        this._requestVotes(b.r) - this._requestVotes(a.r)
         || String(b.r.at).localeCompare(String(a.r.at))
         || b.i - a.i)
       .map(({ r }) => ({
         id: r.id, userId: r.userId, username: r.username, text: r.text, at: r.at,
-        votes: [...r.votes],
+        votes: r.votes.map((v) => ({ userId: v.userId, weight: v.weight })),
       }));
   }
 
@@ -594,15 +638,37 @@ export class Store {
     return { ...request, votes: [] };
   }
 
-  /** Toggle this player's vote on one ask: in -> out, out -> in. */
-  voteRequest(user, id) {
+  /** Toggle this player's vote on one ask: in -> out, out -> in. The vote
+   *  lands with the weight the server computed at click time — `weight` is
+   *  the API layer's own math off the leaderboard, and absent it falls back
+   *  to this store's — and the same click takes the whole weight back out. */
+  voteRequest(user, id, weight) {
     const request = this.db.requests.find((r) => r.id === id);
     if (!request) throw new StoreError(404, 'not_found', 'no such request');
-    const at = request.votes.indexOf(user.id);
-    if (at === -1) request.votes.push(user.id);
+    const w = Number.isInteger(weight) && weight > 0
+      ? Math.min(weight, VOTE_WEIGHT_CAP)
+      : this.voteWeight(user.id);
+    const at = request.votes.findIndex((v) => v.userId === user.id);
+    if (at === -1) request.votes.push({ userId: user.id, weight: w });
     else request.votes.splice(at, 1);
     this._scheduleSave();
-    return { id: request.id, votes: request.votes.length, voted: at === -1 };
+    return { id: request.id, votes: this._requestVotes(request), voted: at === -1 };
+  }
+
+  /** The one-time requests card: has this account already seen the board? */
+  hasRequestsSeen(userId) {
+    const user = this._userById(userId);
+    return !!user?.requestsSeen;
+  }
+
+  /** The one-time requests card: mark this account as having seen the board,
+   *  so the nudge never comes back. Idempotent by design — dismissing the
+   *  card twice is the normal case. */
+  markRequestsSeen(userId) {
+    const user = this._userById(userId);
+    if (!user || user.requestsSeen) return;
+    user.requestsSeen = true;
+    this._scheduleSave();
   }
 
   /** Admin only: take a wish off the board entirely. */

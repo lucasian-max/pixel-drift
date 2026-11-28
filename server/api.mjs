@@ -68,6 +68,7 @@ const KNOWN_PATHS = new Set([
   '/api/times',
   '/api/requests',
   '/api/requests/vote',
+  '/api/requests/seen',
   '/api/requests/delete',
   '/api/admin/delete-time',
   '/api/admin/clear-map',
@@ -153,17 +154,22 @@ function requestRateLimited(userId) {
   return false;
 }
 
-/** The wishlist as one caller sees it: a vote count instead of voter ids, and
- *  whether this caller is one of them, so the board can light the vote it
- *  already carries. Off means off: an empty board and `enabled:false`. */
+/** The wishlist as one caller sees it: a weighted vote count instead of voter
+ *  ids, whether this caller is one of them, and this caller's own vote
+ *  weight for the board header. Off means off: an empty board and
+ *  `enabled:false`. */
 function requestBoard(user) {
   const enabled = store.features().requests === true;
   if (!enabled) return { enabled: false, requests: [] };
   return {
     enabled: true,
+    // this caller's own multiplier, straight off the leaderboard: the
+    // header's YOUR VOTE chip is the server's math, not the client's guess
+    weight: user ? store.voteWeight(user.id) : 1,
     requests: store.listRequests().map((r) => ({
       id: r.id, username: r.username, text: r.text, at: r.at,
-      votes: r.votes.length, voted: user ? r.votes.includes(user.id) : false,
+      votes: r.votes.reduce((n, v) => n + v.weight, 0),
+      voted: user ? r.votes.some((v) => v.userId === user.id) : false,
     })),
   };
 }
@@ -235,7 +241,11 @@ async function handle(req, res, pathname) {
   if (pathname === '/api/me') {
     if (req.method !== 'GET') return send(res, 405, { error: 'method_not_allowed' });
     if (!user) return send(res, 401, { error: 'unauthorized' });
-    return send(res, 200, { user, features: store.features(), bests: store.bestsFor(user.id) });
+    return send(res, 200, {
+      user, features: store.features(), bests: store.bestsFor(user.id),
+      // the one-time requests card: signed in, board on, never seen yet
+      requestNudge: store.features().requests === true && !store.hasRequestsSeen(user.id),
+    });
   }
 
   if (pathname === '/api/times') {
@@ -342,7 +352,20 @@ async function handle(req, res, pathname) {
     if (store.features().requests !== true) return send(res, 403, { error: 'feature_disabled' });
     if (!user) return send(res, 401, { error: 'unauthorized' });
     const body = await readJsonBody(req);
-    return send(res, 200, store.voteRequest(user, body.id)); // 404 unknown id
+    // the weight is this server's own math off the leaderboard, computed at
+    // vote time — a client-sent weight is never read, and a rank lost since
+    // the last click lands on the next vote, not the one already cast
+    return send(res, 200, store.voteRequest(user, body.id, store.voteWeight(user.id)));
+  }
+
+  // /api/requests/seen — the one-time card's bookkeeping: this account has
+  // now met the board, so it never gets the nudge again. Not feature-gated:
+  // marking seen is idempotent and costs nothing with the board closed.
+  if (pathname === '/api/requests/seen') {
+    if (req.method !== 'POST') return send(res, 405, { error: 'method_not_allowed' });
+    if (!user) return send(res, 401, { error: 'unauthorized' });
+    store.markRequestsSeen(user.id);
+    return send(res, 200, { ok: true });
   }
 
   // /api/requests/delete — the owner's broom: only an admin can take a wish
