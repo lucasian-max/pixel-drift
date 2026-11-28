@@ -214,6 +214,10 @@ export class PixelUI {
   private wasGarage = false;
   /** the checker wipe between the title and the race */
   private wipeAt = -1;
+  /** a circuit switch: close the field, hold it shut, hand the page over under it */
+  private wipeCb: (() => void) | null = null;
+  /** booted behind the curtain (?cover): the first frame starts the reveal, not a fresh close */
+  private bootCover = false;
   /** each circuit's outline, normalised, built once for the map cards */
   private outlines = new Map<string, { pts: Float32Array; ext: number; dot: boolean }>();
 
@@ -335,9 +339,18 @@ export class PixelUI {
     c.clearRect(0, 0, this.w, this.h);
     c.imageSmoothingEnabled = false;
 
+    /* arrived behind the boot curtain: start at the moment the field is fully
+       closed, so the first thing the player sees of the new circuit is the
+       chequers opening off it — never a half-built world */
+    if (this.bootCover) {
+      this.wipeAt = time - 0.62 * 0.46;
+      this.bootCover = false;
+    }
+
     /* crossing between the title and the race is a change of screen, not a
-       fade: the checker wipe runs out and the entrance replays behind it */
-    if (state.started !== this.wasStarted) {
+       fade: the checker wipe runs out and the entrance replays behind it.
+       A wipe the boot curtain already armed is never overridden */
+    if (state.started !== this.wasStarted && this.wipeAt < 0) {
       this.wipeAt = time;
       this.menuOpen = false;
       this.titleAt = -1;
@@ -616,18 +629,61 @@ export class PixelUI {
     this.drawWipe(time);
   }
 
+  /** close the chequer field over whatever is on screen and hand the page over
+      once it is shut — a circuit switch navigates from under the curtain */
+  cover(then: () => void) {
+    this.wipeAt = performance.now() / 1000;
+    this.wipeCb = then;
+  }
+
+  /** this page booted behind the curtain (?cover): reveal, don't close */
+  startCovered() {
+    this.bootCover = true;
+  }
+
+  /** the curtain at full close, painted straight onto the canvas before the
+      world exists — the new circuit loads behind chequers, never behind a
+      half-built scene */
+  static checkerField(canvas: HTMLCanvasElement) {
+    const c = canvas.getContext('2d');
+    if (!c) return;
+    const cell = 8;
+    for (let i = 0; i * cell < canvas.width; i++) {
+      for (let j = 0; j * cell < canvas.height; j++) {
+        c.fillStyle = (i + j) % 2 === 0 ? CREAM : ASPHALT;
+        c.fillRect(i * cell, j * cell, cell, cell);
+      }
+    }
+  }
+
   /** the checker wipe: a field of 8px cells that closes in from the left and
       opens out again, on the same beat as the edges. Seven steps each way, so
       it reads as a curtain of chequers rather than a dissolve. */
   private drawWipe(time: number) {
     if (this.wipeAt < 0) return;
     const u = (time - this.wipeAt) / 0.46;
+    /* a circuit switch: close and HOLD shut. The handover fires from under the
+       full field; if the navigation somehow stalls, the wipe runs past u = 1
+       and clears itself, so a stuck curtain can never brick the screen */
+    if (this.wipeCb) {
+      if (u < 0) return;
+      const out = u < 0.62 ? Math.round(Math.min(1, u / 0.62) * 7) / 7 : 1;
+      this.wipeField(out);
+      if (out >= 1) { const cb = this.wipeCb; this.wipeCb = null; cb(); }
+      if (u >= 1) this.wipeAt = -1;
+      return;
+    }
     if (u < 0 || u >= 1) { this.wipeAt = -1; return; }
+    const quant = (p: number) => Math.round(Math.min(1, Math.max(0, p)) * 7) / 7;
+    const out = u < 0.62 ? quant(u / 0.62) : 1 - quant((u - 0.62) / 0.38);
+    this.wipeField(out);
+  }
+
+  /** the chequer field itself: closed at 1, a red leading edge while it runs */
+  private wipeField(out: number) {
     const c = this.ctx;
     const cell = 8;
     const cols = Math.ceil(this.w / cell), rows = Math.ceil(this.h / cell);
-    const quant = (p: number) => Math.round(Math.min(1, Math.max(0, p)) * 7) / 7;
-    const out = u < 0.62 ? quant(u / 0.62) : 1 - quant((u - 0.62) / 0.38);
     const edge = Math.round(cols * out);
     for (let i = 0; i < edge; i++) {
       for (let j = 0; j < rows; j++) {

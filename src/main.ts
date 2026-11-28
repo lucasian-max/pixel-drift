@@ -555,6 +555,17 @@ async function boot() {
     clean.searchParams.delete('room');
     history.replaceState(null, '', clean);
   }
+  /* arrived from a circuit switch: the boot curtain is up. Drop the marker so a
+     refresh lands clean, and keep the flag for the reveal below the fold */
+  const covered = params.has('cover');
+  if (covered) {
+    const clean = new URL(location.href);
+    clean.searchParams.delete('cover');
+    history.replaceState(null, '', clean);
+  }
+  /* the curtain goes up BEFORE the world starts building, so the new circuit
+     is never seen half-made — only chequers, then the reveal */
+  if (covered) PixelUI.checkerField(uiCanvas);
   const renderer = new THREE.WebGLRenderer({ canvas: gameCanvas, antialias: false, powerPreference: 'high-performance' });
   renderer.setPixelRatio(1);
   renderer.outputColorSpace = THREE.SRGBColorSpace;
@@ -689,6 +700,10 @@ async function boot() {
   addEventListener('resize', () => { resize(); ui.resize(); });
   resize();
   const ui = new PixelUI(uiCanvas, world.minimapPath, world.start);
+  /* the constructor's resize cleared the boot curtain: repaint the field at its
+     new size and arm the reveal — the first frame opens the chequers off the
+     finished world */
+  if (covered) { PixelUI.checkerField(uiCanvas); ui.startCovered(); }
   const sound = new Sound();   // two voices: the engine and the powers
   car.onImpact = (s: number) => {
     recorder.noteEvent('impact', { strength: s, x: car.x, z: car.z });
@@ -724,7 +739,12 @@ async function boot() {
     const m = MAPS[Math.max(0, Math.min(MAPS.length - 1, i))];
     const url = new URL(location.href);
     url.searchParams.set('map', m.id);
-    location.href = url.toString();
+    url.searchParams.set('cover', '1');
+    /* the chequer curtain closes over the circuit being left, and the
+       navigation happens under it: the next page boots behind the same
+       chequers and reveals from them, so a switch is cover → load → reveal,
+       never load → cover → reveal */
+    ui.cover(() => { location.href = url.toString(); });
   };
   const gotoMap = (delta: number) => {
     gotoMapAbs((mapIndex + delta + MAPS.length) % MAPS.length);
