@@ -174,6 +174,56 @@ export class CarShell {
     return m;
   }
 
+  /**
+   * Livery block painted on the flank that follows the hull: points are [z, y] and
+   * every vertex is pushed out to the body half-width at its own z, so a panel that
+   * runs the length of a tapering flank stays proud of it instead of sinking in at
+   * the door line or floating off the tail. Needs a decal material.
+   */
+  flankPanel(secs: Section[], pts: V2[], side: 1 | -1, mat: THREE.Material, lift = 0.006) {
+    const contour = pts.map(([z, y]) => new THREE.Vector2(z, y));
+    const tris = THREE.ShapeUtils.triangulateShape(contour, []);
+    const pos: number[] = [];
+    for (const [a, b, c] of tris) {
+      for (const i of [a, b, c]) {
+        const [z, y] = pts[i];
+        pos.push(side * (bodyAt(secs, z).hw + lift), y, z);
+      }
+    }
+    const g = new THREE.BufferGeometry();
+    g.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
+    g.computeVertexNormals();
+    const m = new THREE.Mesh(g, mat);
+    this.car.add(m);
+    return m;
+  }
+
+  /**
+   * Vertical livery band running the flank from z0 (front) to z1 (rear): bottom edge at
+   * y0, top edge following top(z). Sampled at every body station, so the strip tracks a
+   * flank that tapers instead of chording straight through it — which is what happens to
+   * any panel wide enough to straddle the nose taper. Needs a decal material.
+   */
+  flankBand(secs: Section[], side: 1 | -1, z0: number, z1: number, y0: number,
+    top: (z: number) => number, mat: THREE.Material, lift = 0.006) {
+    const zs = [z0, ...secs.map(s => s.z).filter(z => z < z0 && z > z1), z1];
+    const pos: number[] = [];
+    for (let i = 0; i < zs.length - 1; i++) {
+      const za = zs[i], zb = zs[i + 1];
+      const xa = side * (bodyAt(secs, za).hw + lift);
+      const xb = side * (bodyAt(secs, zb).hw + lift);
+      const ta = top(za), tb = top(zb);
+      pos.push(xa, y0, za, xb, y0, zb, xa, ta, za);
+      pos.push(xa, ta, za, xb, y0, zb, xb, tb, zb);
+    }
+    const g = new THREE.BufferGeometry();
+    g.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
+    g.computeVertexNormals();
+    const m = new THREE.Mesh(g, mat);
+    this.car.add(m);
+    return m;
+  }
+
   /** Wheel arch cut into the flank: half annulus extruded outward. */
   flare(zc: number, side: 1 | -1, o: { ro: number; ri: number; cy: number; y0: number; depth: number; x: number },
     mat: THREE.Material) {
@@ -194,6 +244,22 @@ export class CarShell {
     const m = new THREE.Mesh(geo, mat);
     m.rotation.y = (side * Math.PI) / 2;
     m.position.x = side * o.x;
+    this.car.add(m);
+    return m;
+  }
+
+  /** Dark half-disc behind a wheel: the arch opening the tyre reads against. Needs a decal material. */
+  archWell(secs: Section[], zc: number, side: 1 | -1, o: { r: number; cy: number; y0: number }, mat: THREE.Material) {
+    const pts: V2[] = [[zc - o.r, o.y0]];
+    for (let i = 16; i >= 0; i--) {
+      const a = (i / 16) * Math.PI;
+      pts.push([zc + o.r * Math.cos(a), o.cy + o.r * Math.sin(a)]);
+    }
+    pts.push([zc + o.r, o.y0]);
+    const shape = new THREE.Shape(pts.map(([z, y]) => new THREE.Vector2(side > 0 ? -z : z, y)));
+    const m = new THREE.Mesh(new THREE.ShapeGeometry(shape), mat);
+    m.rotation.y = (side * Math.PI) / 2;
+    m.position.x = side * (bodyAt(secs, zc).hw + 0.004);
     this.car.add(m);
     return m;
   }
