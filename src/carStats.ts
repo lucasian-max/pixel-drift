@@ -33,9 +33,6 @@ export const CAR_STATS: CarStats[] = [
   { top: 28, accel: 21, grip: 1.08, steer: 0.97, power: 0.90 },
 ];
 
-/** One-word identity, shown next to the power name in the garage. */
-export const CAR_CLASS = ['CONTROL', 'ROCKET', 'TELEPORT'];
-
 /**
  * Rated 1..10 against fixed anchors rather than against each other: a 9 means
  * "9/10 of what this game can do", so the ratings stay stable if a fourth car

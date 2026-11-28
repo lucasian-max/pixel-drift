@@ -46,8 +46,6 @@ export interface UiState {
   carNames?: string[];
   /** garage ratings for the selected car, from ./carStats: 1..10 per axis */
   carStatRows?: { label: string; rating: number; best: boolean }[];
-  /** one-word identity shown beside the power name in the garage */
-  carClass?: string;
   power?: {
     name: string; active: boolean; ready: boolean;
     cd: number; time: number; duration: number; cooldown: number; color: string; charge?: number;
@@ -770,7 +768,6 @@ export class PixelUI {
     const nm = (names[ci] ?? 'CAR').toUpperCase();
     const pw = CAR_POWERS[ci] ?? CAR_POWERS[0];
     const accent = powerColour(ci);
-    const cls = state.carClass ?? '';
 
     /* The band is a spec sheet now, in three cells that each own their space:
        the ratings column on the left, the car's name over its arrows across the
@@ -838,8 +835,7 @@ export class PixelUI {
 
     /* the header names the block and the car's identity in one phrase: two
        labels at opposite ends of the row read as two unrelated things */
-    let head = cls ? `CAR POWER · ${cls.toUpperCase()}` : 'CAR POWER';
-    while (head.length > 6 && this.measure(head, 8, 400, 1) > colW) head = head.slice(0, -1);
+    const head = 'CAR POWER';
     this.text(head, tx, py, { size: 8, color: DIM, spacing: 1 });
 
     let pwSize = compact ? 16 : 20;

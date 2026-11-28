@@ -9,7 +9,7 @@ import { buildWorld, MAPS } from './world';
 import { createWormAimRing } from './wormFx';
 import { Car } from './car';
 import { CAR_NAMES } from './carModel';
-import { CAR_CLASS, carStatRows } from './carStats';
+import { carStatRows } from './carStats';
 import { CAR_POWERS, powerColour } from './powers';
 import { Input } from './input';
 import { PixelUI } from './pixelui';
@@ -1337,7 +1337,6 @@ async function boot() {
       maps: MAPS.map((m) => ({ id: m.id, name: m.name })),
       carNames: CAR_NAMES,
       carStatRows: carStatRows(car.variant),
-      carClass: CAR_CLASS[car.variant] ?? '',
       power: {
         name: car.power.name,
         active: car.powerActive,
