@@ -478,7 +478,7 @@ const wishlist = (() => {
 
 const garageClip = (() => {
   /* one clip per car, in CAR_POWERS order */
-  const SRC = ['/clips/pearl-drift.webm', '/clips/thunderclap.webm', '/clips/tunnel.webm'];
+  const SRC = ['/clips/pearl-drift.webm', '/clips/thunderclap.webm', '/clips/tunnel-2.webm'];
 
   const style = document.createElement('style');
   style.textContent = `
